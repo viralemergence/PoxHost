@@ -7,6 +7,7 @@ rm(list=ls())
 graphics.off()
 
 ## libraries
+library(nlme)
 library(ape)
 library(dplyr)
 library(vroom)
@@ -30,9 +31,16 @@ virion %>%
 ## extract associations detected by PCR & Isolation only
 poxdata <- virion %>% 
   filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation","Antibodies"))) %>% 
-  select(Host,DetectionMethod) %>%
+  select(Host,Virus,DetectionMethod) %>%
   unique()
+
+## exclude NAs and variola virus
 poxdata <- poxdata[!is.na(poxdata$Host),]
+poxdata <- poxdata[!is.na(poxdata$Virus),]
+poxdata <- poxdata[!(poxdata$Virus=="variola virus"),]
+
+## clean
+#poxdata <- subset(poxdata, select=-c(Virus))
 
 ## subset detection by Antibodies
 antibodies <- poxdata[which(poxdata$DetectionMethod=="Antibodies"),]
@@ -49,6 +57,8 @@ competence$Competence <- 1
 ## merge PCR & Isolation data
 poxdata <- merge(pcr, competence, by="Host", all=TRUE)
 poxdata <- merge(poxdata, antibodies, by="Host", all=TRUE)
+
+## clean
 poxdata <- subset(poxdata, select=-c(DetectionMethod,DetectionMethod.x,DetectionMethod.y))
 
 ## recode as binary (replace NA with zeroes)
@@ -145,18 +155,16 @@ tree=read.nexus('phylo/MamPhy_fullPosterior_BDvr_Completed_5911sp_topoCons_NDexp
 
 ## simplify species names
 tree$tip.label[tree$tip.label=="_Anolis_carolinensis"] <- "Anolis_carolinensis"
-tree$tip=sapply(strsplit(tree$tip.label,'_'),function(x) paste(x[1],x[2],sep='_'))
+tree$tip.label=sapply(strsplit(tree$tip.label,'_'),function(x) paste(x[1],x[2],sep='_'))
 
 ######################################### AGGREGATE DATA AT GENUS LEVEL #########################################
 
-#### POX DATA ####
-
-## aggregate pox data at genus level
+## aggregate pox data
 gdata=aggregate(cbind(PCR,Competence,Antibodies) ~ gen+fam+ord+clade+higher, data=data, FUN=sum)
 
 #### TRAIT DATA ####
 
-## for continuous/integer variables, aggregate at the genus level taking the median
+## aggregate trait data: (1) for continuous/integer variables, use the median as the summary measure
 colnames(traits)
 gtraits_continuous=aggregate(cbind(adult_mass_g,brain_mass_g,adult_body_length_mm,adult_forearm_length_mm,
                                    max_longevity_d,maturity_d,female_maturity_d,male_maturity_d,
@@ -173,11 +181,11 @@ gtraits_continuous=aggregate(cbind(adult_mass_g,brain_mass_g,adult_body_length_m
                              ~ order.x+family.x+genus.x, data=traits, FUN=median, na.action=na.pass, na.rm=TRUE)
     # 'na.action=na.pass, na.rm=TRUE' is specified such that if species w/in a genus has a combination of real values & NAs, the median of real values will be returned (as opposed to omitting the genus or returning NA)
 
-## for binary variables, aggregate at the genus level taking the mean
+## aggregate trait data: (2) for binary variables, use the mean as the summary measure
 traits$fossoriality[traits$fossoriality==2]<-0  #recode 0/1
 gtraits_binary=aggregate(cbind(hibernation_torpor,fossoriality,freshwater,marine,terrestrial_non.volant,terrestrial_volant,island_dwelling,disected_by_mountains,glaciation) ~ order.x+family.x+genus.x, data=traits, FUN=mean, na.action=na.pass, na.rm=TRUE)
 
-## for categorical variables, create binary variables for each category
+## aggregate trait data: (3) transform categorical variables into binary
 gtraits_cat <- traits
 gtraits_cat$trophic_herbivores <- ifelse(gtraits_cat$trophic_level==1,1,0)
 gtraits_cat$trophic_omnivores <- ifelse(gtraits_cat$trophic_level==2,1,0)
@@ -204,7 +212,7 @@ gtraits_cat$biogeo_neotropical <- ifelse(grepl("Neotropical",gtraits_cat$biogeog
 gtraits_cat$biogeo_oceanian <- ifelse(grepl("Oceanian",gtraits_cat$biogeographical_realm),1,0)
 gtraits_cat$biogeo_palearctic <- ifelse(grepl("Palearctic",gtraits_cat$biogeographical_realm),1,0)
 
-## now aggregate at the genus level taking the mean
+## aggregate trait data: (4) for transformed binary variables, use the mean as the summary measure
 gtraits_cat=aggregate(cbind(trophic_herbivores,trophic_omnivores,trophic_carnivores,
                             activity_nocturnal,activity_crepuscular,activity_diurnal,
                             forager_marine,forager_ground,forager_scansorial,forager_arboreal,forager_aerial,
@@ -212,107 +220,124 @@ gtraits_cat=aggregate(cbind(trophic_herbivores,trophic_omnivores,trophic_carnivo
                             biogeo_afrotropical,biogeo_antarctic,biogeo_australasian,biogeo_indomalayan,biogeo_nearctic,biogeo_neotropical,biogeo_oceanian,biogeo_palearctic)
                       ~ order.x+family.x+genus.x, data=gtraits_cat, FUN=mean, na.action=na.pass, na.rm=TRUE)
 
-## merge continuous variables with binary variables
+## aggregate trait data: (5) merge continuous variables with binary variables and clean environment
 gtraits <- full_join(gtraits_continuous, gtraits_binary, by = c("order.x","family.x","genus.x"),keep=TRUE)
 colnames(gtraits)[1:3] <- c("order.x","family.x","genus.x")
 gtraits <- full_join(gtraits, gtraits_cat, by = c("order.x","family.x","genus.x"),keep=TRUE)
 colnames(gtraits)[1:3] <- c("ord","fam","gen")
+rm(data,traits,gtraits_binary,gtraits_cat,gtraits_continuous)
 
-## clean environment
-rm(gtraits_binary,gtraits_cat,gtraits_continuous)
+# aggregate phylogeny data: (1) create df linking tip labels with their corresponding categories (genus and species)
+tdata <- data.frame(matrix(NA,nrow=length(tree$tip.label),ncol=0))
+tdata$genus=sapply(strsplit(tree$tip.label,'_'),function(x) paste(x[1],sep='_'))
+tdata$species=tree$tip.label
 
-#### PHYLOGENY DATA ####
-
-# create df linking tip labels with their corresponding categories (genus and species)
-tdata <- data.frame(tree$tip.label)
-tdata$genus <-sapply(strsplit(tdata$tree.tip.label,'_'),function(x) paste(x[1],sep='_'))
-tdata$species=sapply(strsplit(tdata$tree.tip.label,'_'),function(x) paste(x[2],sep='_'))
-tdata=subset(tdata,select=-c(tree.tip.label))
-
-## trim mammal tree with treespace package
+## aggregate phylogeny data: (1) collapse tree to genus level and clean environment
 gtree=makeCollapsedTree(tree=tree,df=tdata[c('genus','species')])
+rm(tdata,tree)
 
-
-######################################### COMBINE POX DATA, PHYLOGENY DATA, AND TRAIT DATA #########################################
+######################################### COMBINE POX DATA, TRAIT DATA AND TREENAMES #########################################
 
 ## are all poxdata in tree?
-data$tip=data$Host
-data$intree=ifelse(data$tip%in%setdiff(data$tip,tree$tip), 'missing', 'upham')
+gdata$tip.label=gdata$gen
+gdata$tip.label[gdata$tip.label%in%setdiff(gdata$tip.label,gtree$tip.label)]
 
 ## are all poxdata in traits?
-traits$tip=str_c(traits$genus.x,"_",traits$species.x)
-data$intraits=ifelse(data$tip%in%setdiff(data$tip,traits$tip), 'missing', 'traits')
+gtraits$tip.label=gtraits$gen
+gdata$tip.label[gdata$tip.label%in%setdiff(gdata$tip.label,gtraits$tip.label)]
 
-## create df of just obs with missing names
-miss=data[c('tip','intree','intraits')]
-miss=miss[miss$intree=='missing'|miss$intraits=='missing',]
-miss=miss[order(miss$intree,miss$intraits),]
+## load in revised treename for "Piliocolobus badius": see NCBI Taxonomy Browser for homotypic synonym
+any(gtree$tip.label=="Colobus")
+tip.label <- "Piliocolobus"
+treename <- "Colobus"
+traitname <- "Piliocolobus"
+fix <- data.frame(tip.label,treename,traitname)
 
-## export missing names
-write.csv(miss, 'data/names/poxhost_name_mismatch.csv')
-rm(miss)
-
-## load in revised names
-# to query tree for species name: e.g., "any(tree$tip=="Equus_ferus"
-fix=read.csv('data/names/poxhost_name_mismatch_edits_KT.csv',header=T)
-
-## merge in revised names (left-join)
-fix=fix[c('tip','treename','traitname')]
-data=merge(data,fix,by='tip',all.x=T)
+## merge in revised names with poxdata (left-join)
+gdata=merge(gdata,fix,by='tip.label',all.x=T)
 
 ## if blank, NA
-data$treename=ifelse(data$treename=='',NA,as.character(data$treename))
-data$traitname=ifelse(data$traitname=='',NA,as.character(data$traitname))
+gdata$treename=ifelse(gdata$treename=='',NA,as.character(gdata$treename))
+gdata$traitname=ifelse(gdata$traitname=='',NA,as.character(gdata$traitname))
 
 ## if NA, tip
-data$treename=ifelse(is.na(data$treename),as.character(data$tip),as.character(data$treename))
-data$traitname=ifelse(is.na(data$traitname),as.character(data$tip),as.character(data$traitname))
+gdata$treename=ifelse(is.na(gdata$treename),as.character(gdata$tip.label),as.character(gdata$treename))
+gdata$traitname=ifelse(is.na(gdata$traitname),as.character(gdata$tip.label),as.character(gdata$traitname))
 
 ## simplify
-data=data[c('tip','PCR','Competence','Antibodies','fam','gen','clade','treename','traitname')]
+gdata=gdata[c('treename','traitname','PCR','Competence','Antibodies','tip.label','gen','fam','clade')]
 rm(fix)
 
-## fix duplicates in phylogeny
-set=data[c('PCR','Competence','Antibodies','treename')]
+## check/fix duplicates in phylogeny
+set=gdata[c('PCR','Competence','Antibodies','treename')]
 
 ## which treenames occur multiple times
 unique(set$treename)[table(set$treename)>1]
-
-## aggregate
-set=aggregate(.~treename,set,sum)
-
-## merge with meta
-set2=merge(set,data[!duplicated(data$treename),c('tip','gen','fam','clade','treename','traitname')],all.x=T,by='treename')
-set3=data[!duplicated(data$treename),c('tip','gen','fam','clade','treename','traitname')]
-
-## simplify
-data=set2
-rm(set,set2)
+rm(set)
 
 ## fix binomial
-data$PCR=ifelse(data$PCR>0,1,0)
-data$Competence=ifelse(data$Competence>0,1,0)
-data$Antibodies=ifelse(data$Antibodies>0,1,0)
+gdata$PCR=ifelse(gdata$PCR>0,1,0)
+gdata$Competence=ifelse(gdata$Competence>0,1,0)
+gdata$Antibodies=ifelse(gdata$Antibodies>0,1,0)
 
 ## merge traits
-traits$traitname=traits$tip
-traits$trait=1
-data=merge(data,traits,by='traitname',all.x=T)
-rm(traits)
+gtraits$traitname=gtraits$tip.label
+gtraits$trait=1
+gdata=merge(gdata,gtraits,by=c('traitname'),all.x=T)
 
-## fix tree
-mtree=tree
-mtree$tip.label=mtree$tip
+## simplify
+rm(gtraits)
+gdata <- subset(gdata, select=-c(fam.x,gen.x,order.x.y,family.x.y,genus.x.y,order.x.y.y,family.x.y.y,genus.x.y.y,tip.label.y))
+gdata %>% rename(tip.label.x=tip.label, fam.y=fam, gen.y=gen)
+colnames(gdata)[6] <- c('tip.label')
+colnames(gdata)[9:10] <- c('fam','gen')
 
-## trim
-mtree=keep.tip(mtree,mtree$tip.label[mtree$tip.label%in%data$treename])
+######################################### ADD PUBMED CITATIONS MEASURE #########################################
+
+## pubmed citations
+library(easyPubMed)
+
+## function
+counter=function(name){
+  as.numeric(as.character(get_pubmed_ids(gsub('_','-',name))$Count))
+}
+citations=c()
+
+## loop through
+for(i in 1:length(gdata$treename)) {
+  citations[i]=counter(gdata$treename[i])
+  print(i)
+}
+
+## compile
+cites=data.frame(treename=gdata$treename,
+                 cites=citations)
+
+## merge
+gdata=merge(gdata,cites,by='treename')
+
+## clean
+rm(cites,citations,i,counter)
+
+######################################### SUBSET POXDATA AND TRIM TREE #########################################
+
+## exclude tests for antibodies from analysis
+gdata_sub=subset(gdata, select=-c(Antibodies))
+gdata_sub=gdata_sub[(gdata_sub$PCR==1|gdata_sub$Competence==1),]
+gdata_sub
+
+## trim tree
+mtree=gtree
+mtree=keep.tip(mtree,mtree$tip.label[mtree$tip.label%in%gdata_sub$treename])
 
 ## fix
 mtree$tip=NULL
 mtree=makeLabel(mtree)
 
+######################################### ADD EVOLUTIONARY DISTINCTIVENESS MEASURE #########################################
+
 ## get ed
-library(picante)
+library(picante) #before loading picante, make sure latest version of nlme package is loaded
 ed=evol.distinct(mtree,type='equal.splits')
 # note: calculates evolutionary distinctiveness measures for a suite of species by equal splits and fair proportions; returns species score
 
@@ -325,39 +350,14 @@ ed$ed_equal=ed$w
 ed$w=NULL
 
 ## merge into data
-data=merge(data,ed,by='treename',all.x=T)
+gdata_sub=merge(gdata_sub,ed,by='treename',all.x=T)
 rm(ed)
 
 ## cleaning
-data$trait=NULL
-
-## pubmed citations
-library(easyPubMed)
-
-## function
-counter=function(name){
-  as.numeric(as.character(get_pubmed_ids(gsub('_','-',name))$Count))
-}
-citations=c()
-
-## loop through
-for(i in 1:length(data$treename)) {
-  citations[i]=counter(data$treename[i])
-  print(i)
-}
-
-## compile
-cites=data.frame(treename=data$treename,
-                 cites=citations)
-
-## merge
-data=merge(data,cites,by='treename')
-
-## clean
-rm(cites,citations,i,counter)
+gdata_sub$trait=NULL
 
 ## export files
 setwd("data/cleaned")
-write.csv(data,'opv cleaned response and traits.csv')
+write.csv(gdata_sub,'opv cleaned response and traits.csv')
 saveRDS(mtree,'mammal phylo trim.rds')
 
