@@ -1,6 +1,6 @@
-#PoxHost 01: Mammal orthopoxvirus (OPV) cleaning
-#katie.tseng@wsu.edu
-#2022-02-15
+## PoxHost 01: mammal orthopoxvirus (OPV) cleaning
+## katie.tseng@wsu.edu
+## updated 2/15/2022
 
 ## clean environment & plots
 rm(list=ls()) 
@@ -44,15 +44,15 @@ poxdata <- poxdata[!(poxdata$Virus=="variola virus"),]
 
 ## subset detection by Antibodies
 antibodies <- poxdata[which(poxdata$DetectionMethod=="Antibodies"),]
-antibodies$Antibodies <- 1
+antibodies$antibodies <- 1
 
 ## subset detection by PCR
 pcr <- poxdata[which(poxdata$DetectionMethod=="PCR/Sequencing"),]
-pcr$PCR <- 1
+pcr$pcr <- 1
 
 ## subset detection by Isolation
 competence <- poxdata[which(poxdata$DetectionMethod=="Isolation/Observation"),]
-competence$Competence <- 1
+competence$competence <- 1
 
 ## merge PCR & Isolation data
 poxdata <- merge(pcr, competence, by="Host", all=TRUE)
@@ -62,9 +62,9 @@ poxdata <- merge(poxdata, antibodies, by="Host", all=TRUE)
 poxdata <- subset(poxdata, select=-c(DetectionMethod,DetectionMethod.x,DetectionMethod.y))
 
 ## recode as binary (replace NA with zeroes)
-poxdata$Antibodies=ifelse(is.na(poxdata$Antibodies),0,poxdata$Antibodies)
-poxdata$PCR=ifelse(is.na(poxdata$PCR),0,poxdata$PCR)
-poxdata$Competence=ifelse(is.na(poxdata$Competence),0,poxdata$Competence)
+poxdata$antibodies=ifelse(is.na(poxdata$antibodies),0,poxdata$antibodies)
+poxdata$pcr=ifelse(is.na(poxdata$pcr),0,poxdata$pcr)
+poxdata$competence=ifelse(is.na(poxdata$competence),0,poxdata$competence)
 
 ## create genus variable
 poxdata$Host=(str_replace(poxdata$Host," ","_"))
@@ -160,7 +160,7 @@ tree$tip.label=sapply(strsplit(tree$tip.label,'_'),function(x) paste(x[1],x[2],s
 ######################################### AGGREGATE DATA AT GENUS LEVEL #########################################
 
 ## aggregate pox data
-gdata=aggregate(cbind(PCR,Competence,Antibodies) ~ gen+fam+ord+clade+higher, data=data, FUN=sum)
+gdata=aggregate(cbind(pcr,competence,antibodies) ~ gen+fam+ord+clade+higher, data=data, FUN=sum)
 
 #### TRAIT DATA ####
 
@@ -256,6 +256,9 @@ fix <- data.frame(tip.label,treename,traitname)
 ## merge in revised names with poxdata (left-join)
 gdata=merge(gdata,fix,by='tip.label',all.x=T)
 
+## clean
+rm(tip.label,treename,traitname)
+
 ## if blank, NA
 gdata$treename=ifelse(gdata$treename=='',NA,as.character(gdata$treename))
 gdata$traitname=ifelse(gdata$traitname=='',NA,as.character(gdata$traitname))
@@ -265,20 +268,20 @@ gdata$treename=ifelse(is.na(gdata$treename),as.character(gdata$tip.label),as.cha
 gdata$traitname=ifelse(is.na(gdata$traitname),as.character(gdata$tip.label),as.character(gdata$traitname))
 
 ## simplify
-gdata=gdata[c('treename','traitname','PCR','Competence','Antibodies','tip.label','gen','fam','clade')]
+gdata=gdata[c('treename','traitname','pcr','competence','antibodies','tip.label','gen','fam','clade')]
 rm(fix)
 
 ## check/fix duplicates in phylogeny
-set=gdata[c('PCR','Competence','Antibodies','treename')]
+set=gdata[c('pcr','competence','antibodies','treename')]
 
 ## which treenames occur multiple times
 unique(set$treename)[table(set$treename)>1]
 rm(set)
 
 ## fix binomial
-gdata$PCR=ifelse(gdata$PCR>0,1,0)
-gdata$Competence=ifelse(gdata$Competence>0,1,0)
-gdata$Antibodies=ifelse(gdata$Antibodies>0,1,0)
+gdata$pcr=ifelse(gdata$pcr>0,1,0)
+gdata$competence=ifelse(gdata$competence>0,1,0)
+gdata$antibodies=ifelse(gdata$antibodies>0,1,0)
 
 ## merge traits
 gtraits$traitname=gtraits$tip.label
@@ -291,6 +294,11 @@ gdata <- subset(gdata, select=-c(fam.x,gen.x,order.x.y,family.x.y,genus.x.y,orde
 gdata %>% rename(tip.label.x=tip.label, fam.y=fam, gen.y=gen)
 colnames(gdata)[6] <- c('tip.label')
 colnames(gdata)[9:10] <- c('fam','gen')
+
+## trim tree
+gtree=keep.tip(gtree,gtree$tip.label[gtree$tip.label%in%gdata$treename])
+gtree=makeLabel(gtree)
+
 
 ######################################### ADD PUBMED CITATIONS MEASURE #########################################
 
@@ -319,26 +327,12 @@ gdata=merge(gdata,cites,by='treename')
 ## clean
 rm(cites,citations,i,counter)
 
-######################################### SUBSET POXDATA AND TRIM TREE #########################################
-
-## exclude tests for antibodies from analysis
-gdata_sub=subset(gdata, select=-c(Antibodies))
-gdata_sub=gdata_sub[(gdata_sub$PCR==1|gdata_sub$Competence==1),]
-gdata_sub
-
-## trim tree
-mtree=gtree
-mtree=keep.tip(mtree,mtree$tip.label[mtree$tip.label%in%gdata_sub$treename])
-
-## fix
-mtree$tip=NULL
-mtree=makeLabel(mtree)
 
 ######################################### ADD EVOLUTIONARY DISTINCTIVENESS MEASURE #########################################
 
 ## get ed
 library(picante) #before loading picante, make sure latest version of nlme package is loaded
-ed=evol.distinct(mtree,type='equal.splits')
+ed=evol.distinct(gtree,type='equal.splits')
 # note: calculates evolutionary distinctiveness measures for a suite of species by equal splits and fair proportions; returns species score
 
 ## treename
@@ -350,14 +344,12 @@ ed$ed_equal=ed$w
 ed$w=NULL
 
 ## merge into data
-gdata_sub=merge(gdata_sub,ed,by='treename',all.x=T)
+gdata=merge(gdata,ed,by='treename',all.x=T)
 rm(ed)
 
 ## cleaning
-gdata_sub$trait=NULL
+gdata$trait=NULL
 
 ## export files
-setwd("data/cleaned")
-write.csv(gdata_sub,'opv cleaned response and traits.csv')
-saveRDS(mtree,'mammal phylo trim.rds')
-
+write.csv(gdata,'data/cleaned/pox cleaned response and traits.csv')
+saveRDS(gtree,'data/cleaned/mammal phylo trim.rds')
