@@ -14,13 +14,13 @@ library(vroom)
 library(tidyverse)
 library(treespace)
 ## set working directory
-setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/")
 
 
 ######################################### POXVIRUS DATA #########################################
 
 ## load in orthopoxvirus data (source: https://github.com/viralemergence/virion/tree/main/Virion)
-virion <- vroom("/data/raw/Virion.csv.gz")
+virion <- vroom("data/raw/Virion.csv.gz")
 
 ## view detection methods
 virion %>%

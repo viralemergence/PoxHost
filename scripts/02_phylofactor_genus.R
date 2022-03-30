@@ -15,10 +15,9 @@ library(phylofactor)  ## devtools::install_github('reptalex/phylofactor')
 library(treeio)       ## BiocManager::install("treeio")
 
 ## load files
-setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
-data=read.csv('/data/cleaned/pox cleaned response and traits.csv')
-
-mtree=readRDS('/data/cleaned/mammal phylo trim.rds')
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/")
+data=read.csv('data/cleaned/pox cleaned response and traits.csv')
+mtree=readRDS('data/cleaned/mammal phylo trim.rds')
 
 ## create pcr+comp variable
 data$compcr=ifelse(data$pcr==1|data$competence==1,1,0)
@@ -216,13 +215,13 @@ pplus=plus+1
 pcr_pf_results$taxa[1]="italic(Oligoryzomys)"
 pcr_pf_results$taxa[2]="subclade~of~italic(Peromyscus)"
 
-## ggtree
+## plot infection w/ ggtree
 gg=ggtree(dtree,size=0.25)+
   geom_tippoint(aes(colour=infect),shape=15)+
   scale_colour_manual(values=c("grey80","black"))+
   guides(colour=F)
 
-## add clades
+## add clades to plot
 for(i in 1:nrow(pcr_pf_results)){
   
   gg=gg+
@@ -246,9 +245,9 @@ comp_gg=ggtree(dtree,size=0.25)+
   scale_colour_manual(values=c("grey80","black"))+
   guides(colour=F)
 
-## print
+## print tree figures for infection and competence
 library(ggpubr)
-png("/figs/Figure 1.png",width=6,height=6,units="in",res=300)
+png("figs/Figure 1.png",width=6,height=6,units="in",res=300)
 ggarrange(pcr_gg,comp_gg,ncol=2,widths=c(1.2,1),
           labels=c("(a) RT-PCR","(b) virus isolation"),
           label.x=c(-0.1,-0.2),
