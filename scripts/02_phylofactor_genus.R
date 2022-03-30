@@ -1,18 +1,18 @@
 ## PoxHost 02: mammal orthopoxvirus phylofactor
 ## katie.tseng@wsu.edu
-## updated 03/22/2022
+## updated 03/30/2022
 
 ## clean environment & plots
 rm(list=ls()) 
 graphics.off()
 
-## libraries
+## libraries (for help installing phylofactor: https://reptalex.github.io/phylofactor/)
 library(ape)
 library(caper)
-library(phylofactor)
 library(data.table)
-library(treeio)
-library(ggtree)
+library(BiocManager)  ## BiocManager::install(c("Biostrings","ggtree"))
+library(phylofactor)  ## devtools::install_github('reptalex/phylofactor')
+library(treeio)       ## BiocManager::install("treeio")
 
 ## load files
 setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/data/cleaned")
