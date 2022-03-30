@@ -27,7 +27,7 @@ library(mgcv)
 
 ## set working directory and load files
 setwd("/Users/CDDEP/Downloads/OPV Host Prediction/PoxHost")
-data=read.csv('data/cleaned/pox cleaned response and traits.csv')
+data=read.csv('/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/temp/PoxHost/data/cleaned/pox cleaned response and traits.csv')
 
 ## classify true negatives
 data$type=ifelse(data$pcr==0 & data$competence==0,"true negative","other")
