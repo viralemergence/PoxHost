@@ -15,28 +15,29 @@ library(treeio)
 library(ggtree)
 
 ## load files
-setwd("/Users/CDDEP/Downloads/OPV Host Prediction/PoxHost/data/cleaned")
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/data/cleaned")
 data=read.csv('pox cleaned response and traits.csv')
-rtree=readRDS('mammal phylo trim.rds')
+
+mtree=readRDS('mammal phylo trim.rds')
 
 ## create pcr+comp variable
 data$compcr=ifelse(data$pcr==1|data$competence==1,1,0)
 
 ## setdiff
-data$tree=ifelse(data$treename%in%setdiff(data$treename,rtree$tip.label),'cut','keep')
+data$tree=ifelse(data$treename%in%setdiff(data$treename,mtree$tip.label),'cut','keep')
 
 ## trim
 bdata=data[which(data$tree=='keep'),]
 
 ## match
-bdata=bdata[match(rtree$tip.label,bdata$treename),]
+bdata=bdata[match(mtree$tip.label,bdata$treename),]
 
 ## save
 bdata$label=bdata$treename
 bdata$Species=bdata$treename
 
 ## merge
-cdata=comparative.data(phy=rtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)
+cdata=comparative.data(phy=mtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)
 
 ## fix
 cdata$data$tree=NULL
@@ -247,7 +248,7 @@ comp_gg=ggtree(dtree,size=0.25)+
 
 ## print
 library(ggpubr)
-setwd("/Users/CDDEP/Downloads/OPV Host Prediction/PoxHost/figs")
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/figs")
 png("Figure 1.png",width=6,height=6,units="in",res=300)
 ggarrange(pcr_gg,comp_gg,ncol=2,widths=c(1.2,1),
           labels=c("(a) RT-PCR","(b) virus isolation"),
