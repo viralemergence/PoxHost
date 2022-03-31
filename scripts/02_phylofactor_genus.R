@@ -19,23 +19,23 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 data=read.csv('data/cleaned/pox cleaned response and traits.csv')
 mtree=readRDS('data/cleaned/mammal phylo trim.rds')
 
-## create pcr+comp variable
+## create pcr+comp var
 data$compcr=ifelse(data$pcr==1|data$competence==1,1,0)
 
-## setdiff
+## create var labeling observations to keep if genus name in data is also in mtree
 data$tree=ifelse(data$treename%in%setdiff(data$treename,mtree$tip.label),'cut','keep')
 
 ## trim
 bdata=data[which(data$tree=='keep'),]
 
-## match
+## subsets bdata based on positions of matches (returned as vector) - redundant?
 bdata=bdata[match(mtree$tip.label,bdata$treename),]
 
 ## save
 bdata$label=bdata$treename
 bdata$Species=bdata$treename
 
-## merge
+## merge: <comparative.data> combines phylogenies w/ datasets and ensures consistent structure and ordering
 cdata=comparative.data(phy=mtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)
 
 ## fix
@@ -59,30 +59,30 @@ mod3=phylo.d(cdata,binvar=antibodies,permut=1000); mod3
 set.seed(1)
 mod4=phylo.d(cdata,binvar=compcr,permut=1000); mod4
 
-## taxonomy
+## create taxonomy var 
 cdata$data$taxonomy=paste(cdata$data$ord,cdata$data$fam,cdata$data$gen,sep='; ')
 
-## set taxonomy
+## create data frame of taxonomy
 taxonomy=data.frame(cdata$data$taxonomy)
 names(taxonomy)="taxonomy"
 taxonomy$Species=rownames(cdata$data)
 taxonomy=taxonomy[c("Species","taxonomy")]
 taxonomy$taxonomy=as.character(taxonomy$taxonomy)
 
-## Holm rejection procedure
-HolmProcedure <- function(pf,FWER=0.05){  #FWER=family-wise error rate
+## Holm rejection procedure               #is there a way to do a simple test of this function?
+HolmProcedure <- function(pf,FWER=0.05){  #creates function with argument pf and FWER=0.05?; FWER=family-wise error rate (alpha level set to 0.05)
   
   ## get split variable
-  cs=names(coef(pf$models[[1]]))[-1]
-  split=ifelse(length(cs)>1,cs[3],cs[1])
+  cs=names(coef(pf$models[[1]]))[-1]  #double brackets access a list element; coef extracts model coefficients; names(...)[-1] sets 'cs' as whatever the names of (...) are minus the 1st element?
+  split=ifelse(length(cs)>1,cs[3],cs[1]) # length() returns number of elements in list; if length of (cs) is greater than one, returns 3rd elements of cs
   
   ## obtain p values
-  if (pf$models[[1]]$family$family%in%c('gaussian',"Gamma","quasipoisson")){
-    pvals <- sapply(pf$models,FUN=function(fit) summary(fit)$coefficients[split,'Pr(>|t|)'])  #applies a function to elements of list or vector but simplify output if possible
+  if (pf$models[[1]]$family$family%in%c('gaussian',"Gamma","quasipoisson")){                  #where does family$family come from?
+    pvals <- sapply(pf$models,FUN=function(fit) summary(fit)$coefficients[split,'Pr(>|t|)'])  #where was this fit function defined? sapply applies a function to elements of list or vector but simplify output if possible; summary(fit)$coefficients[split,'Pr(>|t|)'] is the add'l argument to be passed to FUN and indexes split (row) and column titled 'Pr(>[t])'?
   } else {
     pvals <- sapply(pf$models,FUN=function(fit) summary(fit)$coefficients[split,'Pr(>|z|)'])
   }
-  D <- length(pf$tree$tip.label)
+  D <- length(pf$tree$tip.label)   #returns number of elements in pf$tree$tip.label
   
   ## this is the line for Holm's sequentially rejective cutoff
   keepers <- pvals<=(FWER/(2*D-3 - 2*(0:(pf$nfactors-1))))
@@ -96,8 +96,8 @@ HolmProcedure <- function(pf,FWER=0.05){  #FWER=family-wise error rate
 }
 
 ## get species in a clade
-cladeget=function(pf,factor){
-  spp=pf$tree$tip.label[pf$groups[[factor]][[1]]]
+cladeget=function(pf,factor){      #creates function named cladeget w/ arguments pf and factor
+  spp=pf$tree$tip.label[pf$groups[[factor]][[1]]]   #but what is factor here? 
   return(spp)
 }
 
@@ -155,7 +155,7 @@ pfsum=function(pf){
     
     ## get node
     tips=cladeget(pf,i)
-    node=ggtree::MRCA(pf$tree,tips)
+    node=ggtree::MRCA(pf$tree,tips)   #MRCA = finds Most Recent Common Ancestor among a vector of tips 
     results[i,'tips']=length(tips)
     results[i,'node']=ifelse(is.null(node) & length(tips)==1,'species',
                              ifelse(is.null(node) & length(tips)!=1,NA,node))
