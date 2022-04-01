@@ -69,63 +69,63 @@ taxonomy$Species=rownames(cdata$data)
 taxonomy=taxonomy[c("Species","taxonomy")]
 taxonomy$taxonomy=as.character(taxonomy$taxonomy)
 
-## Holm rejection procedure               #is there a way to do a simple test of this function?
-HolmProcedure <- function(pf,FWER=0.05){  #creates function with argument pf and FWER=0.05?; FWER=family-wise error rate (alpha level set to 0.05)
+## Holm rejection procedure                      #is there a way to do a simple test of this function?
+HolmProcedure <- function(pf,FWER=0.05){         #creates function HolmProcedure with arguments pf and FWER=0.05; FWER=family-wise error rate (alpha level set to 0.05)
   
   ## get split variable
-  cs=names(coef(pf$models[[1]]))[-1]  #double brackets access a list element; coef extracts model coefficients; names(...)[-1] sets 'cs' as whatever the names of (...) are minus the 1st element?
-  split=ifelse(length(cs)>1,cs[3],cs[1]) # length() returns number of elements in list; if length of (cs) is greater than one, returns 3rd elements of cs
+  cs=names(coef(pf$models[[1]]))[-1]             #sets 'cs' as the names of the model coefficients extracted by 'coef' in the 1st list element of 'pf$models' minus the 1st element among those names; double brackets access a list element; coef extracts model coefficients
+  split=ifelse(length(cs)>1,cs[3],cs[1])         #returns the 3rd element in 'cs' if the length of the number of elements in 'cs' is greater than 1, or else returns the 1st element
   
   ## obtain p values
-  if (pf$models[[1]]$family$family%in%c('gaussian',"Gamma","quasipoisson")){                  #where does family$family come from?
-    pvals <- sapply(pf$models,FUN=function(fit) summary(fit)$coefficients[split,'Pr(>|t|)'])  #where was this fit function defined? sapply applies a function to elements of list or vector but simplify output if possible; summary(fit)$coefficients[split,'Pr(>|t|)'] is the add'l argument to be passed to FUN and indexes split (row) and column titled 'Pr(>[t])'?
+  if (pf$models[[1]]$family$family%in%c('gaussian',"Gamma","quasipoisson")){                  #if family$family of the 1st list element of pf$models is in the columns 'gaussian', etc...
+    pvals <- sapply(pf$models,FUN=function(fit) summary(fit)$coefficients[split,'Pr(>|t|)'])  #then, to each element of pf$models, we apply the summary function with the argument 'fit' and assign the output to 'pvals'; specifically, we use 'summary(fit)' to call the output of 'pf$models', extracting the 'coefficients' section, whereby we index the column named 'Pr(>|t\)' and split the data in that column; see sample output of linear model of R for reference (https://feliperego.github.io/blog/2015/10/23/Interpreting-Model-Output-In-R) 
   } else {
-    pvals <- sapply(pf$models,FUN=function(fit) summary(fit)$coefficients[split,'Pr(>|z|)'])
+    pvals <- sapply(pf$models,FUN=function(fit) summary(fit)$coefficients[split,'Pr(>|z|)'])  #or else, extract p-val based on z statistic
   }
-  D <- length(pf$tree$tip.label)   #returns number of elements in pf$tree$tip.label
+  D <- length(pf$tree$tip.label)                                                              #returns number of elements in pf$tree$tip.label
   
-  ## this is the line for Holm's sequentially rejective cutoff
-  keepers <- pvals<=(FWER/(2*D-3 - 2*(0:(pf$nfactors-1))))
+  ## this is the line for Holm's sequentially rejective cutoff                                #HB = Target alpha / (n – rank + 1)
+  keepers <- pvals<=(FWER/(2*D-3 - 2*(0:(pf$nfactors-1))))                                    #returns TRUE/FALSE if p-values are <= to 0.05/(n-rank+1)
   
-  if (!all(keepers)){
-    nfactors <- min(which(!keepers))-1
+  if (!all(keepers)){                            #if not all pvals were keepers (i.e., all items in keepers were true)...
+    nfactors <- min(which(!keepers))-1           #then assign nfactors to the minimum/earliest position of items in keepers that were false, minus 1.
   } else {
-    nfactors <- pf$nfactors
+    nfactors <- pf$nfactors                      #or else, assign nfactors as the value of pf$nfactors
   }
   return(nfactors)
 }
 
 ## get species in a clade
-cladeget=function(pf,factor){      #creates function named cladeget w/ arguments pf and factor
-  spp=pf$tree$tip.label[pf$groups[[factor]][[1]]]   #but what is factor here? 
+cladeget=function(pf,factor){                        #creates function 'cladeget' w/ arguments 'pf' and 'factor'
+  spp=pf$tree$tip.label[pf$groups[[factor]][[1]]]    #returns n'th element of the pf$tree$tip.label based on the value of the first component inside the n'th ('factor') component of  'pf$groups'
   return(spp)
 }
 
-## summarize pf object 
-pfsum=function(pf){
+## summarize pf object                               
+pfsum=function(pf){                                  #creates function 'pfsum' w/ argument 'pf'
   
   ## get formula
-  chars=as.character(pf$frmla.phylo)[-1]
+  chars=as.character(pf$frmla.phylo)[-1]             #returns pf$frmla.phylo minus the first element
   
-  ## response
-  resp=chars[1]
+  ## response                  
+  resp=chars[1]                                      #returns 1st element of chars              
   
   ## holm
-  hp=HolmProcedure(pf)
+  hp=HolmProcedure(pf)                               #runs HolmProcedure function using argument pf and assigns to hp
   
   ## save model
-  model=chars[2]
+  model=chars[2]                                     #returns 2nd element of chars 
   
   ## set key
-  setkey(pf$Data,'Species')
+  setkey(pf$Data,'Species')                          #creates key on the sorted column 'Species' in the datatable pf$Data
   
   ## make data
-  dat=data.frame(pf$Data)
+  dat=data.frame(pf$Data)                            
   
   ## make clade columns in data
   for(i in 1:hp){
     
-    dat[,paste0(resp,'_pf',i)]=ifelse(dat$Species%in%cladeget(pf,i),'factor','other')
+    dat[,paste0(resp,'_pf',i)]=ifelse(dat$Species%in%cladeget(pf,i),'factor','other')   #paste0 concatenates all elements w/o a separator
     
   }
   
@@ -155,7 +155,7 @@ pfsum=function(pf){
     
     ## get node
     tips=cladeget(pf,i)
-    node=ggtree::MRCA(pf$tree,tips)   #MRCA = finds Most Recent Common Ancestor among a vector of tips 
+    node=ggtree::MRCA(pf$tree,tips)         #MRCA = finds Most Recent Common Ancestor among a vector of tips 
     results[i,'tips']=length(tips)
     results[i,'node']=ifelse(is.null(node) & length(tips)==1,'species',
                              ifelse(is.null(node) & length(tips)!=1,NA,node))
