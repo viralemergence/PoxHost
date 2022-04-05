@@ -73,7 +73,7 @@ taxonomy$taxonomy=as.character(taxonomy$taxonomy)
 HolmProcedure <- function(pf,FWER=0.05){         #creates function HolmProcedure with arguments pf and FWER=0.05; FWER=family-wise error rate (alpha level set to 0.05)
   
   ## get split variable
-  cs=names(coef(pf$models[[1]]))[-1]             #sets 'cs' as the names of the model coefficients extracted by 'coef' in the 1st list element of 'pf$models' minus the 1st element among those names; double brackets access a list element; coef extracts model coefficients
+  cs=names(coef(pf$models[[1]]))[-1]             #sets 'cs' as the names of the model coefficients (i.e., variable name) extracted by 'coef' in the 1st list element of 'pf$models' minus the 1st element among those names; double brackets access a list element; coef extracts model coefficients
   split=ifelse(length(cs)>1,cs[3],cs[1])         #returns the 3rd element in 'cs' if the length of the number of elements in 'cs' is greater than 1, or else returns the 1st element
   
   ## obtain p values
@@ -130,38 +130,38 @@ pfsum=function(pf){                                  #creates function 'pfsum' w
   }
   
   ## make data frame to store taxa name, response, mean, and other
-  results=data.frame(matrix(ncol=6, nrow = hp))
+  results=data.frame(matrix(ncol=6, nrow = hp))                        #creates empty df with 6 columns and hp-number of rows
   colnames(results)=c('factor','taxa','tips','node',"clade",'other')
   
   ## set taxonomy
-  taxonomy=dat[c('Species','taxonomy')]
+  taxonomy=dat[c('Species','taxonomy')]                                #creates dataset of Species and taxonomy
   taxonomy$taxonomy=as.character(taxonomy$taxonomy)
   
   ## loop
   for(i in 1:hp){
     
     ## get taxa
-    tx=pf.taxa(pf,taxonomy,factor=i)$group1
+    tx=pf.taxa(pf,taxonomy,factor=i)$group1                  #gets taxonomic order
     
     ## get tail
-    tx=sapply(strsplit(tx,'; '),function(x) tail(x,1))
+    tx=sapply(strsplit(tx,'; '),function(x) tail(x,1))       #gets taxonomic family as list
     
     ## combine
-    tx=paste(tx,collapse=', ')
+    tx=paste(tx,collapse=', ')                               #collapses taxonomic family into single string
     
     # save
-    results[i,'factor']=i
-    results[i,'taxa']=tx
+    results[i,'factor']=i                                    #returns index number in 'factor' column
+    results[i,'taxa']=tx                                     #returns string element (tx) in 'taxa' column
     
     ## get node
     tips=cladeget(pf,i)
-    node=ggtree::MRCA(pf$tree,tips)         #MRCA = finds Most Recent Common Ancestor among a vector of tips 
+    node=ggtree::MRCA(pf$tree,tips)                          #MRCA = finds Most Recent Common Ancestor among a vector of tips 
     results[i,'tips']=length(tips)
     results[i,'node']=ifelse(is.null(node) & length(tips)==1,'species',
                              ifelse(is.null(node) & length(tips)!=1,NA,node))
     
     ## get means
-    ms=(tapply(dat[,resp],dat[,paste0(resp,'_pf',i)],mean))
+    ms=(tapply(dat[,resp],dat[,paste0(resp,'_pf',i)],FUN=mean))   #tapply takes mean of '1 vs. 0' (dat[,resp]) by 'other'/'factor' type (dat[,paste...]
     
     ## add in
     results[i,'clade']=ms['factor']
