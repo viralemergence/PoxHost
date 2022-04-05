@@ -35,7 +35,7 @@ bdata=bdata[match(mtree$tip.label,bdata$treename),]
 bdata$label=bdata$treename
 bdata$Species=bdata$treename
 
-## merge: <comparative.data> combines phylogenies w/ datasets and ensures consistent structure and ordering
+## merge: caper::comparative.data combines phylogenies w/ datasets and ensures consistent structure and ordering
 cdata=comparative.data(phy=mtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)
 
 ## fix
@@ -69,7 +69,7 @@ taxonomy$Species=rownames(cdata$data)
 taxonomy=taxonomy[c("Species","taxonomy")]
 taxonomy$taxonomy=as.character(taxonomy$taxonomy)
 
-## Holm rejection procedure                      #is there a way to do a simple test of this function?
+## Holm rejection procedure                      
 HolmProcedure <- function(pf,FWER=0.05){         #creates function HolmProcedure with arguments pf and FWER=0.05; FWER=family-wise error rate (alpha level set to 0.05)
   
   ## get split variable
@@ -170,7 +170,7 @@ pfsum=function(pf){                                  #creates function 'pfsum' w
   }
   
   ## return
-  return(list(set=dat,results=results))
+  return(list(set=dat,results=results))       #returns number of clades with significantly greater propensity of infection adjusting for FWER using Holm rejection procedure
 }
 
 ## PCR
@@ -180,16 +180,16 @@ pcr_pf=gpf(Data=cdata$data,tree=cdata$phy,
            family=binomial,algorithm='phylo',nfactors=3,min.group.size=5)
 
 ## summarize
-pcr_pf_results=pfsum(pcr_pf)$results
+pcr_pf_results=pfsum(pcr_pf)$results          #returns error b/c hp=0
 
 ## competence
 set.seed(1)
-hc_pf=gpf(Data=cdata$data,tree=cdata$phy,
+hc_pf=gpf(Data=cdata$data,tree=cdata$phy,     
           frmla.phylo=competence~phylo,
           family=binomial,algorithm='phylo',nfactors=2,min.group.size=5)
 
 ## summarize
-hc_pf_results=pfsum(hc_pf)$results
+hc_pf_results=pfsum(hc_pf)$results            #returns error b/c hp=0
 
 ## save tree
 cdata$data$infect=factor(cdata$data$pcr)
@@ -219,7 +219,7 @@ pcr_pf_results$taxa[2]="subclade~of~italic(Peromyscus)"
 gg=ggtree(dtree,size=0.25)+
   geom_tippoint(aes(colour=infect),shape=15)+
   scale_colour_manual(values=c("grey80","black"))+
-  guides(colour=F)
+  guides(colour=F)   
 
 ## add clades to plot
 for(i in 1:nrow(pcr_pf_results)){
@@ -254,53 +254,30 @@ ggarrange(pcr_gg,comp_gg,ncol=2,widths=c(1.2,1),
           font.label=list(face="plain",size=12))
 dev.off()
 
-# ## add in hantavirus studies for PCR
-# set.seed(1)
-# pcr_pf_study=gpf(Data=cdata$data,tree=cdata$phy,
-#            frmla.phylo=hPCR~phylo,
-#            weights=cdata$data$studies,
-#            family=binomial,algorithm='phylo',nfactors=5,min.group.size=5)
-# HolmProcedure(pcr_pf_study)
-# 
-# ## for competence
-# set.seed(1)
-# hc_pf_study=gpf(Data=cdata$data,tree=cdata$phy,
-#                  frmla.phylo=competence~phylo,
-#                  weights=cdata$data$studies,
-#                  family=binomial,algorithm='phylo',nfactors=5,min.group.size=5)
-# HolmProcedure(hc_pf_study)
-# 
-# ## log1p pubmed cites
-# cdata$data$logcites=log1p(cdata$data$cites)
-# 
-# ## add in pubmed for PCR
-# set.seed(1)
-# pcr_pf_pm=gpf(Data=cdata$data,tree=cdata$phy,
-#                  frmla.phylo=hPCR~phylo,
-#                  weights=cdata$data$logcites,
-#                  family=binomial,algorithm='phylo',nfactors=5,min.group.size=5)
-# HolmProcedure(pcr_pf_pm)
-# 
-# ## for competence
-# set.seed(1)
-# hc_pf_pm=gpf(Data=cdata$data,tree=cdata$phy,
-#                 frmla.phylo=competence~phylo,
-#                 weights=cdata$data$logcites,
-#                 family=binomial,algorithm='phylo',nfactors=3,min.group.size=5)
-# HolmProcedure(hc_pf_pm)
-# 
-# ## model studies and citations themselves
-# set.seed(1)
-# study_pf=gpf(Data=cdata$data,tree=cdata$phy,
-#              frmla.phylo=studies~phylo,
-#              family=poisson,algorithm='phylo',nfactors=5,min.group.size=5)
-# HolmProcedure(study_pf)
-# pfsum(study_pf)$results
-# 
-# ## citations
-# set.seed(1)
-# pm_pf=gpf(Data=cdata$data,tree=cdata$phy,
-#              frmla.phylo=cites~phylo,
-#              family=poisson,algorithm='phylo',nfactors=5,min.group.size=5)
-# HolmProcedure(pm_pf)
-# pfsum(pm_pf)$results
+
+## log1p pubmed cites
+cdata$data$logcites=log1p(cdata$data$cites)
+
+## add in pubmed for PCR
+set.seed(1)
+pcr_pf_pm=gpf(Data=cdata$data,tree=cdata$phy,
+                 frmla.phylo=pcr~phylo,
+                 weights=cdata$data$logcites,
+                 family=binomial,algorithm='phylo',nfactors=5,min.group.size=5)
+HolmProcedure(pcr_pf_pm)
+
+## for competence
+set.seed(1)
+hc_pf_pm=gpf(Data=cdata$data,tree=cdata$phy,
+                frmla.phylo=competence~phylo,
+                weights=cdata$data$logcites,
+                family=binomial,algorithm='phylo',nfactors=3,min.group.size=5)
+HolmProcedure(hc_pf_pm)
+
+## model citations themselves
+set.seed(1)
+pm_pf=gpf(Data=cdata$data,tree=cdata$phy,
+             frmla.phylo=cites~phylo,
+             family=poisson,algorithm='phylo',nfactors=5,min.group.size=5)
+HolmProcedure(pm_pf)
+pfsum(pm_pf)$results
