@@ -7,12 +7,17 @@ rm(list=ls())
 graphics.off()
 
 ## libraries
-library(nlme)
 library(ape)
 library(dplyr)
-library(vroom)
+library(nlme)
 library(tidyverse)
-library(treespace)
+library(vroom)
+
+## tree libraries: for help installing, see https://stackoverflow.com/questions/66011929/package-rgl-in-r-not-loading-in-mac-os/66127391#66127391
+#devtools::install_github("dmurdoch/rgl")
+library(treespace) #dependency XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html)
+library(makeCollapsedTree) #'treespace' must be loaded first
+
 ## set working directory
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/")
 
@@ -55,10 +60,10 @@ competence <- poxdata[which(poxdata$DetectionMethod=="Isolation/Observation"),]
 competence$competence <- 1
 
 ## merge PCR & Isolation data
-poxdata <- merge(pcr, competence, by="Host", all=TRUE)
-poxdata <- merge(poxdata, antibodies, by="Host", all=TRUE)
+poxdata <- merge(pcr, competence, by=c("Host","Virus"), all=TRUE)
+poxdata <- merge(poxdata, antibodies, by=c("Host","Virus"), all=TRUE)
 
-## clean
+## clean dataset
 poxdata <- subset(poxdata, select=-c(DetectionMethod,DetectionMethod.x,DetectionMethod.y))
 
 ## recode as binary (replace NA with zeroes)
@@ -71,25 +76,15 @@ poxdata$Host=(str_replace(poxdata$Host," ","_"))
 poxdata$Host=str_to_title(poxdata$Host)
 poxdata$gen=sapply(strsplit(as.character(str_to_title(poxdata$Host)),"_"),function(x) x[1])
 
-  # # save file and clean environment
-  # write.csv(poxdata,"data/cleaned/poxdata")  
-  # rm(antibodies,pcr,competence,virion)
-
-  ###### ALTERNATIVE FORMATTING #####
-  ## Remove duplicate host rows giving preference to Isolation (over PCR)
-  #   poxdata <- poxdata[order(poxdata$Host, poxdata$DetectionMethod),]
-  #   poxdata_nodup <- poxdata[!duplicated(poxdata$Host),]
-  ## Extract potential hosts associated with OPV detected by Isolation only
-  #   poxdata_isol <- poxdata_nodup %>% 
-  #   filter(DetectionMethod=="Isolation/Observation") %>% 
-  #   select(Host,DetectionMethod) %>%
-  #   unique()
+# # examine pcr- or competence-only positive associations by genus and virus
+# temp <- subset(poxdata, pcr==1 | competence==1)
+# temp %>% count(gen, sort = TRUE)
+# temp %>% count(Virus, sort = TRUE)
 
 ## clean environment
 rm(virion,antibodies,pcr,competence)
 
-
-######################################### MERGE POXVIRUS & TAXONOMY DATA #########################################
+######################################### MERGE POXVIRUS & TAXONOMY DATA######################################### 
 
 ## load in taxonomy (source: https://data.vertlife.org/)
 taxa=read.csv('phylo/taxonomy_mamPhy_5911species.csv',header=T) 
@@ -105,10 +100,31 @@ gtaxa=taxa[!duplicated(taxa$gen),] #note: drops duplicates at the genus level
 gtaxa=gtaxa[c('gen','fam','ord','clade','higher')]
 
 ## merge pox data & taxonomy data (left-join)
-data=merge(poxdata,gtaxa,by='gen',all.x=TRUE)
+data=merge(gtaxa,poxdata,by='gen',all.x=TRUE)
+
+## sort by taxonomy level (high to low)
+data <- data[order(data$higher,data$clade,data$ord,data$fam,data$gen),]
+
+## create pseudo-absences for viral detection
+data$pcr=ifelse(is.na(data$pcr),0,data$pcr)
+data$competence=ifelse(is.na(data$competence),0,data$competence)
+data$antibodies=ifelse(is.na(data$antibodies),0,data$antibodies)
+
+## subset data of pcr/isolation positive associations only
+keep=subset(data, pcr==1 | competence==1)
+
+## create variable denoting whether the order of genera with positive associations exists in merged data 
+data$keep=ifelse(data$ord %in% keep$ord,TRUE,FALSE)
+
+## subset true values
+data=subset(data,keep==TRUE)
+
+## clean dataset
+data=subset(data, select=-c(antibodies,keep))
 
 ## clean environment
-rm(poxdata,taxa,gtaxa)
+rm(poxdata,taxa,gtaxa,keep)
+
 
 ######################################### LOAD IN TRAIT DATA #########################################
 
@@ -160,7 +176,7 @@ tree$tip.label=sapply(strsplit(tree$tip.label,'_'),function(x) paste(x[1],x[2],s
 ######################################### AGGREGATE DATA AT GENUS LEVEL #########################################
 
 ## aggregate pox data
-gdata=aggregate(cbind(pcr,competence,antibodies) ~ gen+fam+ord+clade+higher, data=data, FUN=sum)
+gdata=aggregate(cbind(pcr,competence) ~ gen+fam+ord+clade+higher, data=data, FUN=sum)
 
 #### TRAIT DATA ####
 
@@ -232,7 +248,7 @@ tdata <- data.frame(matrix(NA,nrow=length(tree$tip.label),ncol=0))
 tdata$genus=sapply(strsplit(tree$tip.label,'_'),function(x) paste(x[1],sep='_'))
 tdata$species=tree$tip.label
 
-## aggregate phylogeny data: (1) collapse tree to genus level and clean environment
+## aggregate phylogeny data: (2) collapse tree to genus level and clean environment
 gtree=makeCollapsedTree(tree=tree,df=tdata[c('genus','species')])
 rm(tdata,tree)
 
