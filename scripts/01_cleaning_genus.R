@@ -12,11 +12,7 @@ library(dplyr)
 library(nlme)
 library(tidyverse)
 library(vroom)
-
-## tree libraries: for help installing, see https://stackoverflow.com/questions/66011929/package-rgl-in-r-not-loading-in-mac-os/66127391#66127391
-#devtools::install_github("dmurdoch/rgl")
-library(treespace) #dependency XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html)
-library(makeCollapsedTree) #'treespace' must be loaded first
+library(treespace) #dependency XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html); for help installing, see https://stackoverflow.com/questions/66011929/package-rgl-in-r-not-loading-in-mac-os/66127391#66127391
 
 ## set working directory
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/")
@@ -172,15 +168,85 @@ tree=read.nexus('phylo/MamPhy_fullPosterior_BDvr_Completed_5911sp_topoCons_NDexp
 ## simplify species names
 tree$tip.label[tree$tip.label=="_Anolis_carolinensis"] <- "Anolis_carolinensis"
 tree$tip.label=sapply(strsplit(tree$tip.label,'_'),function(x) paste(x[1],x[2],sep='_'))
+tree$gtip=sapply(strsplit(tree$tip.label,'_'),function(x) paste(x[1],sep='_'))
+
+
+######################################### CHECK FOR MISMATCHED NAMES #########################################
+
+## are all poxdata in tree?
+data$gtip=data$gen
+data$intree=ifelse(data$gtip%in%setdiff(data$gtip,tree$gtip),'missing','upham')
+
+## are all poxdata in traits?
+traits$gtip=traits$genus.x
+data$intraits=ifelse(data$gtip%in%setdiff(data$gtip,traits$gtip),'missing','traits')
+
+## create df of just obs w/ missing names
+miss=data[c('Host','gtip','intree','intraits')]
+miss=miss[miss$intree=='missing'|miss$intraits=='missing',]
+miss=miss[order(miss$intree,miss$intraits),]
+
+## export missing names: 
+write.csv(miss,'data/names/poxhost_name_mismatch.csv')
+rm(miss)
+
+## to species name 
+  # tree$tip.label[which(grepl('Colobus',tree$tip.label))]
+  # traits$iucn2020_binomial[which(grepl('Piliocolobus',traits$iucn2020_binomial))]
+  # to identify related species see IUCN (https://www.iucnredlist.org/) and NCBI (https://www.ncbi.nlm.nih.gov/taxonomy)
+
+## load in revised treename for "Piliocolobus badius": see NCBI Taxonomy Browser for homotypic synonym
+fix=read.csv('data/names/poxhost_name_mismatch_KTedits.csv',header=TRUE)
+fix=fix[c('gtip','treename','traitname','proxy')]
+
+## merge in revised names with poxdata (left-join) 
+data=merge(data,fix,by='gtip',all.x=T)
+
+## if blank, NA
+data$traitname=ifelse(data$traitname=='',NA,as.character(data$traitname))
+data$treename=ifelse(data$treename=='',NA,as.character(data$treename))
+
+## if NA, tip
+data$treename=ifelse(is.na(data$treename),as.character(data$gtip),as.character(data$treename))
+data$traitname=ifelse(is.na(data$traitname),as.character(data$gtip),as.character(data$traitname))
+
+## trait name includes proxy
+data$traitname=ifelse(data$intraits=='missing' & is.na(data$traitname),as.character(data$proxy),
+                      ifelse(data$intraits=='missing' & !is.na(data$traitname),as.character(data$traitname),
+                             as.character(data$gtip)))
+
+## simplify
+data=data[c('gtip','gen','fam','ord','clade','treename','traitname','pcr','competence')]
+rm(fix)
+
 
 ######################################### AGGREGATE DATA AT GENUS LEVEL #########################################
 
-## aggregate pox data
-gdata=aggregate(cbind(pcr,competence) ~ gen+fam+ord+clade+higher, data=data, FUN=sum)
+#### POX DATA ####
+
+## check/fix duplicates in phylogeny
+set=data[c('pcr','competence','treename')]
+
+## which treenames occur multiple times
+unique(set$treename)[table(set$treename)>1]
+
+## aggregate
+set=aggregate(.~treename,set,sum)
+
+## merge with meta
+set2=merge(set,data[!duplicated(data$treename),c('gtip','gen','fam','ord','clade','treename','traitname')],all.x=T,by='treename')
+
+## simplify
+gdata=set2
+rm(data,set,set2)
+
+## fix binomial
+gdata$pcr=ifelse(gdata$pcr>0,1,0)
+gdata$competence=ifelse(gdata$competence>0,1,0)
 
 #### TRAIT DATA ####
 
-## aggregate trait data: (1) for continuous/integer variables, use the median as the summary measure
+## to aggregate continuous/integer variables, use the median as the summary measure
 colnames(traits)
 gtraits_continuous=aggregate(cbind(adult_mass_g,brain_mass_g,adult_body_length_mm,adult_forearm_length_mm,
                                    max_longevity_d,maturity_d,female_maturity_d,male_maturity_d,
@@ -194,14 +260,15 @@ gtraits_continuous=aggregate(cbind(adult_mass_g,brain_mass_g,adult_body_length_m
                                    X2.1_AgeatEyeOpening_d,X18.1_BasalMetRate_mLO2hr,X5.2_BasalMetRateMass_g,
                                    X7.1_DispersalAge_d,X22.2_HomeRange_Indiv_km2,
                                    X13.2_NeonateHeadBodyLen_mm,X10.1_PopulationGrpSize,X13.3_WeaningHeadBodyLen_mm) 
-                             ~ order.x+family.x+genus.x, data=traits, FUN=median, na.action=na.pass, na.rm=TRUE)
-    # 'na.action=na.pass, na.rm=TRUE' is specified such that if species w/in a genus has a combination of real values & NAs, the median of real values will be returned (as opposed to omitting the genus or returning NA)
+                             ~ order.x+family.x+genus.x+gtip, data=traits, FUN=median, na.action=na.pass, na.rm=TRUE)
+  # 'na.action=na.pass, na.rm=TRUE' is specified such that if species w/in a genus has a combination of real values & NAs, the median of real values will be returned (as opposed to omitting the genus or returning NA)
 
-## aggregate trait data: (2) for binary variables, use the mean as the summary measure
+## to aggregate binary variables, use the mean as the summary measure
 traits$fossoriality[traits$fossoriality==2]<-0  #recode 0/1
-gtraits_binary=aggregate(cbind(hibernation_torpor,fossoriality,freshwater,marine,terrestrial_non.volant,terrestrial_volant,island_dwelling,disected_by_mountains,glaciation) ~ order.x+family.x+genus.x, data=traits, FUN=mean, na.action=na.pass, na.rm=TRUE)
+gtraits_binary=aggregate(cbind(hibernation_torpor,fossoriality,freshwater,marine,terrestrial_non.volant,terrestrial_volant,
+                               island_dwelling,disected_by_mountains,glaciation) ~ order.x+family.x+genus.x+gtip, data=traits, FUN=mean, na.action=na.pass, na.rm=TRUE)
 
-## aggregate trait data: (3) transform categorical variables into binary
+## to aggregate categorical variables transform into binary
 gtraits_cat <- traits
 gtraits_cat$trophic_herbivores <- ifelse(gtraits_cat$trophic_level==1,1,0)
 gtraits_cat$trophic_omnivores <- ifelse(gtraits_cat$trophic_level==2,1,0)
@@ -228,91 +295,56 @@ gtraits_cat$biogeo_neotropical <- ifelse(grepl("Neotropical",gtraits_cat$biogeog
 gtraits_cat$biogeo_oceanian <- ifelse(grepl("Oceanian",gtraits_cat$biogeographical_realm),1,0)
 gtraits_cat$biogeo_palearctic <- ifelse(grepl("Palearctic",gtraits_cat$biogeographical_realm),1,0)
 
-## aggregate trait data: (4) for transformed binary variables, use the mean as the summary measure
+## to aggregate transformed categorical (binary) variables, use the mean as the summary measure
 gtraits_cat=aggregate(cbind(trophic_herbivores,trophic_omnivores,trophic_carnivores,
                             activity_nocturnal,activity_crepuscular,activity_diurnal,
                             forager_marine,forager_ground,forager_scansorial,forager_arboreal,forager_aerial,
                             island_end_marine,island_end_mainland,island_end_lgbridge,island_end_isolated,
                             biogeo_afrotropical,biogeo_antarctic,biogeo_australasian,biogeo_indomalayan,biogeo_nearctic,biogeo_neotropical,biogeo_oceanian,biogeo_palearctic)
-                      ~ order.x+family.x+genus.x, data=gtraits_cat, FUN=mean, na.action=na.pass, na.rm=TRUE)
+                      ~ order.x+family.x+genus.x+gtip, data=gtraits_cat, FUN=mean, na.action=na.pass, na.rm=TRUE)
 
-## aggregate trait data: (5) merge continuous variables with binary variables and clean environment
-gtraits <- full_join(gtraits_continuous, gtraits_binary, by = c("order.x","family.x","genus.x"),keep=TRUE)
-colnames(gtraits)[1:3] <- c("order.x","family.x","genus.x")
-gtraits <- full_join(gtraits, gtraits_cat, by = c("order.x","family.x","genus.x"),keep=TRUE)
-colnames(gtraits)[1:3] <- c("ord","fam","gen")
-rm(data,traits,gtraits_binary,gtraits_cat,gtraits_continuous)
+## merge continuous variables with binary variables and clean environment
+gtraits <- full_join(gtraits_continuous, gtraits_binary, by = c("order.x","family.x","genus.x","gtip"),keep=TRUE)
+colnames(gtraits)[1:4] <- c("order.x","family.x","genus.x","gtip")
+gtraits=subset(gtraits, select=-c(order.x.y,family.x.y,genus.x.y,gtip.y))
 
-# aggregate phylogeny data: (1) create df linking tip labels with their corresponding categories (genus and species)
+## merge transformed categorical variables and clean environment
+gtraits <- full_join(gtraits, gtraits_cat, by = c("order.x","family.x","genus.x","gtip"),keep=TRUE)
+colnames(gtraits)[1:4] <- c("ord","fam","gen","gtip")
+gtraits=subset(gtraits, select=-c(order.x.y,family.x.y,genus.x.y,gtip.y))
+
+## clean 
+rm(traits,gtraits_binary,gtraits_cat,gtraits_continuous)
+
+#### TREE DATA ####
+
+## create df linking tip labels with their corresponding categories (genus and species)
 tdata <- data.frame(matrix(NA,nrow=length(tree$tip.label),ncol=0))
 tdata$genus=sapply(strsplit(tree$tip.label,'_'),function(x) paste(x[1],sep='_'))
 tdata$species=tree$tip.label
 
-## aggregate phylogeny data: (2) collapse tree to genus level and clean environment
+## collapse tree to genus level and clean environment
 gtree=makeCollapsedTree(tree=tree,df=tdata[c('genus','species')])
 rm(tdata,tree)
 
-######################################### COMBINE POX DATA, TRAIT DATA AND TREENAMES #########################################
 
-## are all poxdata in tree?
-gdata$tip.label=gdata$gen
-gdata$tip.label[gdata$tip.label%in%setdiff(gdata$tip.label,gtree$tip.label)]
-
-## are all poxdata in traits?
-gtraits$tip.label=gtraits$gen
-gdata$tip.label[gdata$tip.label%in%setdiff(gdata$tip.label,gtraits$tip.label)]
-
-## load in revised treename for "Piliocolobus badius": see NCBI Taxonomy Browser for homotypic synonym
-any(gtree$tip.label=="Colobus")
-tip.label <- "Piliocolobus"
-treename <- "Colobus"
-traitname <- "Piliocolobus"
-fix <- data.frame(tip.label,treename,traitname)
-
-## merge in revised names with poxdata (left-join)
-gdata=merge(gdata,fix,by='tip.label',all.x=T)
-
-## clean
-rm(tip.label,treename,traitname)
-
-## if blank, NA
-gdata$treename=ifelse(gdata$treename=='',NA,as.character(gdata$treename))
-gdata$traitname=ifelse(gdata$traitname=='',NA,as.character(gdata$traitname))
-
-## if NA, tip
-gdata$treename=ifelse(is.na(gdata$treename),as.character(gdata$tip.label),as.character(gdata$treename))
-gdata$traitname=ifelse(is.na(gdata$traitname),as.character(gdata$tip.label),as.character(gdata$traitname))
-
-## simplify
-gdata=gdata[c('treename','traitname','pcr','competence','antibodies','tip.label','gen','fam','clade')]
-rm(fix)
-
-## check/fix duplicates in phylogeny
-set=gdata[c('pcr','competence','antibodies','treename')]
-
-## which treenames occur multiple times
-unique(set$treename)[table(set$treename)>1]
-rm(set)
-
-## fix binomial
-gdata$pcr=ifelse(gdata$pcr>0,1,0)
-gdata$competence=ifelse(gdata$competence>0,1,0)
-gdata$antibodies=ifelse(gdata$antibodies>0,1,0)
+######################################### MERGE POX DATA, TRAITS, & TREE #########################################
 
 ## merge traits
-gtraits$traitname=gtraits$tip.label
+gtraits$traitname=gtraits$gtip
 gtraits$trait=1
 gdata=merge(gdata,gtraits,by=c('traitname'),all.x=T)
+rm(gtraits)
 
 ## simplify
-rm(gtraits)
-gdata <- subset(gdata, select=-c(fam.x,gen.x,order.x.y,family.x.y,genus.x.y,order.x.y.y,family.x.y.y,genus.x.y.y,tip.label.y))
-gdata %>% rename(tip.label.x=tip.label, fam.y=fam, gen.y=gen)
-colnames(gdata)[6] <- c('tip.label')
-colnames(gdata)[9:10] <- c('fam','gen')
+gdata <- subset(gdata, select=-c(gen.y,ord.y,fam.y,gtip.y,trait))
+gdata <- gdata %>% rename(gtip=gtip.x, gen=gen.x, fam=fam.x, ord=ord.x)
 
 ## trim tree
 gtree=keep.tip(gtree,gtree$tip.label[gtree$tip.label%in%gdata$treename])
+
+## fix
+gtree$gtip=NULL
 gtree=makeLabel(gtree)
 
 
@@ -349,7 +381,7 @@ rm(cites,citations,i,counter)
 ## get ed
 library(picante) #before loading picante, make sure latest version of nlme package is loaded
 ed=evol.distinct(gtree,type='equal.splits')
-# note: calculates evolutionary distinctiveness measures for a suite of species by equal splits and fair proportions; returns species score
+  # note: calculates evolutionary distinctiveness measures for a suite of species by equal splits and fair proportions; returns species score
 
 ## treename
 ed$treename=ed$Species
@@ -362,9 +394,6 @@ ed$w=NULL
 ## merge into data
 gdata=merge(gdata,ed,by='treename',all.x=T)
 rm(ed)
-
-## cleaning
-gdata$trait=NULL
 
 ## export files
 write.csv(gdata,'data/cleaned/pox cleaned response and traits.csv')
