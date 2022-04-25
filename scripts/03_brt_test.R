@@ -68,8 +68,8 @@ hfit=function(row,response){
   result=dataTest$response
   
   ## sensitiviy and specificity
-  sen=InformationValue::sensitivity(result,preds, threshold=0.1)
-  spec=InformationValue::specificity(result,preds, threshold=0.1)
+  sen=InformationValue::sensitivity(result,preds, threshold=0.5)
+  spec=InformationValue::specificity(result,preds, threshold=0.5)
   
   ## AUC on train
   auc_train=gbm.roc.area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))
@@ -91,7 +91,7 @@ hfit=function(row,response){
 }
 
 ## run the function
-hpars=lapply(1:nrow(hgrid),function(x) hfit(x,response="pcr"))
+hpars=lapply(1:nrow(hgrid_test),function(x) hfit(x,response="pcr"))
 
 ## get results
 hresults=data.frame(sapply(hpars,function(x) x$trainAUC),

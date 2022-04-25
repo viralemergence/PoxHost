@@ -463,7 +463,7 @@ brt_part=function(seed,response){
              n.minobsinnode=4,
              cv.folds=5,class.stratify.cv=TRUE,
              bag.fraction=0.5,train.fraction=1,
-             n.cores=1,
+             n.cores=4,
              verbose=F)
   
   ## performance
@@ -553,7 +553,7 @@ pcr_brts=lapply(1:smax,function(x) brt_part(seed=x,response="pcr"))
 comp_brts=lapply(1:smax,function(x) brt_part(seed=x,response="competence"))
 
 ## write to files
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
+setwd("/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)")
 saveRDS(pcr_brts,"data/cleaned/pcr brts.rds")
 saveRDS(comp_brts,"data/cleaned/comp brts.rds")
 
