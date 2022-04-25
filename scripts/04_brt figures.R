@@ -1,9 +1,10 @@
 ## PoxHost 04: processing mammal orthopoxvirus BRT
 ## katie.tseng@wsu.edu
-## updated 04/19/2022
+## updated 04/25/2022
 
 ## clean environment & plots
-rm(list=ls()) 
+rm(list = ls()[!ls() %in% c("pcr_brts", "comp_brts", "pm_brts")])
+#rm(list=ls()) 
 graphics.off()
 
 ## libraries
@@ -23,7 +24,8 @@ library(ggpubr)
 library(plyr)
 
 ## load files
-setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/data/cleaned")
+setwd("/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/cleaned")
+#setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/data/cleaned")
 pcr_brts=readRDS("pcr brts.rds")
 comp_brts=readRDS("comp brts.rds")
 pm_brts=readRDS("pm brts.rds")
@@ -125,7 +127,7 @@ spdata=tfun("spec")
 ps=c(adata$tsum$p.value,
      sedata$tsum$p.value,
      spdata$tsum$p.value)
-round(p.adjust(ps,method="BH"),4)
+round(p.adjust(ps,method="BH"),4)    #"BH" (aka "fdr") = Benjamini & Hochberg (1995) method control the false discovery rate, the expected proportion of false discoveries amongst the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate)
 
 ## aggregate dataset
 data1=sedata$adata
@@ -138,7 +140,7 @@ sdata=rbind.data.frame(data1,data2)
 rm(data1,data2)
 
 ## supplement
-setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/temp/hantaro/figs")
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/figs")
 png("Figure S3.png",width=4,height=5,units="in",res=300)
 set.seed(1)
 ggplot(sdata)+
@@ -161,7 +163,7 @@ ggplot(sdata)+
   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
-  guides(colour=F)
+  guides(colour="none")
 dev.off()
 
 ## plot AUC for main text, t test
@@ -181,7 +183,7 @@ f2A=ggplot(adata$adata)+
   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
-  guides(colour=F)
+  guides(colour="none")
 
 ## relative importance for PCR
 vinf=lapply(pcr_brts,function(x) x$rinf)
@@ -191,14 +193,14 @@ pcr_vinf=do.call(rbind,vinf)
 vinf=lapply(comp_brts,function(x) x$rinf)
 comp_vinf=do.call(rbind,vinf)
 
-## aggregate mean, SE, and var
+## aggregate mean, SE, var for PCR
 vdata_pcr=data.frame(aggregate(rel.inf~var,data=pcr_vinf,mean),
                      aggregate(rel.inf~var,data=pcr_vinf,se)["rel.inf"],
                      aggregate(rel.inf~var,data=pcr_vinf,var)["rel.inf"])
 names(vdata_pcr)=c("var","rel.inf","rse","rvar")
 vdata_pcr=vdata_pcr[order(vdata_pcr$rel.inf,decreasing=T),]
 
-## aggregate mean, SE, var
+## aggregate mean, SE, var for competence
 vdata_comp=data.frame(aggregate(rel.inf~var,data=comp_vinf,mean),
                       aggregate(rel.inf~var,data=comp_vinf,se)["rel.inf"],
                       aggregate(rel.inf~var,data=comp_vinf,var)["rel.inf"])
@@ -216,10 +218,10 @@ var(vdata_comp$rel.inf)
 ## clean
 rm(pcr_vinf,comp_vinf,vinf)
 
-## rank
+## rank for pcr
 vdata_pcr$pcr_rank=1:nrow(vdata_pcr)
 
-## comp
+## rank for competence
 vdata_comp$comp_rank=1:nrow(vdata_comp)
 
 ## rel inf
@@ -238,7 +240,7 @@ ts5$feature=ts5$var
 ts5=ts5[c("feature","pcr_imp","comp_imp","pcr_rank","comp_rank")]
 
 ## Table S5
-setwd("~/Desktop/hantaro/figs")
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/figs")
 write.csv(ts5,"Table S5.csv")
 
 ## correlate
@@ -252,16 +254,27 @@ ranks2=ranks2[order(ranks2$pcr_imp,decreasing=T),]
 ranks2$pcr_rank=1:nrow(ranks2)
 ranks2=ranks2[order(ranks2$comp_imp,decreasing=T),]
 ranks2$comp_rank=1:nrow(ranks2)
+
+## correlate
 cor.test(ranks2$pcr_rank,ranks2$comp_rank,method="spearman")
 
 ## identify features with high residuals
-ranks2$resid=abs(resid(lm(comp_rank~pcr_rank,data=ranks2)))
+ranks2$resid=abs(resid(lm(comp_rank~pcr_rank,data=ranks2)))  # extract residuals from linear regression as absolute values
+
+## plot residuals
+plot(ranks2$pcr_rank,ranks2$resid,
+     ylab="Residuals",xlab="pcr_rank", 
+     main="comp_rank")
 
 ## flag if resid>10
-ranks2$select=ifelse(ranks2$resid>10,"yes","no")
+#ranks2$select=ifelse(ranks2$resid>10,"yes","no")
+ranks2$select=ifelse(ranks2$resid>20,"yes","no")
+which(ranks2$resid>20) # returns 5 values
+
 
 ## flag if consistently low or consistently high
-n=7
+n=6
+n=5
 ranks2$select=ifelse(ranks2$comp_rank<n & ranks2$pcr_rank<n,"yes",ranks2$select)
 ranks2$select=ifelse(ranks2$comp_rank%in%tail(1:nrow(ranks2),n) & 
                        ranks2$pcr_rank%in%tail(1:nrow(ranks2),n),"yes",ranks2$select)
@@ -305,7 +318,7 @@ f2B=ggplot(ranks2,aes(pcr_rank,comp_rank))+
   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))
 
 ## Figure 2
-setwd("~/Desktop/hantaro/figs")
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/figs")
 png("Figure 2.png",width=7,height=3.5,units="in",res=300)
 ggarrange(f2A,f2B,ncol=2,widths=c(1,1),
           labels=c("(a)","(b)"),
