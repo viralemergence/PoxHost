@@ -233,7 +233,7 @@ if(hok!="ok"){
                n.minobsinnode=hgrid$n.minobsinnode[row],         #min. number of obs in terminal nodes of trees
                cv.folds=5,class.stratify.cv=TRUE,                #number of cross-val folds to perform; for cv.folds>1, returns estimate of generalization error in 'cv.error'
                bag.fraction=0.5,train.fraction=1,                #fraction of training set obs randomly selected to propose next tree in expansion - this is why we set.seed()
-               n.cores=1,                                        #number of CPU cores to use
+               n.cores=4,                                        #number of CPU cores to use
                verbose=F)
     
     ## performance
