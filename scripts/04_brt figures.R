@@ -274,7 +274,6 @@ which(ranks2$resid>20) # returns 5 values
 
 ## flag if consistently low or consistently high
 n=6
-n=5
 ranks2$select=ifelse(ranks2$comp_rank<n & ranks2$pcr_rank<n,"yes",ranks2$select)
 ranks2$select=ifelse(ranks2$comp_rank%in%tail(1:nrow(ranks2),n) & 
                        ranks2$pcr_rank%in%tail(1:nrow(ranks2),n),"yes",ranks2$select)
