@@ -21,7 +21,7 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 ######################################### POXVIRUS DATA #########################################
 
 ## load in orthopoxvirus data (source: https://github.com/viralemergence/virion/tree/main/Virion)
-virion <- vroom("data/raw/Virion.csv.gz")
+virion <- vroom("/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/Virion.csv.gz")
 
 ## view detection methods
 virion %>%
@@ -100,6 +100,9 @@ data=merge(gtaxa,poxdata,by='gen',all.x=TRUE)
 
 ## sort by taxonomy level (high to low)
 data <- data[order(data$higher,data$clade,data$ord,data$fam,data$gen),]
+
+## note genera that are unsampled/pseudoabsences
+data$studied=ifelse(is.na(data$pcr) & is.na(data$competence),0,1)
 
 ## create pseudo-absences for viral detection
 data$pcr=ifelse(is.na(data$pcr),0,data$pcr)
@@ -216,7 +219,7 @@ data$traitname=ifelse(data$intraits=='missing' & is.na(data$traitname),as.charac
                              as.character(data$gtip)))
 
 ## simplify
-data=data[c('gtip','gen','fam','ord','clade','treename','traitname','pcr','competence')]
+data=data[c('gtip','gen','fam','ord','clade','treename','traitname','pcr','competence','studied')]
 rm(fix)
 
 
@@ -234,7 +237,7 @@ unique(set$treename)[table(set$treename)>1]
 set=aggregate(.~treename,set,sum)
 
 ## merge with meta
-set2=merge(set,data[!duplicated(data$treename),c('gtip','gen','fam','ord','clade','treename','traitname')],all.x=T,by='treename')
+set2=merge(set,data[!duplicated(data$treename),c('studied','gtip','gen','fam','ord','clade','treename','traitname')],all.x=T,by='treename')
 
 ## simplify
 gdata=set2

@@ -3,8 +3,7 @@
 ## updated 04/25/2022
 
 ## clean environment & plots
-rm(list = ls()[!ls() %in% c("pcr_brts", "comp_brts", "pm_brts")])
-#rm(list=ls()) 
+rm(list=ls()) 
 graphics.off()
 
 ## libraries
@@ -154,7 +153,7 @@ ggplot(sdata)+
   facet_wrap(~type,scales="free_y",strip.position="left",ncol=1)+
   theme(strip.placement="outside",
         strip.background=element_blank())+
-  labs(x="response variable",
+  labs(x="Response variable",
        y=NULL)+
   theme(axis.text.y=element_text(size=10),
         axis.text.x=element_text(size=12),
@@ -175,8 +174,8 @@ f2A=ggplot(adata$adata)+
                      labels=levels(adata$adata$response2),
                      limits=c(0.5,2.5))+
   theme_bw()+
-  labs(x="response variable",
-       y="model performance (AUC)")+
+  labs(x="Response variable",
+       y="Model performance (AUC)")+
   theme(axis.text=element_text(size=10),
         axis.text.x=element_text(size=12),
         axis.title=element_text(size=12))+
@@ -268,12 +267,12 @@ plot(ranks2$pcr_rank,ranks2$resid,
 
 ## flag if resid>10
 #ranks2$select=ifelse(ranks2$resid>10,"yes","no")
-ranks2$select=ifelse(ranks2$resid>20,"yes","no")
+ranks2$select=ifelse(ranks2$resid>18,"yes","no")
 which(ranks2$resid>20) # returns 5 values
 
 
 ## flag if consistently low or consistently high
-n=6
+n=7
 ranks2$select=ifelse(ranks2$comp_rank<n & ranks2$pcr_rank<n,"yes",ranks2$select)
 ranks2$select=ifelse(ranks2$comp_rank%in%tail(1:nrow(ranks2),n) & 
                        ranks2$pcr_rank%in%tail(1:nrow(ranks2),n),"yes",ranks2$select)
@@ -308,8 +307,8 @@ f2B=ggplot(ranks2,aes(pcr_rank,comp_rank))+
   scale_x_reverse(limits=c(max(c(ranks2$comp_rank,ranks2$pcr_rank))+4,0))+
   #geom_abline(slope=1,linetype=2,size=0.5)+
   theme_bw()+
-  labs(x="feature rank for RT-PCR",
-       y="feature rank for virus isolation")+
+  labs(x="Feature rank for RT-PCR",
+       y="Feature rank for virus isolation")+
   theme(axis.text=element_text(size=10),
         axis.title=element_text(size=12))+
   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
@@ -328,7 +327,7 @@ dev.off()
 
 ## pdp
 detach("package:purrr", unload=TRUE)
-library(pdp)
+library(pdp)  #partial dependence plots help visualize the relationship b/w a subset of features and the response while accounting for the avg effect of the other predictors in the model
 library(gbm)
 
 ## function for compiling across BRTs for a given predictor, all else equal
@@ -441,7 +440,7 @@ pdp_plot=function(bmods,feature){
     yrange=range(agg$yhat,pmean$yhat,na.rm=T)
     
     ## fix temp to yrange
-    temp$yhat=ifelse(temp$hPCR==1,max(yrange),min(yrange))
+    temp$yhat=ifelse(temp$pcr==1,max(yrange),min(yrange))
     
     ## ggplot with rug
     set.seed(1)
@@ -477,14 +476,14 @@ pdp_plot=function(bmods,feature){
 }
 
 ## load files
-setwd("~/Desktop/hantaro/data/clean files")
-data=read.csv('hantaro cleaned response and traits.csv')
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
+data=read.csv('data/cleaned/pox cleaned response and traits.csv')
 
-## make binary columns for genus
-dums=dummy_cols(data["gen"])
+## make binary columns for family
+dums=dummy_cols(data["fam"])
 
 ## unique
-dums=dums[!duplicated(dums$gen),]
+dums=dums[!duplicated(dums$fam),]
 
 ## ensure all factor
 for(i in 1:ncol(dums)){
@@ -495,7 +494,7 @@ for(i in 1:ncol(dums)){
 }
 
 ## merge
-data=merge(data,dums,by="gen",all.x=T)
+data=merge(data,dums,by="fam",all.x=T)
 rm(dums)
 
 ## top PCR
@@ -526,16 +525,20 @@ c10=pdp_plot(comp_brts,ranks2$var[10])
 
 ## compile
 library(patchwork)
-setwd("~/Desktop/hantaro/figs")
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/figs")
+pcr_pdp_plots <- p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+plot_layout(nrow=10,ncol=1,byrow=F)
+comp_pdp_plots <- c1+c2+c3+c4+c5+c6+c7+c8+c9+c10+plot_layout(nrow=10,ncol=1,byrow=F)
 png("Figure S4.png",width=4,height=10,units="in",res=300)
-p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+
-  c1+c2+c3+c4+c5+c6+c7+c8+c9+c10+plot_layout(nrow=10,ncol=2,byrow=F)
+ggarrange(pcr_pdp_plots,comp_pdp_plots,ncol=2,nrow=2,widths=c(4,4),heights=c(22,1),
+          labels=c("(A) RT-PCR","(B) virus isolation"),
+          label.x=c(0,-0.1), label.y=0.001,
+          font.label=list(face="plain",size=12))
 dev.off()
 
 ## clean
-rm(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,
+rm(pcr_pdp_plots,comp_pdp_plots,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,
    c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,
-   ranks,ranks2,ts2,f2A,f2B,adata)
+   ranks,ranks2,ts5,f2A,f2B,adata)
 
 ## average predictions: PCR
 pcr_apreds=lapply(pcr_brts,function(x) x$predict)
@@ -544,7 +547,7 @@ pcr_apreds=do.call(rbind,pcr_apreds)
 ## aggregate
 pcr_apreds=data.frame(aggregate(pred~treename,data=pcr_apreds,mean),
                       aggregate(cpred~treename,data=pcr_apreds,mean)['cpred'], ## holding wos constant
-                      aggregate(hPCR~treename,data=pcr_apreds,prod)["hPCR"],
+                      aggregate(pcr~treename,data=pcr_apreds,prod)["pcr"],
                       aggregate(competence~treename,data=pcr_apreds,prod)["competence"])
 
 ## type
@@ -557,7 +560,7 @@ comp_apreds=do.call(rbind,comp_apreds)
 ## aggregate
 comp_apreds=data.frame(aggregate(pred~treename,data=comp_apreds,mean),
                        aggregate(cpred~treename,data=comp_apreds,mean)['cpred'], ## holding wos constant
-                       aggregate(hPCR~treename,data=comp_apreds,prod)["hPCR"],
+                       aggregate(pcr~treename,data=comp_apreds,prod)["pcr"],
                        aggregate(competence~treename,data=comp_apreds,prod)["competence"])
 
 ## type
@@ -567,14 +570,14 @@ comp_apreds$type='competence'
 apreds=rbind.data.frame(pcr_apreds,comp_apreds)
 
 ## add study
-apreds=merge(apreds,data[c("treename","studies")],by="treename")
+apreds=merge(apreds,data[c("treename","studied")],by="treename")
 
 ## make positivity
-apreds$positivity=ifelse(apreds$hPCR==1 & apreds$type=="PCR",1,
+apreds$positivity=ifelse(apreds$pcr==1 & apreds$type=="PCR",1,
                          ifelse(apreds$competence==1 & apreds$type=='competence',1,0))
 
 ## make type
-apreds$cat=ifelse(apreds$studies==0,"unsampled",
+apreds$cat=ifelse(apreds$studied==0,"unsampled",
                   ifelse(apreds$positivity==1,"positive","negative"))
 
 ## type
@@ -583,23 +586,24 @@ apreds$type=factor(apreds$type,levels=c("PCR","competence"))
 apreds$type2=revalue(apreds$type,c("PCR"="infection"))
 
 ## long to wide
+apreds2_temp=spread(apreds[c('treename','type','cpred')],type,cpred)
 apreds2=spread(apreds[c('treename','type','cpred')],type,cpred)
 comp_apreds$comp=comp_apreds$competence
 
 ## merge
-apreds2=merge(apreds2,comp_apreds[c("treename","hPCR","comp")],by="treename")
+apreds2=merge(apreds2,comp_apreds[c("treename","pcr","comp")],by="treename")
 
 ## fix names
 names(apreds2)=c("treename","pred_pcr","pred_comp","PCR","competence")
 
 ## classify true negatives
-data$type=ifelse(data$studies>0 & data$hPCR==0 & data$competence==0,"true negative","other")
+data$type=ifelse(data$studied>0 & data$pcr==0 & data$competence==0,"true negative","other")
 
 ## with data
-apreds2=merge(apreds2,data[c("treename","type",'studies',"fam","gen")],by='treename')
+apreds2=merge(apreds2,data[c("treename","type","studied","ord","fam","gen")],by='treename')
 
 ## fix type
-apreds2$cat=ifelse(apreds2$studies==0,"unsampled",
+apreds2$cat=ifelse(apreds2$studied==0,"unsampled",
                    ifelse(apreds2$PCR==0 & apreds2$competence==0,"negative","positive"))
 
 ## fix cat
@@ -612,6 +616,7 @@ apreds$type2=revalue(apreds$type2,
                        "competence"="virus isolation"))
 
 ## figure 3a
+remotes::install_github("awhstin/awtools")
 library(awtools)
 cc=mpalette[2:4] 
 cc=rev(cc)
@@ -620,7 +625,7 @@ f3A=ggplot(apreds,aes(cpred))+
   facet_wrap(~type2,ncol=1,strip.position='top',scales="free_y")+
   theme_bw()+
   theme(legend.position="top")+
-  labs(x=expression(paste("predicted probability (",italic(P),") of hosting")))+
+  labs(x=expression(paste("Predicted probability (",italic(P),") of hosting")))+
   xlim(0,1)+
   theme(axis.text=element_text(size=10),
         axis.title=element_text(size=12),
@@ -634,8 +639,8 @@ f3A=ggplot(apreds,aes(cpred))+
   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
   scale_colour_manual(values=cc)+
   scale_fill_manual(values=cc)+
-  guides(colour=guide_legend(title="(a) orthohantavirus positivity"),
-         fill=guide_legend(title="(a) orthohantavirus positivity"))
+  guides(colour=guide_legend(title="(a) Orthopoxvirus positivity"),
+         fill=guide_legend(title="(a) Orthopoxvirus positivity"))
 f3A
 
 ## scatterplot
@@ -658,11 +663,12 @@ f3B=ggplot(apreds2,aes(pred_pcr,pred_comp))+
   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
   scale_colour_manual(values=cc)+
   scale_fill_manual(values=cc)+
-  guides(colour=guide_legend(title="(a) orthohantavirus positivity"),
-         fill=guide_legend(title="(a) orthohantavirus positivity"))
+  guides(colour=guide_legend(title="(a) Orthohantavirus positivity"),
+         fill=guide_legend(title="(a) Orthohantavirus positivity"))
+f3B
 
 ## combine
-setwd("~/Desktop/hantaro/figs")
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/figs")
 png("Figure 3.png",width=6.5,height=4,units="in",res=300)
 f3=ggarrange(f3A,f3B,common.legend=T)
 f3
@@ -674,45 +680,45 @@ preds$fam=NULL
 preds$gen=NULL
 
 ## write file
-setwd("~/Desktop/hantaro/data/clean files")
-write.csv(preds,"hantaro predictions.csv")
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/data/cleaned")
+write.csv(preds,"PoxHost predictions.csv")
 
 ## test correlation
 cor(apreds2$pred_pcr,apreds2$pred_comp,method='spearman')
 cor.test(apreds2$pred_pcr,apreds2$pred_comp,method='spearman')
 
 ## load phylogeny
-setwd("~/Desktop/hantaro/data/clean files")
-rtree=readRDS('rodent phylo trim.rds')
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/data/cleaned")
+mtree=readRDS('mammal phylo trim.rds')
 
 ## setdiff
-apreds2$tree=ifelse(apreds2$treename%in%setdiff(apreds2$treename,rtree$tip.label),'cut','keep')
-table(apreds2$tree)
+apreds2$tree=ifelse(apreds2$treename%in%setdiff(apreds2$treename,mtree$tip.label),'cut','keep')
+table(apreds2$tree)    #keep: 945
 
 ## trim
-bdata=apreds2[-which(apreds2$tree=='cut'),]
+bdata=subset(apreds2,tree=='keep')
 
 ## match
-bdata=bdata[match(rtree$tip.label,bdata$treename),]
+bdata=bdata[match(mtree$tip.label,bdata$treename),]
 
 ## save
 bdata$label=bdata$treename
 bdata$Species=bdata$treename
 
 ## merge
-cdata=comparative.data(phy=rtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)
+cdata=comparative.data(phy=mtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)    #vcv=T indicates to include variance covariance array representing phylogeny within the comparative dataset
 
 ## fix
 cdata$data$tree=NULL
 
 ## lambda
-pcr_lmod=pgls(pred_pcr~1,data=cdata,lambda="ML")
-comp_lmod=pgls(pred_comp~1,data=cdata,lambda="ML")
+pcr_lmod=pgls(pred_pcr~1,data=cdata,lambda="ML")     #pglos fits a linear model while taking into account phylogenetic non-independence between data ponits
+comp_lmod=pgls(pred_comp~1,data=cdata,lambda="ML")   #lambda = value for lambda transformation; 'ML' uses maximum likelihood to optimise branch length transformations
 summary(pcr_lmod)
 summary(comp_lmod)
-# moderate phylogenetic signal in predictions
-## pcr = 0.63
-## comp = 0.57
+# poor phylogenetic signal in predictions
+## pcr = 0.271339 (p=0.0008217)
+## comp = 0.234922 (p=0.007775) 
 
 ## taxonomy
 cdata$data$taxonomy=paste(cdata$data$fam,cdata$data$gen,cdata$data$Species,sep='; ')
@@ -939,7 +945,7 @@ p2=gg+
 ## combine
 f3C=p1+p2
 f3C=ggarrange(p1,p2,
-              labels=c("(b) RT-PCR predictions","(c) virus isolation predictions"),
+              labels=c("(B) RT-PCR predictions","(C) Virus isolation predictions"),
               label.x=c(-0.03,-0.1),
               label.y=0.1,
               font.label=list(face="plain",size=13))
