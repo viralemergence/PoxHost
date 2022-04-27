@@ -478,6 +478,7 @@ pdp_plot=function(bmods,feature){
 ## load files
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
 data=read.csv('data/cleaned/pox cleaned response and traits.csv')
+data=subset(data,select=-c(X.1))
 
 ## make binary columns for family
 dums=dummy_cols(data["fam"])
@@ -586,7 +587,6 @@ apreds$type=factor(apreds$type,levels=c("PCR","competence"))
 apreds$type2=revalue(apreds$type,c("PCR"="infection"))
 
 ## long to wide
-apreds2_temp=spread(apreds[c('treename','type','cpred')],type,cpred)
 apreds2=spread(apreds[c('treename','type','cpred')],type,cpred)
 comp_apreds$comp=comp_apreds$competence
 
@@ -693,7 +693,8 @@ mtree=readRDS('mammal phylo trim.rds')
 
 ## setdiff
 apreds2$tree=ifelse(apreds2$treename%in%setdiff(apreds2$treename,mtree$tip.label),'cut','keep')
-table(apreds2$tree)    #keep: 945
+table(apreds2$tree)    
+## keep: 945
 
 ## trim
 bdata=subset(apreds2,tree=='keep')
@@ -721,7 +722,7 @@ summary(comp_lmod)
 ## comp = 0.234922 (p=0.007775) 
 
 ## taxonomy
-cdata$data$taxonomy=paste(cdata$data$fam,cdata$data$gen,cdata$data$Species,sep='; ')
+cdata$data$taxonomy=paste(cdata$data$ord,cdata$data$fam,cdata$data$Species,sep='; ') #We refer to genus as "Species" as this is required in later functions
 
 ## set taxonomy
 taxonomy=data.frame(cdata$data$taxonomy)
@@ -853,13 +854,13 @@ pcols=afun(2)
 set.seed(1)
 pcrpred_pf=gpf(Data=cdata$data,tree=cdata$phy,
                frmla.phylo=pred_pcr~phylo,
-               family=gaussian,algorithm='phylo',nfactors=7,min.group.size=5)
+               family=gaussian,algorithm='phylo',nfactors=10,min.group.size=5)
 
 ## comp predictions
 set.seed(1)
 comppred_pf=gpf(Data=cdata$data,tree=cdata$phy,
                 frmla.phylo=pred_comp~phylo,
-                family=gaussian,algorithm='phylo',nfactors=4,min.group.size=5)
+                family=gaussian,algorithm='phylo',nfactors=10,min.group.size=5)
 
 ## summarize
 pcrpred_pf_results=pfsum(pcrpred_pf)$results
@@ -877,7 +878,7 @@ predpfs$clade=round(predpfs$clade,2)
 predpfs$other=round(predpfs$other,2)
 
 ## write
-setwd("~/Desktop/hantaro/figs")
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/figs")
 write.csv(predpfs,"Table S6.csv")
 
 ## combine tree and data
@@ -923,7 +924,7 @@ p1=gg+
   geom_segment(data=samp,aes(x=x,y=y,xend=xend_pcr,yend=yend,colour=cat),size=0.75)+
   scale_colour_manual(values=cc)+
   scale_fill_manual(values=cc)+
-  guides(colour=F)
+  guides(colour="none")
 
 ## competence
 gg=pbase
@@ -940,18 +941,18 @@ p2=gg+
   geom_segment(data=samp,aes(x=x,y=y,xend=xend_comp,yend=yend,colour=cat),size=0.75)+
   scale_colour_manual(values=cc)+
   scale_fill_manual(values=cc)+
-  guides(colour=F)
+  guides(colour="none")
 
 ## combine
 f3C=p1+p2
 f3C=ggarrange(p1,p2,
-              labels=c("(B) RT-PCR predictions","(C) Virus isolation predictions"),
+              labels=c("(b) RT-PCR predictions","(c) Virus isolation predictions"),
               label.x=c(-0.03,-0.1),
               label.y=0.1,
               font.label=list(face="plain",size=13))
 
 ## revise fig 3
-setwd("~/Desktop/hantaro/figs")
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/figs")
 png("Figure 3.png",width=7,height=7.25,units="in",res=300)
 #f3+f3C+plot_layout(nrow=2,heights=c(1.25,1))
 ggarrange(f3,f3C,nrow=2,heights=c(1.1,1))

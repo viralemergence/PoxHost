@@ -33,7 +33,7 @@ bdata=bdata[match(mtree$tip.label,bdata$treename),]
 
 ## save
 bdata$label=bdata$treename
-bdata$Species=bdata$treename  #We refer to treenames of genus as "Species" for as this is required in later functions
+bdata$Species=bdata$treename  #We refer to treenames of genus as "Species" as this is required in later functions
 
 ## merge: caper::comparative.data combines phylogenies w/ datasets and ensures consistent structure and ordering
 cdata=comparative.data(phy=mtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)
