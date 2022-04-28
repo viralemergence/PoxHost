@@ -32,7 +32,7 @@ virion %>%
 ## extract associations detected by PCR & Isolation only
 poxdata <- virion %>% 
   filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation","Antibodies"))) %>% 
-  select(Host,Virus,DetectionMethod) %>%
+  dplyr::select(Host,Virus,DetectionMethod) %>%
   unique()
 
 ## exclude NAs and variola virus
@@ -73,12 +73,12 @@ poxdata$Host=str_to_title(poxdata$Host)
 poxdata$gen=sapply(strsplit(as.character(str_to_title(poxdata$Host)),"_"),function(x) x[1])
 
 # # examine pcr- or competence-only positive associations by genus and virus
-# temp <- subset(poxdata, pcr==1 | competence==1)
-# temp %>% count(gen, sort = TRUE)
-# temp %>% count(Virus, sort = TRUE)
+ temp <- subset(poxdata, pcr==1 | competence==1)
+ temp %>% count(gen, sort = TRUE)
+ temp %>% count(Virus, sort = TRUE)
 
 ## clean environment
-rm(virion,antibodies,pcr,competence)
+rm(virion,antibodies,pcr,competence,temp)
 
 ######################################### MERGE POXVIRUS & TAXONOMY DATA######################################### 
 
