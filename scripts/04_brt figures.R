@@ -1,6 +1,6 @@
 ## PoxHost 04: processing mammal orthopoxvirus BRT
 ## katie.tseng@wsu.edu
-## updated 04/25/2022
+## updated 04/27/2022
 
 ## clean environment & plots
 rm(list=ls()) 
