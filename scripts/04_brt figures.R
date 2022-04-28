@@ -478,7 +478,6 @@ pdp_plot=function(bmods,feature){
 ## load files
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
 data=read.csv('data/cleaned/pox cleaned response and traits.csv')
-data=subset(data,select=-c(X.1))
 
 ## make binary columns for family
 dums=dummy_cols(data["fam"])
@@ -714,7 +713,7 @@ cdata$data$tree=NULL
 
 ## lambda
 pcr_lmod=pgls(pred_pcr~1,data=cdata,lambda="ML")     #pglos fits a linear model while taking into account phylogenetic non-independence between data ponits
-comp_lmod=pgls(pred_comp~1,data=cdata,lambda="ML")   #lambda = value for lambda transformation; 'ML' uses maximum likelihood to optimise branch length transformations
+comp_lmod=pgls(pred_comp~1,data=cdata,lambda="ML")   #lambda = value for lambda transformation; 'ML' uses maximum likelihood to optimize branch length transformations
 summary(pcr_lmod)
 summary(comp_lmod)
 # poor phylogenetic signal in predictions
