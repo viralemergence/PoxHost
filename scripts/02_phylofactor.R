@@ -17,6 +17,8 @@ library(treeio)       ## BiocManager::install("treeio")
 ## load files
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/")
 data=read.csv('data/cleaned/pox cleaned response and traits.csv')
+# data=subset(data, select=-c(X.1))
+# write.csv(data,'data/cleaned/pox cleaned response and traits.csv')
 mtree=readRDS('data/cleaned/mammal phylo trim.rds')
 
 ## create pcr+comp var
