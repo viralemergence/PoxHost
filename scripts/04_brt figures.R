@@ -711,8 +711,8 @@ cdata=comparative.data(phy=mtree,data=bdata,names.col=treename,vcv=T,na.omit=F,w
 ## fix
 cdata$data$tree=NULL
 
-## lambda
-pcr_lmod=pgls(pred_pcr~1,data=cdata,lambda="ML")     #pglos fits a linear model while taking into account phylogenetic non-independence between data ponits
+## lambda (for more info: https://static1.squarespace.com/static/5459da8ae4b042d9849b7a7b/t/57ea64eae58c62718aa34769/1474979059782/Nesin_Winternitz_Practical_1and2.pdf)
+pcr_lmod=pgls(pred_pcr~1,data=cdata,lambda="ML")     #pgls fits a linear model while taking into account phylogenetic non-independence between data ponits
 comp_lmod=pgls(pred_comp~1,data=cdata,lambda="ML")   #lambda = value for lambda transformation; 'ML' uses maximum likelihood to optimize branch length transformations
 summary(pcr_lmod)
 summary(comp_lmod)

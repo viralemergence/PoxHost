@@ -15,10 +15,10 @@ library(phylofactor)  ## devtools::install_github('reptalex/phylofactor')
 library(treeio)       ## BiocManager::install("treeio")
 
 ## load files
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/")
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
 data=read.csv('data/cleaned/pox cleaned response and traits.csv')
-# data=subset(data, select=-c(X.1))
-# write.csv(data,'data/cleaned/pox cleaned response and traits.csv')
+#data=subset(data, select=-c(X.1))
+#write.csv(data,'data/cleaned/pox cleaned response and traits.csv')
 mtree=readRDS('data/cleaned/mammal phylo trim.rds')
 
 ## create pcr+comp var
@@ -219,7 +219,7 @@ hc_pf_results$taxa[1]="italic(Felidae)"
 pcr_gg=ggtree(dtree,size=0.25)+
   geom_tippoint(aes(colour=infect),shape=15)+
   scale_colour_manual(values=c("grey80","black"))+
-  guides(colour=F)   
+  guides(colour="none")   
 
 ## add clades to plot
 for(i in 1:nrow(pcr_pf_results)){
@@ -276,7 +276,7 @@ dev.off()
 ## log1p pubmed cites
 cdata$data$logcites=log1p(cdata$data$cites)
 
-## add in pubmed for PCR
+## model PCR with pubmed cites as weight variable
 set.seed(1)
 pcr_pf_pm=gpf(Data=cdata$data,tree=cdata$phy,
                  frmla.phylo=pcr~phylo,
@@ -287,7 +287,7 @@ pcr_pf_pm=gpf(Data=cdata$data,tree=cdata$phy,
 HolmProcedure(pcr_pf_pm)
 pcr_pf_pm_results=pfsum(pcr_pf_pm)$results       
 
-## for competence
+## model competence with pubmed cites as weight variable
 set.seed(1)
 hc_pf_pm=gpf(Data=cdata$data,tree=cdata$phy,
                 frmla.phylo=competence~phylo,
@@ -298,7 +298,7 @@ hc_pf_pm=gpf(Data=cdata$data,tree=cdata$phy,
 HolmProcedure(hc_pf_pm)
 hc_pf_pm_results=pfsum(hc_pf_pm)$results       
 
-## model citations themselves (not log1pm-transformed)
+## model cites themselves (not log1pm-transformed)
 set.seed(1)
 pm_pf=gpf(Data=cdata$data,tree=cdata$phy,
              frmla.phylo=cites~phylo,
@@ -306,4 +306,20 @@ pm_pf=gpf(Data=cdata$data,tree=cdata$phy,
 HolmProcedure(pm_pf)
 pm_pf_results=pfsum(pm_pf)$results
 
+##### KATIE, the model below will produce three coefficients (phylo, logcites, and y-intercept), you'll need to update pfsum function to get summary results.
+# ## model pcr + cites as predictors
+# set.seed(1)
+# pcr_pm_pf=gpf(Data=cdata$data,tree=cdata$phy,
+#           frmla.phylo=pcr~phylo+logcites,
+#           family=binomial,algorithm='phylo',nfactors=10,min.group.size=5)
+# HolmProcedure(pcr_pm_pf)
+# pcr_pm_pf_results=pfsum(pcr_pm_pf)$results
+# 
+# ## model competence + cites as predictors
+# set.seed(1)
+# hc_pm_pf=gpf(Data=cdata$data,tree=cdata$phy,
+#              frmla.phylo=competence~phylo+logcites,
+#              family=binomial,algorithm='phylo',nfactors=10,min.group.size=5)
+# HolmProcedure(hc_pm_pf)
+# hc_pm_pf_results=pfsum(hc_pm_pf)$results
 

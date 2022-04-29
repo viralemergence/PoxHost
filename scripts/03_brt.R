@@ -336,7 +336,7 @@ search$type=plyr::revalue(search$type,    #replace specified values w/ new value
                             "competence"="virus isolation"))
 
 ## PCR beta regression for AUC
-mod=gam(testAUC~interaction.depth*shrinkage,
+mod=gam(testAUC~interaction.depth*shrinkage,   #gam: Generalized additive models with integrated smoothness estimation
         data=search[search$type=="RT-PCR",],method="REML",family=betar)
 anova(mod)
 
