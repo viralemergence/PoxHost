@@ -530,7 +530,7 @@ pcr_pdp_plots <- p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+plot_layout(nrow=10,ncol=1,byrow
 comp_pdp_plots <- c1+c2+c3+c4+c5+c6+c7+c8+c9+c10+plot_layout(nrow=10,ncol=1,byrow=F)
 png("Figure S4.png",width=4,height=10,units="in",res=300)
 ggarrange(pcr_pdp_plots,comp_pdp_plots,ncol=2,nrow=2,widths=c(4,4),heights=c(22,1),
-          labels=c("(A) RT-PCR","(B) virus isolation"),
+          labels=c("(A) Infection","(B) Competence"),
           label.x=c(0,-0.1), label.y=0.001,
           font.label=list(face="plain",size=12))
 dev.off()
@@ -611,8 +611,8 @@ apreds$cat=factor(apreds$cat,levels=levels(apreds2$cat))
 
 ## fix type2
 apreds$type2=revalue(apreds$type2,
-                     c("infection"="RT-PCR",
-                       "competence"="virus isolation"))
+                     c("infection"="Infection",
+                       "competence"="Competence"))
 
 ## figure 3a
 remotes::install_github("awhstin/awtools")
