@@ -16,6 +16,7 @@ library(dismo)
 library(XML)
 library(maps)
 library(sp)
+library(dplyr)
 
 library(devtools)
 install_github("hunzikp/velox")
@@ -104,20 +105,23 @@ sort(pred.comp[!(pred.comp %in% known.comp)])
 # 2. Let's make some maps?
 
 library(fasterize)
-library(rgdal)
+library(rgdal)   # switch to sf in 2023
 library(raster)
 library(sf)
 
-iucn <- st_read(dsn = "C:/Users/cjcar/Dropbox/HowManyHelminths2019", layer='TERRESTRIAL_MAMMALS')
+#iucn <- st_read(dsn = "C:/Users/cjcar/Dropbox/HowManyHelminths2019", layer='TERRESTRIAL_MAMMALS')
+iucn <- st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/MAMMALS/MAMMALS.shp", layer='MAMMALS')
 
 r <- disaggregate(getData("worldclim",var="alt",res=2.5)*0,2) # Make a blank raster
 
 # Create four layers
+iucn$treename=sapply(strsplit(iucn$binomial,' '),function(x) paste(x[1],sep=' '))
 
-iucn.1 <- iucn[iucn$binomial %in% known.comp,] 
-iucn.2 <- iucn[iucn$binomial %in% known.pcr,] 
-iucn.3 <- iucn[iucn$binomial %in% pred.comp,] 
-iucn.4 <- iucn[iucn$binomial %in% pred.pcr,] 
+iucn.1 <- iucn[iucn$treename %in% known.comp,] 
+iucn.2 <- iucn[iucn$treename %in% known.pcr,] 
+iucn.3 <- iucn[iucn$treename %in% pred.comp,] 
+iucn.4 <- iucn[iucn$treename %in% pred.pcr,] 
+
 
 map.knc <- (fasterize(iucn.1, r, fun="sum"))
 map.knp <- (fasterize(iucn.2, r, fun="sum"))
@@ -131,8 +135,8 @@ map.knp <- fix(map.knp)
 map.prc <- fix(map.prc)
 map.prp <- fix(map.prp)
 
-raster::stack(map.knp, map.knc, map.prp, map.prc) %>% 
-  crop(c(-170,-25,-90,90)) %>% 
+raster::stack(map.knp, map.knc, map.prp, map.prc) %>%    #tera package
+  crop(c(-170,-25,-90,90)) %>% # sf::intersection
   raster::trim() -> maps
 
 names(maps) <- c('KnownPCR', 'KnownComp', 'PredPCR', 'PredComp')
@@ -145,7 +149,10 @@ library(RColorBrewer)
 mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
 mycolors[1] <- "#C0C0C0"
 
-rasterVis::levelplot(maps,  
+png("Figure 4.png",width=10,height=10,units="in",res=300)
+nrow
+labels = c(nrow(know.pcr),nrow(know.comp),nrow(pred.pcr),nrow(pred.comp))
+map.all <- rasterVis::levelplot(maps,  
                      col.regions = mycolors,
                      #at = seq(0, 15, 1),
                      alpha = 0.5, 
@@ -153,3 +160,8 @@ rasterVis::levelplot(maps,
                      par.strip.text=list(cex=0),
                      xlab = NULL, ylab = NULL,
                      maxpixels = 5e6)
+dev.off()
+ggarrange(pcr_pdp_plots,comp_pdp_plots,ncol=2,nrow=2,widths=c(4,4),heights=c(22,1),
+          labels=c("(A) Infection","(B) Competence"),
+          label.x=c(0,-0.1), label.y=0.001,
+          font.label=list(face="plain",size=12))
