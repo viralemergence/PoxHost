@@ -149,19 +149,26 @@ library(RColorBrewer)
 mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
 mycolors[1] <- "#C0C0C0"
 
+
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/figs")
 png("Figure 4.png",width=10,height=10,units="in",res=300)
-nrow
-labels = c(nrow(know.pcr),nrow(know.comp),nrow(pred.pcr),nrow(pred.comp))
-map.all <- rasterVis::levelplot(maps,  
+rasterVis::levelplot(maps,  
                      col.regions = mycolors,
                      #at = seq(0, 15, 1),
                      alpha = 0.5, 
                      scales=list(alternating=FALSE),
                      par.strip.text=list(cex=0),
                      xlab = NULL, ylab = NULL,
+                     #labels = labels,
                      maxpixels = 5e6)
+# 
+# ggarrange(maps.all,ncol=1,nrow=1,
+#           labels=c("(A)",paste("n=",length(known.pcr)),
+#                    "(B)",paste("n=",length(known.comp)),
+#                    "(C)",paste("n=",length(pred.pcr)),
+#                    "(D)",paste("n=",length(pred.comp))),
+#           label.x=c(0.05,0.05,0.55,0.55,0.05,0.55,0.05,0.55),    #defaults to 0 - left
+#           label.y=c(0.95,0.55,0.95,0.55,0.45,0.05,0.45,0.05),       #defaults to 1 - top
+#           font.label=list(face="plain",size=12))
+
 dev.off()
-ggarrange(pcr_pdp_plots,comp_pdp_plots,ncol=2,nrow=2,widths=c(4,4),heights=c(22,1),
-          labels=c("(A) Infection","(B) Competence"),
-          label.x=c(0,-0.1), label.y=0.001,
-          font.label=list(face="plain",size=12))
