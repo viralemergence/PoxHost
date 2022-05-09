@@ -136,7 +136,7 @@ map.prc <- fix(map.prc)
 map.prp <- fix(map.prp)
 
 raster::stack(map.knp, map.knc, map.prp, map.prc) %>%    #tera package
-  crop(c(-170,-25,-90,90)) %>% # sf::intersection
+  #crop(c(-170,-25,-90,90)) %>% # sf::intersection
   raster::trim() -> maps
 
 names(maps) <- c('KnownPCR', 'KnownComp', 'PredPCR', 'PredComp')

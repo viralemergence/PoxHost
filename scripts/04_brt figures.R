@@ -716,9 +716,6 @@ pcr_lmod=pgls(pred_pcr~1,data=cdata,lambda="ML")     #pgls fits a linear model w
 comp_lmod=pgls(pred_comp~1,data=cdata,lambda="ML")   #lambda = value for lambda transformation; 'ML' uses maximum likelihood to optimize branch length transformations
 summary(pcr_lmod)
 summary(comp_lmod)
-# poor phylogenetic signal in predictions
-## pcr = 0.271339 (p=0.0008217)
-## comp = 0.234922 (p=0.007775) 
 
 ## taxonomy
 cdata$data$taxonomy=paste(cdata$data$ord,cdata$data$fam,cdata$data$Species,sep='; ') #We refer to genus as "Species" as this is required in later functions
