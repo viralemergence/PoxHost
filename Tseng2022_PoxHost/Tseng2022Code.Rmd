@@ -39,6 +39,14 @@ library(nlme)
 library(tidyverse)
 library(vroom)
 library(treespace) #dependency XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html); for help installing, see https://stackoverflow.com/questions/66011929/package-rgl-in-r-not-loading-in-mac-os/66127391#66127391
+
+library(gbm);
+library(ROCR);
+library(vegan);
+library(plyr);library(dplyr);
+library(mvtnorm)
+library(xtable)
+library(parallel)
 ```
 
 # Set working directory
