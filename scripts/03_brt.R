@@ -198,6 +198,7 @@ if(hok!="ok"){
   ## factor id
   hgrid$id2=factor(as.numeric(factor(hgrid$id)))                 #creates 9-level factor var 'id2' 
   
+  
   ## function to assess each hyperpar combination
   hfit=function(row,response){
     
@@ -245,6 +246,16 @@ if(hok!="ok"){
     
     ## known
     result=dataTest$response
+    
+    # ##estimate threshold value for classification of predicted probability
+    # #library(pROC)
+    # analysis <- roc(result,preds)  #roc([actual values],[predicted values])
+    # e <- cbind(analysis$thresholds,analysis$sensitivities+analysis$specificities) #pulls each array and binds them into dataframe: 1st column are thresholds, 2nd column are sensitivities + specificities
+    # 
+    # ##optimum threshold value
+    # opt_t <- subset(e,e[,2]==max(e[,2]))[,1] #subsets dataframe and returns the max (sens+spec) value of 2nd column of e 
+    # #threshold<-opt_t #set as threshold value
+    # #threshold = 0.2
     
     ## sensitiviy and specificity                                #e.g., test run produced sensitivity of 0 b/c no predictedScores were > 0.5; and specificity of 1 b/c all predictedScores were <0.5
     sen=InformationValue::sensitivity(result,preds)              #calculates sensitivity (# of obs with event AND predicted to have event, divided by # of obs w/ event) for a given logit model where input is the actual binary flag (as numerica vector) for the response variable and the predicted probability scores for each observation; if predicted value is above the threshold (defaults to 0.5), it will be considered an event (1) or else a non-event (0)
@@ -468,7 +479,7 @@ brt_part=function(seed,response){
   
   ## performance
   par(mfrow=c(1,1),mar=c(4,4,1,1))                         
-  best.iter=gbm.perf(gbmOut,method="cv")                   
+  best.iter=gbm.perf(gbmOut,method="cv")  #estimates optimal number of boosting iterations for a gbm object                 
   
   ## predict with test data
   preds=predict(gbmOut,dataTest,n.trees=best.iter,type="response")
@@ -476,7 +487,7 @@ brt_part=function(seed,response){
   ## known
   result=dataTest$response
   
-  ## sensitiviy and specificity
+  ## sensitivity and specificity
   sen=InformationValue::sensitivity(result,preds)
   spec=InformationValue::specificity(result,preds)
   
