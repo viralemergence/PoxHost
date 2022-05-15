@@ -70,16 +70,11 @@ library(parallel)
 #### LOAD DATA ####
 
 load("Tseng2022.RData")
-  #virion: host-virus paired interactions from virion, <https://github.com/viralemergence/virion/tree/main/Virion> 
-virion <- vroom("https://github.com/viralemergence/virion/raw/main/Virion/Virion.csv.gz")
-
-  #vertlife (taxa): mammal species taxonomy from vertlife, <https://data.vertlife.org/>
-vertlife<- read.csv("https://data.vertlife.org/mammaltree/taxonomy_mamPhy_5911species.csv")
-
-  #combine (hostTraits): mammal traits from combine database, <https://doi.org/10.1002/ecy.3344> (file: "trait_data_imputed.csv")
-
-  #opvgenes:
-  #dryad: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03> (path: "Data_S8_finalFigureFiles">"_DATA")
+#virion: host-virus paired interactions from virion, <https://github.com/viralemergence/virion/tree/main/Virion> 
+#vertlife (taxa): mammal species taxonomy from vertlife, <https://data.vertlife.org/>
+#combine (hostTraits): mammal traits from combine database, <https://doi.org/10.1002/ecy.3344> (file: "trait_data_imputed.csv")
+#opvgenes:
+#dryad: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03> (path: "Data_S8_finalFigureFiles">"_DATA")
 
 #### OBTAIN POX-DATA ####
 
