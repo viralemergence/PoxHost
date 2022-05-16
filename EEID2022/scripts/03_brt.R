@@ -31,7 +31,7 @@ library(InformationValue)
 library(mgcv)
 
 ## set working directory and load files
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/EEID2022")
 data=read.csv('data/cleaned/pox cleaned response and traits.csv')
 
 ## classify true negatives
@@ -65,6 +65,7 @@ rm(dums)
 
 ## drop unnecessary columns
 data$X=NULL
+data$X.1=NULL
 data$traitname=NULL
 
 ## mode function
@@ -322,13 +323,13 @@ if(hok!="ok"){
   search$type=factor(search$type,levels=c("PCR","competence"))
   
   ## export
-  setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
+  setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/EEID2022")
   write.csv(search,"figs/par tuning data summary.csv")
   
 }else{
   
   ## load
-  setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
+  setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/EEID2022")
   search=read.csv("figs/par tuning data summary.csv")
   
 }
@@ -390,7 +391,7 @@ search2$measure=factor(search2$measure,
 
 
 ## visualize
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/EEID2022")
 png("figs/Figure S2.png",width=5,height=8,units="in",res=600)
 set.seed(1)
 ggplot(search2,aes(shrinkage,value,
