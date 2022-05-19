@@ -61,14 +61,14 @@ library(plyr);library(dplyr);
 library(mvtnorm)
 library(xtable)
 library(parallel)
+
 ```
 
-# Load, format and merge data
+# Load interaction data
 
 ```{r echo=F, message=T}
 
-#### LOAD DATA ####
-
+## (1) load data
 load("Tseng2022.RData")
   #combine (hostTraits): mammal traits from combine database, <https://doi.org/10.1002/ecy.3344> (file: "trait_data_imputed.csv")
   #dryad (phylo tree): mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03> (path: "Data_S8_finalFigureFiles">"_DATA")
@@ -76,131 +76,167 @@ load("Tseng2022.RData")
   #vertlife (taxa): mammal species taxonomy from vertlife, <https://data.vertlife.org/>
   #virion (poxdata): host-virus paired interactions from virion, <https://github.com/viralemergence/virion/tree/main/Virion> 
 
-
-#### POX-DATA ####
-
-## extract studies of orthopoxvirus detection via PCR or isolation
-poxdata <- virion %>%
-  filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation"))) #%>%
-#  dplyr::select(Host,Virus,DetectionMethod) %>%
-#  unique()
-
-## exclude (1) host or virus is NA and (2) variola virus
-poxdata <- poxdata[!is.na(poxdata$Host),]
-poxdata <- poxdata[!is.na(poxdata$Virus),]
-poxdata <- poxdata[!(poxdata$Virus=="variola virus"),]
-
-## subset monkeypox interactions 
-mpxvdata <- poxdata %>% filter(Virus=="monkeypox virus")
-write.csv(mpxvdata, "/Users/katietseng/Downloads/temp.csv")
-## subset detection by PCR and virus isolation
-pcr <- poxdata[which(poxdata$DetectionMethod=="PCR/Sequencing"),]
-pcr$pcr_studies <- 1
-pcr$DetectionMethod=NULL
-pcr <- aggregate(.~Host+Virus, data=pcr, sum)
-
-competence <- poxdata[which(poxdata$DetectionMethod=="Isolation/Observation"),]
-competence$competence_studies <- 1
-competence$DetectionMethod=NULL
-competence <- aggregate(.~Host+Virus, data=competence, sum)
-
-## merge PCR and isolation data; simplify and recode as binary
-poxdata <- merge(pcr, competence, by=c("Host","Virus"), all=TRUE)
-poxdata <- subset(poxdata, select=-c(DetectionMethod.x,DetectionMethod.y))
-poxdata$pcr=ifelse(is.na(poxdata$pcr),0,poxdata$pcr)
-poxdata$competence=ifelse(is.na(poxdata$competence),0,poxdata$competence)
-
-## create genus variable
-poxdata$Host=(str_replace(poxdata$Host," ","_"))
-poxdata$Host=str_to_title(poxdata$Host)
-poxdata$gen=sapply(strsplit(as.character(str_to_title(poxdata$Host)),"_"),function(x) x[1])
-
-## clean environment
-rm(virion,pcr,competence)
-
-#### MERGE WITH MAMMAL TAXONOMY ####
-
-## simplify taxa to genus-level
-taxa <- vertlife
-gtaxa=taxa[!duplicated(taxa$gen),]
-gtaxa=gtaxa[c('gen','fam','ord','clade','higher')]
-
-## check for mismatched names before merging
-poxdata$gen[!poxdata$gen %in% taxa$gen]
-data=merge(gtaxa,poxdata,by='gen',all.x=TRUE)
-
-## sort by taxonomy level (high to low)
-data <- data[order(data$higher,data$clade,data$ord,data$fam,data$gen),]
-
-## note genera that are unsampled/pseudoabsences
-data$studied=ifelse(is.na(data$pcr) & is.na(data$competence),0,1)
-
-## create pseudo-absences for viral detection
-data$pcr=ifelse(is.na(data$pcr),0,data$pcr)
-data$competence=ifelse(is.na(data$competence),0,data$competence)
-
-## subset data of pcr/isolation positive associations only
-keep=subset(data, pcr==1 | competence==1)
-
-## create variable denoting whether the order of genera with positive associations exists in merged data 
-data$keep=ifelse(data$ord %in% keep$ord,TRUE,FALSE)
-
-## subset true values
-data=subset(data,keep==TRUE)
-
-## clean dataset
-data=subset(data, select=-c(antibodies,keep))
-
-## clean environment
-rm(poxdata,taxa,gtaxa,keep)
-
 ```
-
 
 # Obtain host-poxvirus interaction data
 
 ```{r echo=F, message=T}
 
-#subset host-orthopoxvirus interactions
+## (1) extract host-OPV interactions detected via PCR or isolation from virion
 poxdata <- virion %>%
-  filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation","Antibodies"))) %>% 
-  dplyr::select(Host,Virus,DetectionMethod) %>%
-  unique()
+  filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation"))) 
 
-#exclude NAs and variola virus
+## (2) exclude if host or virus is NA and if variola virus
 poxdata <- poxdata[!is.na(poxdata$Host),]
 poxdata <- poxdata[!is.na(poxdata$Virus),]
 poxdata <- poxdata[!(poxdata$Virus=="variola virus"),]
 
-## subset detection by PCR
-pcr <- poxdata[which(poxdata$DetectionMethod=="PCR/Sequencing"),]
-pcr$pcr <- 1
+## (3) to dis-aggregate West African from Congo Basin MPXV clades, subset MPXV interactions, export, and merge clade data into poxdata
+mpxvdata <- poxdata %>% filter(Virus=="monkeypox virus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation")))
+write.csv(mpxvdata, "")
 
-## subset detection by virus isolation
-competence <- poxdata[which(poxdata$DetectionMethod=="Isolation/Observation"),]
-competence$competence <- 1
+## (4) separate PCR-positive data
+pcr <- subset(poxdata[which(poxdata$DetectionMethod=="PCR/Sequencing"),], select=c("Host","Virus"))
+pcr$pcr_studies <- 1
+pcr <- aggregate(.~Host+Virus, data=pcr, sum)
 
-## merge PCR & isolation data
+## (5) separate isolation-positive data
+competence <- subset(poxdata[which(poxdata$DetectionMethod=="Isolation/Observation"),], select=c("Host","Virus"))
+competence$competence_studies <- 1
+competence <- aggregate(.~Host+Virus, data=competence, sum)
+
+## (6) merge PCR/isolation-positive data; create binary vars
 poxdata <- merge(pcr, competence, by=c("Host","Virus"), all=TRUE)
+poxdata$pcr=ifelse(is.na(poxdata$pcr_studies),0,1)
+poxdata$competence=ifelse(is.na(poxdata$competence_studies),0,1)
 
-## simplify dataset
-poxdata <- subset(poxdata, select=-c(DetectionMethod.x,DetectionMethod.y))
-
-## recode as binary (replace NA with zeroes)
-poxdata$pcr=ifelse(is.na(poxdata$pcr),0,poxdata$pcr)
-poxdata$competence=ifelse(is.na(poxdata$competence),0,poxdata$competence)
-
-## create genus variable
+## (7) create genus variable
 poxdata$Host=(str_replace(poxdata$Host," ","_"))
 poxdata$Host=str_to_title(poxdata$Host)
 poxdata$gen=sapply(strsplit(as.character(str_to_title(poxdata$Host)),"_"),function(x) x[1])
 
-## clean environment
+## (8) clean environment
 rm(virion,pcr,competence)
 
 ```
 
-# M
+# Merge taxonomy data
+
+```{r echo=F, message=T}
+
+## (1) simplify taxa to genus-level
+taxa <- vertlife
+gtaxa=taxa[!duplicated(taxa$gen),]
+gtaxa=gtaxa[c('gen','fam','ord','clade','higher')]
+
+## (2) check for mismatched names, then merge
+poxdata$gen[!poxdata$gen %in% taxa$gen]
+data=merge(gtaxa,poxdata,by='gen',all.x=TRUE)
+
+## (3) create binary var for sampled vs. unsampled
+data$sampled=ifelse(is.na(data$pcr) & is.na(data$competence),0,1)
+
+## (4) create pseudo-absences for viral detection
+data$pcr=ifelse(is.na(data$pcr),0,data$pcr)
+data$competence=ifelse(is.na(data$competence),0,data$competence)
+
+## (5) keep only genera from orders in which positive associations exist
+keep=subset(data, pcr==1 | competence==1)
+data$keep=ifelse(data$ord %in% keep$ord,TRUE,FALSE)
+data=subset(data,keep==TRUE)
+data$keep=NULL
+
+## (6) clean environment
+rm(poxdata,taxa,gtaxa,keep)
+
+```
+
+# Merge viral accessory genes
+
+```{r echo=F, message=T}
+
+## (1) clean data
+viralTraits <- opvgenes
+viralTraits <- head(viralTraits, -2)          
+
+## (2) rename column names
+original_cols <- colnames(viralTraits)
+colnames(viralTraits) <- paste("ag" ,original_cols,sep="_")
+names(viralTraits)[1:2] <- c("virus","OPG")
+
+## (3) to assess variation in viralTraits, create mode function
+mode.prop <- function(x) {                
+  ux <- unique(x[is.na(x)==FALSE])        # creates array of unique values
+  tab <- tabulate(match(na.omit(x), ux))  # creates array of the frequency (number of times) a unique value appears in a column 
+  max(tab)/length(x[is.na(x)==FALSE])     # max-frequency / number of elements in each column that are not NA
+}
+
+## (4) assess variation across columns (2 indicates columns)
+vars=data.frame(apply(viralTraits,2,function(x) mode.prop(x)),
+                apply(viralTraits,2,function(x) length(unique(x))))    # number of unique elements in each column
+colnames(vars) <- c("comp","uniq")
+
+# ## get names
+# vars$variables=rownames(vars)
+# names(vars)=c("var","uniq","column")
+
+## simplify
+vars <- vars[-c(1,2), ]
+
+## label variables "cut" if homogeneous (100%)
+# vars$keep=ifelse(vars$var<1,"keep","cut")
+# # vars$keep=ifelse(vars$column%in%c('pcr','competence','antibodies','fam'),'keep',vars$keep) # ensures we keep these columns
+# vars=vars[order(vars$keep),]
+# 
+# ## trim (creates array of column names to cut and removes from df)
+# keeps=vars[-which(vars$keep=="cut"),]$column
+# 
+# ## drop if no variation
+# data=data[keeps]
+# rm(keeps,vars)
+# 
+# ## assess missing values
+# mval=data.frame(apply(data,2,function(x) length(x[!is.na(x)])/nrow(data))) # proportion of values that are not NA
+# 
+# ## get names
+# mval$variables=rownames(mval)
+# names(mval)=c("comp","column")
+
+## visualize distribution of NA
+png("/Users/katietseng/Downloads/virus_ag_variation.png", width=4,height=4,units="in",res=600)
+ggplot(vars,
+       aes(comp))+
+  geom_histogram(bins=50)+
+  geom_vline(xintercept=0.70,linetype=2,size=0.5)+
+  theme_bw()+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  labs(y="frequency",
+       x="trait coverage across mammal species (genus)")+
+  scale_x_continuous(labels = scales::percent)
+dev.off()
+# 
+# ## round values
+# mval$comp=round(mval$comp,2)
+# 
+# ## label variables "cut" if >30% values are NA
+# mval$keep=ifelse(mval$comp>=0.70,"keep","cut")
+# table(mval$keep)
+# mval=mval[order(mval$keep),]
+# 
+# ## trim (creates array of column names to cut and removes from df)
+# keeps=mval[-which(mval$keep=="cut"),]$column
+# 
+# ## order
+# mval=mval[order(mval$comp),]
+# 
+# ## drop if not well represented
+# data=data[keeps]
+# rm(keeps,mval)
+```
+
+
 # Aggregate at genus level
 
 ```{r echo=F, message=T}
