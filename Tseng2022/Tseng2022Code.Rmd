@@ -22,6 +22,32 @@ The following code reproduces the analysis from:
 
 > etc.
 
+# Load required packages
+
+```{r echo=F, message=T}
+
+library(ape)
+library(dplyr)
+library(nlme)
+library(tidyverse)
+library(vroom) 
+
+## treespace dependencies include XQuartz v2.7.11 and package 'rgl' (https://stackoverflow.com/a/66127391/2554330)
+    #1. install XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html); 
+    #2. install package 'rgl': >install.packages ("rgl") \ >options(rgl.useNULL=TRUE) \ >.rs.restartR() \ >library(rgl)
+library(treespace) 
+
+## for modeling
+library(gbm);
+library(ROCR);
+library(vegan);
+library(plyr);library(dplyr);
+library(mvtnorm)
+library(xtable)
+library(parallel)
+
+```
+
 # Set system
 
 ```{r echo=F, message=T}
@@ -35,149 +61,287 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```
 
-# Load required packages
+# Load data
 
 ```{r echo=F, message=T}
 
-library(ape)
-library(dplyr)
-library(nlme)
-library(tidyverse)
-library(vroom)
-library(treespace) #note: treespace dependencies include XQuartz v2.7.11 and package 'rgl' (https://stackoverflow.com/a/66127391/2554330)
-    #1. install XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html); 
-    #2. install package 'rgl': >install.packages ("rgl") \ >options(rgl.useNULL=TRUE) \ >.rs.restartR() \ >library(rgl)
-
-## for modeling
-library(gbm);
-library(ROCR);
-library(vegan);
-library(plyr);library(dplyr);
-library(mvtnorm)
-library(xtable)
-library(parallel)
-
-```
-
-# Load interaction data
-
-```{r echo=F, message=T}
-
-## (1) load data
+##(1) load data
 load("Tseng2022.RData")
-  #combine (hostTraits): mammal traits from combine database, <https://doi.org/10.1002/ecy.3344> (file: "trait_data_imputed.csv")
-  #dryad (phylo tree): mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03> (path: "Data_S8_finalFigureFiles">"_DATA")
-  #opvgenes (virusTraits):
-  #vertlife (taxa): mammal species taxonomy from vertlife, <https://data.vertlife.org/>
-  #virion (poxdata): host-virus paired interactions from virion, <https://github.com/viralemergence/virion/tree/main/Virion> 
+
+##(2) poxdata: host-OPV interactions detected via PCR/isolation from Virion database; <https://github.com/viralemergence/virion/tree/main/Virion>
+poxdata <- virion %>% filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation"))) 
+
+##(3) taxa: mammal species taxonomy from vertlife, <https://data.vertlife.org/>
+taxa <- vertlife
+
+##(4) hostTraits: mammal traits from the COMBINE database, <https://doi.org/10.1002/ecy.3344> (file: "trait_data_imputed.csv")
+hostTraits <- combine
+
+##(5) hostTree: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03> (path: "Data_S8_finalFigureFiles">"_DATA")
+hostTree <- dryad
+
+##(6) virusTraits: OPV accessory genes from ...
+virusTraits <- opvgenes
+
+##(7) clean environment
+rm(virion, vertlife, dryad, combine, opvgenes)
 
 ```
 
-# Obtain host-poxvirus interaction data
+# Aggregate poxdata to genus-level
 
 ```{r echo=F, message=T}
 
-## (1) extract host-OPV interactions detected via PCR or isolation from virion
-poxdata <- virion %>%
-  filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation"))) 
-
-## (2) exclude if host genus or virus is NA and if variola virus
+##(1) exclude if host genus or virus is NA and if variola virus
 poxdata <- poxdata[!is.na(poxdata$HostGenus),]
 poxdata <- poxdata[!is.na(poxdata$Virus),]
 poxdata <- poxdata[!(poxdata$Virus=="variola virus"),]
 
-## (3) to dis-aggregate West African from Congo Basin MPXV clades, subset MPXV interactions, export, and merge clade data into poxdata
+##(2) to dis-aggregate West African from Congo Basin MPXV clades, subset MPXV interactions, export, and merge clade-specific data into poxdata
 mpxvdata <- poxdata %>% filter(Virus=="monkeypox virus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation")))
 #write.csv(mpxvdata, "~/mpxvdata.csv")
 
-## (4)
+##(3) merge clade-specific data
 
-## (5) separate PCR-positive data where host species is not NA
+##(4) extract PCR-positive data 
 pcr <- subset(poxdata[which(poxdata$DetectionMethod=="PCR/Sequencing"),], select=c("Host","HostGenus","Virus"))
 pcr$Host <- ifelse(is.na(pcr$Host),"sp.",pcr$Host)
-pcr$pstudies <- 1
+pcr$pcr <- 1
 pcr <- aggregate(.~Host+HostGenus+Virus, data=pcr, sum)
 
-## (6) separate isolation-positive data
+##(5) extract isolation-positive data 
 competence <- subset(poxdata[which(poxdata$DetectionMethod=="Isolation/Observation"),], select=c("Host","HostGenus","Virus"))
 competence$Host <- ifelse(is.na(competence$Host),"sp.",competence$Host)
-competence$cstudies <- 1
+competence$competence <- 1
 competence <- aggregate(.~Host+HostGenus+Virus, data=competence, sum)
 
-## (7) merge PCR/isolation-positive data; create binary vars
+##(6) merge PCR/isolation-positive data; create binary vars
 poxdata <- merge(pcr, competence, by=c("Host","HostGenus","Virus"), all=TRUE)
-poxdata$pcr=ifelse(is.na(poxdata$pstudies),0,1)
-poxdata$competence=ifelse(is.na(poxdata$cstudies),0,1)
 
-## (8) combine studies into single variable
-poxdata$studies <- ifelse(is.na(poxdata$pstudies),0,poxdata$pstudies) + ifelse(is.na(poxdata$cstudies),0,poxdata$cstudies)
-poxdata$pstudies=NULL
-poxdata$cstudies=NULL
+##(7) combine studies into single variable
+poxdata$studies <- ifelse(is.na(poxdata$pcr),0,poxdata$pcr) + ifelse(is.na(poxdata$competence),0,poxdata$competence)
 
-## (9) aggregate at genus level and sum the number of studies
-agg_sum <- subset(poxdata, select=c(HostGenus,Virus,studies))
-agg_sum <- aggregate(.~HostGenus+Virus, data=agg_sum, sum)
+##(8) create binary variables
+poxdata$pcr=ifelse(is.na(poxdata$pcr),0,1)
+poxdata$competence=ifelse(is.na(poxdata$competence),0,1)
 
-## (10) aggregate at genus level and take max value of pcr and competence (binary)
-agg_max <- subset(poxdata,select=c(HostGenus,Virus,pcr,competence))
-agg_max <- aggregate(.~HostGenus+Virus, data=agg_max, max)
+##(9) aggregate at genus level
+agg_pcr <- aggregate(pcr~HostGenus+Virus, data=poxdata, max)
+agg_competence <- aggregate(competence~HostGenus+Virus, data=poxdata, max)
+agg_studies <- aggregate(studies~HostGenus+Virus, data=poxdata, sum)
 
-## (11) remove records in which host species is unknown
-poxdata <- subset(poxdata, poxdata$Host!="sp.", select=c("Host","HostGenus","Virus"))
+##(10) merge pcr, competence and studies variables
+gdata <- merge(agg_pcr,agg_competence)
+gdata <- merge(gdata,agg_studies)
 
-## (12) merge count data
-poxdata <- merge(poxdata,agg_sum)
-poxdata <- merge(poxdata,agg_max)
+##(11) rename variables
+gdata <- rename(gdata,c('HostGenus'='gen','Virus'='virus'))
+gdata$gen <- str_to_title(gdata$gen)
 
-## (8) capitalize genus
-poxdata$gen <- str_to_title(poxdata$HostGenus)
-poxdata$HostGenus=NULL
-
-## (8) clean environment
-rm(virion,pcr,competence,agg_max,agg_sum,mpxvdata)
+##(12) clean environment
+rm(poxdata, mpxvdata, pcr,competence,agg_pcr, agg_competence, agg_studies)
 
 ```
 
-# Merge taxonomy data
+# Merge poxdata with broader mammal taxa to create pseudoabsences
 
 ```{r echo=F, message=T}
 
-## (1) simplify taxa to genus-level
-taxa <- vertlife
-gtaxa=taxa[!duplicated(taxa$gen),]
-gtaxa=gtaxa[c('gen','fam','ord','clade','higher')]
+##(1) drop duplicate genera in taxa
+gtaxa <- taxa[!duplicated(taxa$gen),]
+gtaxa <- gtaxa[c('gen','fam','ord')]
 
-## (2) check for mismatched names, then merge
-poxdata$gen[!poxdata$gen %in% taxa$gen]
-poxdata=merge(gtaxa,poxdata,by='gen',all.x=TRUE)
+##(2) check for mismatched names, then merge gdata with taxa
+gdata$gen[!gdata$gen %in% taxa$gen]
+data=merge(gtaxa,gdata,by='gen',all.x=TRUE)
 
-## (3) create binary var for sampled vs. unsampled
-poxdata$sampled=ifelse(is.na(poxdata$pcr) & is.na(poxdata$competence),0,1)
 
-## (4) create pseudo-absences for viral detection
-poxdata$pcr=ifelse(is.na(poxdata$pcr),0,poxdata$pcr)
-poxdata$competence=ifelse(is.na(poxdata$competence),0,poxdata$competence)
+##(3) keep only genera from orders in which positive associations exist
+keep=subset(data, pcr==1 | competence==1)
+data$keep=ifelse(data$ord %in% keep$ord,TRUE,FALSE)
+data=subset(data,keep==TRUE)
+data$keep=NULL
 
-## (5) keep only genera from orders in which positive associations exist
-keep=subset(poxdata, pcr==1 | competence==1)
-poxdata$keep=ifelse(poxdata$ord %in% keep$ord,TRUE,FALSE)
-poxdata=subset(poxdata,keep==TRUE)
-poxdata$keep=NULL
+##(4) create dataframe of all possible host-OPV combinations (for mammal genera that exist in orders w/ known OPV predictions)
+uniq_gen <- unique(data$gen[!is.na(data$gen)])
+uniq_virus <- unique(data$virus[!is.na(data$virus)])
+combinations <- expand.grid(uniq_gen,uniq_virus)
+combinations <- rename(combinations,c('Var1'='gen','Var2'='virus'))
 
-## (6) create unique combinations of OPV species and all mammal genera that exist in orders w/ known OPV predictions
-uniq_gen <- unique(poxdata$gen[!is.na(poxdata$gen)])
-uniq_virus <- unique(poxdata$Virus[!is.na(poxdata$Virus)])
-data <- expand.grid(uniq_gen,uniq_virus)
-data <- rename(data,c('Var1'='gen','Var2'='Virus'))
-data <- merge(data,poxdata,all.x=TRUE)
+##(5) merge host-OPV interaction data with all possible combinations
+data <- merge(combinations,data,all.x=TRUE)
 
-## (7) check that duplicates are due to associations for multiple species within a genera
-data$dup <- ifelse(duplicated(data[,1:2]),1,0)
+##(6) create binary variable for sampled
+data$sampled=ifelse(is.na(data$pcr) & is.na(data$competence),0,1)
 
-## (6) clean environment
-rm(poxdata,taxa,gtaxa,keep,uniq_gen,uniq_virus)
+##(7) reclassify NAs as pseudo-absences for viral detection
+data$pcr=ifelse(is.na(data$pcr),0,data$pcr)
+data$competence=ifelse(is.na(data$competence),0,data$competence)
+data$studies=ifelse(is.na(data$studies),0,data$studies)
+
+##(8) replace NA taxonomic values based on host genera
+data=merge(data,gtaxa,by='gen',all.x=TRUE)
+data <- rename(data,c('fam.y'='fam','ord.y'='ord'))
+data$fam.x=NULL
+data$ord.x=NULL
+
+##(9) clean environment
+rm(gdata,taxa,gtaxa,keep,uniq_gen,uniq_virus,combinations)
 
 ```
+
+# Aggregate hostTraits to genus-level
+
+```{r echo=F, message=T}
+
+##(1) observe variable names
+colnames(hostTraits)
+
+##(2) to aggregate continuous/integer variables, use the median as the summary measure
+hostTraits_continuous=aggregate(cbind(adult_mass_g,brain_mass_g,adult_body_length_mm,adult_forearm_length_mm,
+                                   max_longevity_d,maturity_d,female_maturity_d,male_maturity_d,
+                                   age_first_reproduction_d,gestation_length_d,teat_number_n,
+                                   litter_size_n,litters_per_year_n,interbirth_interval_d,
+                                   neonate_mass_g,weaning_age_d,weaning_mass_g,generation_length_d,
+                                   dispersal_km,density_n_km2,home_range_km2,social_group_n,
+                                   dphy_invertebrate,dphy_vertebrate,dphy_plant,
+                                   det_inv,det_vend,det_vect,det_vfish,det_vunk,det_scav,det_fruit,det_nect,det_seed,det_plantother,det_diet_breadth_n,
+                                   upper_elevation_m,lower_elevation_m,altitude_breadth_m,habitat_breadth_n) 
+                             ~ order+family+genus, data=hostTraits, FUN=median, na.action=na.pass, na.rm=TRUE)
+# 'na.action=na.pass, na.rm=TRUE' is specified such that if species w/in a genus has a combination of real values & NAs, the median of real values will be returned (as opposed to omitting the genus or returning NA)
+
+##(3) to aggregate binary variables, use the mean as the summary measure
+hostTraits$fossoriality[hostTraits$fossoriality==2]<-0  #recode 0/1
+hostTraits_binary=aggregate(cbind(hibernation_torpor,fossoriality,freshwater,marine,terrestrial_non.volant,terrestrial_volant,
+                               island_dwelling,disected_by_mountains,glaciation) ~ order+family+genus, data=hostTraits, FUN=mean, na.action=na.pass, na.rm=TRUE)
+
+##(4) to aggregate categorical variables transform into binary
+hostTraits_cat <- hostTraits
+hostTraits_cat$trophic_herbivores <- ifelse(hostTraits_cat$trophic_level==1,1,0)
+hostTraits_cat$trophic_omnivores <- ifelse(hostTraits_cat$trophic_level==2,1,0)
+hostTraits_cat$trophic_carnivores <- ifelse(hostTraits_cat$trophic_level==3,1,0)
+hostTraits_cat$activity_nocturnal <- ifelse(hostTraits_cat$activity_cycle==1,1,0)
+hostTraits_cat$activity_crepuscular <- ifelse(hostTraits_cat$activity_cycle==2,1,0) #nocturnal/crepuscular, cathemeral, crepuscular or diurnal/crepuscular
+hostTraits_cat$activity_diurnal <- ifelse(hostTraits_cat$activity_cycle==3,1,0)
+hostTraits_cat$forager_marine <- ifelse(hostTraits_cat$foraging_stratum=="M",1,0)
+hostTraits_cat$forager_ground <- ifelse(hostTraits_cat$foraging_stratum=="G",1,0) 
+hostTraits_cat$forager_scansorial <- ifelse(hostTraits_cat$foraging_stratum=="S",1,0)
+hostTraits_cat$forager_arboreal <- ifelse(hostTraits_cat$foraging_stratum=="Ar",1,0)
+hostTraits_cat$forager_aerial <- ifelse(hostTraits_cat$foraging_stratum=="A",1,0)
+hostTraits_cat$island_end_marine <- ifelse(hostTraits_cat$island_endemicity=="Exclusively marine",1,0)
+hostTraits_cat$island_end_mainland <- ifelse(hostTraits_cat$island_endemicity=="Occurs on mainland",1,0)
+hostTraits_cat$island_end_lgbridge <- ifelse(hostTraits_cat$island_endemicity=="Occurs on large land bridge islands",1,0)
+#hostTraits_cat$island_end_smbridge <- ifelse(hostTraits_cat$island_endemicity=="Occurs on small land bridge islands",1,0)
+hostTraits_cat$island_end_isolated <- ifelse(hostTraits_cat$island_endemicity=="Occurs only on isolated islands",1,0)
+hostTraits_cat$biogeo_afrotropical <- ifelse(grepl("Afrotropical",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_antarctic <- ifelse(grepl("Antarctic",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_australasian <- ifelse(grepl("Australasian",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_indomalayan <- ifelse(grepl("Indomalayan",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_nearctic <- ifelse(grepl("Nearctic",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_neotropical <- ifelse(grepl("Neotropical",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_oceanian <- ifelse(grepl("Oceanian",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_palearctic <- ifelse(grepl("Palearctic",hostTraits_cat$biogeographical_realm),1,0)
+
+##(5) to aggregate transformed categorical-to-binary variables, use the mean as the summary measure
+hostTraits_cat=aggregate(cbind(trophic_herbivores,trophic_omnivores,trophic_carnivores,
+                            activity_nocturnal,activity_crepuscular,activity_diurnal,
+                            forager_marine,forager_ground,forager_scansorial,forager_arboreal,forager_aerial,
+                            island_end_marine,island_end_mainland,island_end_lgbridge,island_end_isolated,
+                            biogeo_afrotropical,biogeo_antarctic,biogeo_australasian,biogeo_indomalayan,biogeo_nearctic,biogeo_neotropical,biogeo_oceanian,biogeo_palearctic)
+                       ~ order+family+genus, data=hostTraits_cat, FUN=mean, na.action=na.pass, na.rm=TRUE)
+
+##(6) merge continuous variables with binary variables and clean environment
+hostTraits <- full_join(hostTraits_continuous, hostTraits_binary, by = c("order","family","genus"),keep=TRUE)
+hostTraits <- rename(hostTraits,c('order.x'='order','family.x'='family','genus.x'='genus'))
+hostTraits=subset(hostTraits, select=-c(order.y,family.y,genus.y))
+
+##(7) merge transformed categorical variables and clean environment
+hostTraits <- full_join(hostTraits, hostTraits_cat, by = c("order","family","genus"),keep=TRUE)
+hostTraits <- rename(hostTraits,c('order.x'='order','family.x'='family','genus.x'='genus'))
+hostTraits=subset(hostTraits, select=-c(order.y,family.y,genus.y))
+
+##(8) clean environment
+rm(hostTraits_binary,hostTraits_cat,hostTraits_continuous)
+
+```
+
+# Collapse hostTree to genus-level
+
+```{r echo=F, message=T}
+
+##(1) reformat
+hostTree$tip.label[hostTree$tip.label=="_Anolis_carolinensis"] <- "Anolis_carolinensis"
+
+##(2) create dataframe linking tip labels with their corresponding categories (genus and species)
+tdata <- data.frame(matrix(NA,nrow=length(hostTree$tip.label),ncol=0))
+tdata$genus=sapply(strsplit(hostTree$tip.label,'_'),function(x) paste(x[1],sep='_'))
+tdata$species=hostTree$tip.label
+
+##(3) collapse tree to genus level
+hostTree=makeCollapsedTree(tree=hostTree,df=tdata[c('genus','species')])
+
+##(4) clean environment
+rm(tdata)
+
+```
+
+# Merge poxdata with hostTraits and hostTree
+
+```{r echo=F, message=T}
+
+## Before merging, we need to check for mismatched names between dataframes
+
+##(1) are all poxdata genera in hostTree?
+data$gtip <- data$gen
+hostTree$gtip <- hostTree$tip.label
+data$intree=ifelse(data$gtip%in%setdiff(data$gtip,hostTree$gtip),'missing','upham')
+
+##(2) are all poxdata genera in hostTraits?
+hostTraits$gtip <- hostTraits$genus
+data$intraits <- ifelse(data$gtip%in%setdiff(data$gtip,hostTraits$gtip),'missing','traits')
+
+##(3) create dataframe of just observations with mismatched names
+fix=data[c('gtip','intree','intraits')]
+fix=fix[fix$intree=='missing'|fix$intraits=='missing',]
+fix=unique(fix)
+
+##(4) identify homotypic synonyms or proxy species via IUCN (https://www.iucnredlist.org/) and NCBI (http://www.ncbi.nlm.nih.gov/taxonomy)
+fix$traitname <- NA
+fix$proxy <- NA
+fix$proxy <- ifelse(fix$gtip=="Calassomys","Delomys",fix$proxy)                   #source: https://academic.oup.com/jmammal/article/95/2/201/860032
+fix$traitname <- ifelse(fix$gtip=="Liomys","Heteromys",fix$traitname)             #source: https://www.iucnredlist.org/species/40768/22345036
+fix$traitname <- ifelse(fix$gtip=="Oreonax","Lagothrix",fix$traitname)            #source: https://www.iucnredlist.org/species/39924/192307818
+fix$traitname <- ifelse(fix$gtip=="Paralomys","Phyllotis",fix$traitname)          #source: https://www.iucnredlist.org/species/17226/22333354
+fix$traitname <- ifelse(fix$gtip=="Pearsonomys","Geoxus",fix$traitname)           #source: https://www.iucnredlist.org/species/40768/22345036
+fix$traitname <- ifelse(fix$gtip=="Pipanacoctomys","Tympanoctomys",fix$traitname) #source: https://www.iucnredlist.org/species/136557/78324400#taxonomy
+fix$traitname <- ifelse(fix$gtip=="Pseudalopex","Lycalopex",fix$traitname)        #source: https://www.iucnredlist.org/species/6926/87695615
+# hostTraits$genus[which(grepl('Tympanoctomys',hostTraits$genus))]
+
+## merge revised names with poxdata
+fix <- subset(fix, select=-c(intree,intraits))
+data=merge(data,fix,by='gtip',all.x=T)
+
+## if traitname is blank, NA
+data$traitname=ifelse(data$traitname=='',NA,as.character(data$traitname))
+
+## if traitname is NA, tip
+data$traitname=ifelse(is.na(data$traitname),as.character(data$gtip),as.character(data$traitname))
+
+## trait name includes proxy
+data$traitname=ifelse(data$intraits=='missing' & is.na(data$traitname),as.character(data$proxy),
+                      ifelse(data$intraits=='missing' & !is.na(data$traitname),as.character(data$traitname),
+                             as.character(data$gtip)))
+##(4) export missing names 
+# write.csv(miss,'data/names/poxhost_name_mismatch.csv')
+    # # to check whether species name exists in dataframe:
+          # hostTree$tip.label[which(grepl('Pipanacoctomys',hostTree$tip.label))]
+          hostTraits$genus[which(grepl('Tympanoctomys',hostTraits$genus))]
+    # # to identify related species see IUCN (https://www.iucnredlist.org/) and NCBI (https://www.ncbi.nlm.nih.gov/taxonomy)
+
+fix=read.csv('/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/EEID2022/data/names/poxhost_name_mismatch_KTedits.csv',header=TRUE)
+
+```
+
 
 # Merge viral accessory genes
 
@@ -229,16 +393,16 @@ dev.off()
 ## drop based on threshold
 vars$keep=ifelse(vars$var>=0.7,"keep","cut")
 keeps=vars[-which(vars$keep=="cut"),]$column #creates array of column names to cut and removes from df
-keeps <- append(keeps,"virus")
+keeps <- append("virus",keeps)
 viralTraits=viralTraits[keeps]
-#rm(keeps,vars,mode.prop,original_cols)
+rm(keeps,vars,mode.prop,original_cols,opvgenes)
 
-# ## drop if not well represented
-# data=data[keeps]
-# rm(keeps,mval)
+# ## identify rows with duplicate values (i.e., hosts with identical presence/absence of accessory genes)
+# which(duplicated(viralTraits[,-c(1)])| duplicated(viralTraits[,-c(1)], fromLast = TRUE))
+# viralTraits$dup <- duplicated(viralTraits[,-c(1)])
 
-## identify rows with duplicate values
-which(duplicated(viralTraits[,-c(1,2)])| duplicated(viralTraits[,-c(1,2)], fromLast = TRUE))
+## merge with poxdata
+data <- merge(data,viralTraits,all.x=TRUE)
 
 ```
 
