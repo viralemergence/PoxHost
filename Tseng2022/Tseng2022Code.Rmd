@@ -10,6 +10,8 @@ html_document:
   fig_width: 6
   highlight: tango
   theme: journal
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r, echo=F, message=F}
@@ -26,18 +28,25 @@ The following code reproduces the analysis from:
 
 ```{r echo=F, message=T}
 
+##(1) libraries for preparing data for analysis
 library(ape)
 library(dplyr)
 library(nlme)
 library(tidyverse)
 library(vroom) 
-
-## treespace dependencies include XQuartz v2.7.11 and package 'rgl' (https://stackoverflow.com/a/66127391/2554330)
-    #1. install XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html); 
-    #2. install package 'rgl': >install.packages ("rgl") \ >options(rgl.useNULL=TRUE) \ >.rs.restartR() \ >library(rgl)
+## treespace dependencies include XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html) and 'rgl' (https://stackoverflow.com/a/66127391/2554330)
+library(rgl) # >install.packages("rgl"); >options(rgl.useNULL=TRUE)
 library(treespace) 
 
-## for modeling
+## libraries for phylogenetic analysis
+library(ape)
+library(caper)
+library(data.table)
+library(BiocManager)  ## BiocManager::install(c("Biostrings","ggtree"))
+library(phylofactor)  ## devtools::install_github('reptalex/phylofactor'); more info at: https://reptalex.github.io/phylofactor/)
+library(treeio)       ## BiocManager::install("treeio")
+
+## libraries for prediction model
 library(gbm);
 library(ROCR);
 library(vegan);
@@ -80,8 +89,8 @@ hostTraits <- combine
 ##(5) hostTree: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03> (path: "Data_S8_finalFigureFiles">"_DATA")
 hostTree <- dryad
 
-##(6) virusTraits: OPV accessory genes from ...
-virusTraits <- opvgenes
+##(6) viralTraits: OPV accessory genes from ...
+viralTraits <- opvgenes
 
 ##(7) clean environment
 rm(virion, vertlife, dryad, combine, opvgenes)
@@ -285,27 +294,26 @@ rm(tdata)
 
 ```
 
-# Merge poxdata with hostTraits and hostTree
+# Prepare poxdata for merging with hostTraits and trimming hostTree
 
 ```{r echo=F, message=T}
-
-## Before merging, we need to check for mismatched names between dataframes
 
 ##(1) are all poxdata genera in hostTree?
 data$gtip <- data$gen
 hostTree$gtip <- hostTree$tip.label
-data$intree=ifelse(data$gtip%in%setdiff(data$gtip,hostTree$gtip),'missing','upham')
+data$intree <- ifelse(data$gtip%in%setdiff(data$gtip,hostTree$gtip),'missing','upham')
 
 ##(2) are all poxdata genera in hostTraits?
 hostTraits$gtip <- hostTraits$genus
 data$intraits <- ifelse(data$gtip%in%setdiff(data$gtip,hostTraits$gtip),'missing','traits')
 
 ##(3) create dataframe of just observations with mismatched names
-fix=data[c('gtip','intree','intraits')]
-fix=fix[fix$intree=='missing'|fix$intraits=='missing',]
-fix=unique(fix)
+fix <- data[c('gtip','intree','intraits')]
+fix <- fix[fix$intree=='missing'|fix$intraits=='missing',]
+fix <- unique(fix)
 
 ##(4) identify homotypic synonyms or proxy species via IUCN (https://www.iucnredlist.org/) and NCBI (http://www.ncbi.nlm.nih.gov/taxonomy)
+fix$treename <- NA
 fix$traitname <- NA
 fix$proxy <- NA
 fix$proxy <- ifelse(fix$gtip=="Calassomys","Delomys",fix$proxy)                   #source: https://academic.oup.com/jmammal/article/95/2/201/860032
@@ -317,38 +325,56 @@ fix$traitname <- ifelse(fix$gtip=="Pipanacoctomys","Tympanoctomys",fix$traitname
 fix$traitname <- ifelse(fix$gtip=="Pseudalopex","Lycalopex",fix$traitname)        #source: https://www.iucnredlist.org/species/6926/87695615
 # hostTraits$genus[which(grepl('Tympanoctomys',hostTraits$genus))]
 
-## merge revised names with poxdata
+##(5) merge revised names with poxdata
 fix <- subset(fix, select=-c(intree,intraits))
-data=merge(data,fix,by='gtip',all.x=T)
+data <- merge(data,fix,by='gtip',all.x=T)
 
-## if traitname is blank, NA
-data$traitname=ifelse(data$traitname=='',NA,as.character(data$traitname))
+##(5) treename will be used for merging data & hostTree
+data$treename <- ifelse(data$treename=='',NA,as.character(data$treename))
+data$treename <- ifelse(is.na(data$treename),as.character(data$gtip),as.character(data$treename))
 
-## if traitname is NA, tip
-data$traitname=ifelse(is.na(data$traitname),as.character(data$gtip),as.character(data$traitname))
-
-## trait name includes proxy
-data$traitname=ifelse(data$intraits=='missing' & is.na(data$traitname),as.character(data$proxy),
+##(6) traitname will be used for merging data & hostTraits
+data$traitname <- ifelse(data$traitname=='',NA,as.character(data$traitname))
+data$traitname <- ifelse(data$intraits=='missing' & is.na(data$traitname),as.character(data$proxy),
                       ifelse(data$intraits=='missing' & !is.na(data$traitname),as.character(data$traitname),
                              as.character(data$gtip)))
-##(4) export missing names 
-# write.csv(miss,'data/names/poxhost_name_mismatch.csv')
-    # # to check whether species name exists in dataframe:
-          # hostTree$tip.label[which(grepl('Pipanacoctomys',hostTree$tip.label))]
-          hostTraits$genus[which(grepl('Tympanoctomys',hostTraits$genus))]
-    # # to identify related species see IUCN (https://www.iucnredlist.org/) and NCBI (https://www.ncbi.nlm.nih.gov/taxonomy)
 
-fix=read.csv('/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/EEID2022/data/names/poxhost_name_mismatch_KTedits.csv',header=TRUE)
+##(7) simplify and clean environment
+data <- subset(data, select=-c(intree,intraits,proxy))
+rm(fix)
 
 ```
 
-
-# Merge viral accessory genes
+# Merge poxdata with hostTraits and trim hostTree to match poxdata
 
 ```{r echo=F, message=T}
 
-## (1) clean data
-viralTraits <- opvgenes
+##(1) check poxdata for NAs
+which(is.na(data))
+
+##(2) merge traits with poxdata
+hostTraits$traitname <- hostTraits$gtip
+data <- merge(data,hostTraits,by=c('traitname'),all.x=T)
+
+##(3) trim data
+data <- rename(data,c('gtip.x'='gtip'))
+data <- subset(data,select=-c(order, family, genus,gtip.y))
+
+##(4) trim hostTree
+hostTree <- keep.tip(hostTree,hostTree$tip.label[hostTree$tip.label%in%data$treename])
+hostTree$gtip <- NULL
+hostTree=makeLabel(hostTree)
+
+##(5) clean environment
+rm(hostTraits)
+
+```
+
+# Merge poxdata with viral accessory genes
+
+```{r echo=F, message=T}
+
+## (1) simplify data
 viralTraits <- head(viralTraits, -2)          
 
 ## (2) rename column names
@@ -387,7 +413,7 @@ ggplot(vars,
   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
   labs(y="frequency",
        x="trait coverage across viral species")+
-  scale_x_continuous(labels = scales::percent)
+  scale_x_continuous(labels=scales::percent)
 dev.off()
 
 ## drop based on threshold
@@ -395,14 +421,16 @@ vars$keep=ifelse(vars$var>=0.7,"keep","cut")
 keeps=vars[-which(vars$keep=="cut"),]$column #creates array of column names to cut and removes from df
 keeps <- append("virus",keeps)
 viralTraits=viralTraits[keeps]
-rm(keeps,vars,mode.prop,original_cols,opvgenes)
+
+## merge with poxdata
+data <- merge(data,viralTraits,by=c('virus'),all.x=TRUE)
+
+## clean environment
+rm(vars,viralTraits,keeps,original_cols,mode.prop)
 
 # ## identify rows with duplicate values (i.e., hosts with identical presence/absence of accessory genes)
 # which(duplicated(viralTraits[,-c(1)])| duplicated(viralTraits[,-c(1)], fromLast = TRUE))
 # viralTraits$dup <- duplicated(viralTraits[,-c(1)])
-
-## merge with poxdata
-data <- merge(data,viralTraits,all.x=TRUE)
 
 ```
 
@@ -420,6 +448,44 @@ data <- merge(data,viralTraits,all.x=TRUE)
 # Combine PubMed citations and evolutionary distinctiveness measure
 
 ```{r echo=F, message=T}
+
+##(1) load library for PubMed citations
+library(easyPubMed)
+
+##(2) create function to count citations
+counter=function(name){
+  as.numeric(as.character(get_pubmed_ids(gsub('_','-',name))$Count))
+}
+citations=c()
+
+##(3) extract unique genera from poxdata
+treename <- unique(data$treename)
+
+##(4) apply counter function while looping through treenames
+for(i in 1:length(treename)) {
+  citations[i]=counter(treename[i])
+  print(i)
+}
+
+##(5) compile citation numbers
+cites <- data.frame(treename=treename,cites=citations)
+
+##(6) merge cites with poxdata
+data <- merge(data,cites,by='treename')
+
+##(7) load library for evolutionary distinctiveness (ed) measure
+library(picante)  #before loading picante, make sure latest version of nlme package is loaded
+ed <- evol.distinct(hostTree,type='equal.splits') #calculates ed measures for a suite of species by equal splits and fair proportions; returns species score
+
+##(8) rename variables in ed
+ed <- rename(ed,c('Species'='treename','w'='ed_equal'))
+
+##(9) merge ed with poxdata
+data <- merge(data,ed,by='treename')
+
+##() clean environment
+rm(cites,ed,citations,i,treename,counter)
+
 ```
 
 # Phylogenetic analysis
@@ -430,9 +496,44 @@ data <- merge(data,viralTraits,all.x=TRUE)
 
 ```
 
-# Inspect and format data for inclusion in the model
+# Principal components analysis
 
-```{r echo=F, message=T}
+```{r echo=F, message=F}
+
+library(ape)
+library(vegan)
+
+##(1) load data of viral accessory genes
+load("Tseng2022.RData")
+genes <- opvgenes
+
+##(2) trim and reformat
+genes <- head(genes, -2)     
+genes <- genes[,-2]
+colnames(genes) <- paste("ag" ,colnames(genes),sep="_")
+names(genes)[1] <- c("virus")
+
+##(3) create distance matrix: returns a measure of the pairwise similarity between each virus based on whether they have the same/diff values in each of the columns
+genmat <- as.matrix(genes[,-1])
+rownames(genmat) <- genes[,1] %>% pull()
+class(genmat) <- "numeric"
+gendist <- vegdist(genmat)
+genpca <- pcoa(gendist) #{ape}
+genpca <- princomp(genmat) #{stats}
+genpca <- prcomp(gendist)
+
+##(4) let's explore
+genpca
+genpca$vectors
+
+biplot(genpca)
+
+##(5) plot eigenvalues - include coordinates
+genpca <- princomp(gendist)
+biplot(genpca)
+
+
+
 
 ```
 
