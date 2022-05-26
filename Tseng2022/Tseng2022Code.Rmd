@@ -163,22 +163,13 @@ gtaxa <- gtaxa[c('gen','fam','ord')]
 
 #(2) check for mismatched names, then merge poxdata with taxa
 poxdata$gen[!poxdata$gen %in% taxa$gen]
-poxdata=merge(gtaxa,poxdata,by='gen',all.x=TRUE)
+poxdata <- merge(gtaxa,poxdata,by='gen',all.x=TRUE)
 
 #(3) keep only genera from orders in which positive associations exist
-keep=subset(poxdata, pcr==1 | competence==1)
-poxdata$keep=ifelse(poxdata$ord %in% keep$ord,TRUE,FALSE)
-poxdata=subset(poxdata,keep==TRUE)
+keep <- subset(poxdata, pcr==1 | competence==1)
+poxdata$keep <- ifelse(poxdata$ord %in% keep$ord,TRUE,FALSE)
+poxdata <- subset(poxdata,keep==TRUE)
 poxdata$keep=NULL
-
-#(4) create dataframe of all possible host-OPV combinations (for mammal genera that exist in orders w/ known OPV predictions)
-uniq_gen <- unique(poxdata$gen[!is.na(poxdata$gen)])
-uniq_virus <- unique(poxdata$virus[!is.na(poxdata$virus)])
-combinations <- expand.grid(uniq_gen,uniq_virus)
-combinations <- rename(combinations,c('Var1'='gen','Var2'='virus'))
-
-#(5) merge host-OPV interaction data with all possible combinations
-poxdata <- merge(combinations,poxdata,all.x=TRUE)
 
 #(6) create binary variable for sampled host-OPV pairs
 poxdata$sampled=ifelse(is.na(poxdata$pcr) & is.na(poxdata$competence),0,1)
@@ -195,7 +186,7 @@ poxdata$fam.x=NULL
 poxdata$ord.x=NULL
 
 #(9) clean environment
-rm(taxa,gtaxa,keep,uniq_gen,uniq_virus,combinations)
+rm(taxa,gtaxa,keep)
 
 ```
 
@@ -294,7 +285,7 @@ rm(tdata)
 
 ```
 
-### Prepare poxdata for merging with hostTraits and trimming hostTree
+### Check for mismatched genera names in poxdata, hostTraits and hostTree
 
 ```{r}
 
@@ -336,17 +327,17 @@ fix$traitname <- ifelse(fix$gtip=="Pseudalopex","Lycalopex",fix$traitname)
 fix <- subset(fix, select=-c(intree,intraits))
 poxdata <- merge(poxdata,fix,by='gtip',all.x=T)
 
-#(5) treename will be used for merging poxdata & hostTree
+#(6) treename will be used for merging poxdata & hostTree
 poxdata$treename <- ifelse(poxdata$treename=='',NA,as.character(poxdata$treename))
 poxdata$treename <- ifelse(is.na(poxdata$treename),as.character(poxdata$gtip),as.character(poxdata$treename))
 
-#(6) traitname will be used for merging poxdata & hostTraits
+#(7) traitname will be used for merging poxdata & hostTraits
 poxdata$traitname <- ifelse(poxdata$traitname=='',NA,as.character(poxdata$traitname))
 poxdata$traitname <- ifelse(poxdata$intraits=='missing' & is.na(poxdata$traitname),as.character(poxdata$proxy),
                       ifelse(poxdata$intraits=='missing' & !is.na(poxdata$traitname),as.character(poxdata$traitname),
                              as.character(poxdata$gtip)))
 
-#(7) simplify and clean environment
+#(8) simplify and clean environment
 poxdata <- subset(poxdata, select=-c(intree,intraits,proxy))
 rm(fix)
 
@@ -356,26 +347,101 @@ rm(fix)
 
 ```{r}
 
-#(1) check poxdata for NAs
-which(is.na(poxdata))
-
 #(2) merge traits with poxdata
 hostTraits$traitname <- hostTraits$gtip
 poxdata <- merge(poxdata,hostTraits,by=c('traitname'),all.x=T)
 
-#(3) trim poxdata
+#(3) clean up poxdata
 poxdata <- rename(poxdata,c('gtip.x'='gtip'))
 poxdata <- subset(poxdata,select=-c(order, family, genus,gtip.y))
 
-#(4) trim hostTree
-hostTree <- keep.tip(hostTree,hostTree$tip.label[hostTree$tip.label%in%data$treename])
+#(4) trim hostTree to mirror poxdata
+hostTree <- keep.tip(hostTree,hostTree$tip.label[hostTree$tip.label%in%poxdata$treename])
 hostTree$gtip <- NULL
 hostTree=makeLabel(hostTree)
 
-#(6) clean environment
+#(5) clean environment
 rm(hostTraits)
 
 ```
+
+### Add PubMed citations and evolutionary distinctiveness measure
+
+```{r}
+
+#(1) load library for PubMed citations
+library(easyPubMed)
+
+#(2) create function to count citations
+counter=function(name){
+  as.numeric(as.character(get_pubmed_ids(gsub('_','-',name))$Count))
+}
+citations=c()
+
+#(3) extract unique genera from poxdata
+treename <- unique(poxdata$treename)
+
+#(4) apply counter function while looping through treenames
+for(i in 1:length(treename)) {
+  citations[i]=counter(treename[i])
+  print(i)
+}
+
+#(5) compile citation numbers
+cites <- data.frame(treename=treename,cites=citations)
+
+#(6) merge cites with poxdata
+poxdata <- merge(poxdata,cites,by='treename')
+
+#(7) load library for evolutionary distinctiveness (ed) measure
+library(picante)  #before loading picante, make sure latest version of nlme package is loaded
+ed <- evol.distinct(hostTree,type='equal.splits') #calculates ed measures for a suite of species by equal splits and fair proportions; returns species score
+
+#(8) rename variables in ed
+ed <- rename(ed,c('Species'='treename','w'='ed_equal'))
+
+#(9) merge ed with poxdata
+poxdata <- merge(poxdata,ed,by='treename')
+
+#(10) clean environment
+rm(cites,ed,citations,i,treename,counter)
+
+## consider adding viral genome length, viral richness (number of virus detected in each genera), and host range (number of hosts from which each virus was)
+```
+
+# Add all possible host-OPV combinations for link prediction model
+
+```{r}
+
+#(1) separate host-related data and interaction data into separate dataframes
+hostTraits <- subset(poxdata, select=-c(virus,pcr,competence,studies,sampled))
+hostTraits <- hostTraits[!duplicated(hostTraits$gen),]
+hostTraits$associated <- 1
+interactions <- subset(poxdata, select=c(gen,virus,pcr,competence,studies,sampled))
+
+#(1) create dataframe of all possible host-OPV combinations (for mammal genera that exist in orders w/ known OPV predictions)
+uniq_gen <- unique(poxdata$gen[!is.na(poxdata$gen)])
+uniq_virus <- unique(poxdata$virus[!is.na(poxdata$virus)])
+combinations <- expand.grid(uniq_gen,uniq_virus)
+combinations <- rename(combinations,c('Var1'='gen','Var2'='virus'))
+
+#(2) merge host-OPV interaction data with all possible combinations
+poxdata_all <- merge(combinations,interactions,by=c("gen","virus"),all.x=TRUE)
+
+#(3) merge host-related data
+poxdata_all <- merge(poxdata_all,poxdata_host,by=c("gen"),all.x=TRUE)
+
+#(6) create binary variable for sampled host-OPV pairs
+poxdata_all$sampled=ifelse(is.na(poxdata_all$pcr) & is.na(poxdata_all$competence),0,1)
+
+#(7) reclassify NAs as pseudo-absences for viral detection
+poxdata_all$pcr=ifelse(is.na(poxdata_all$pcr),0,poxdata_all$pcr)
+poxdata_all$competence=ifelse(is.na(poxdata_all$competence),0,poxdata_all$competence)
+poxdata_all$studies=ifelse(is.na(poxdata_all$studies),0,poxdata_all$studies)
+
+```
+
+
 
 ### Merge poxdata with viral accessory genes
 
@@ -430,7 +496,7 @@ vars <- subset(vars,vars$var<1)
 # viralTraits=viralTraits[keeps]
 
 #(6) merge with poxdata
-poxdata <- merge(poxdata,viralTraits,by=c('virus'),all.x=TRUE)
+poxdata_all <- merge(poxdata_all,viralTraits,by=c('virus'),all.x=TRUE)
 
 #(7) clean environment
 rm(viralTraits,vars,keeps,original_cols,mode.prop)
@@ -441,57 +507,14 @@ rm(viralTraits,vars,keeps,original_cols,mode.prop)
 
 ```
 
-### Add PubMed citations and evolutionary distinctiveness measure
-
-```{r}
-
-#(1) load library for PubMed citations
-library(easyPubMed)
-
-#(2) create function to count citations
-counter=function(name){
-  as.numeric(as.character(get_pubmed_ids(gsub('_','-',name))$Count))
-}
-citations=c()
-
-#(3) extract unique genera from poxdata
-treename <- unique(poxdata$treename)
-
-#(4) apply counter function while looping through treenames
-for(i in 1:length(treename)) {
-  citations[i]=counter(treename[i])
-  print(i)
-}
-
-#(5) compile citation numbers
-cites <- data.frame(treename=treename,cites=citations)
-
-#(6) merge cites with poxdata
-poxdata <- merge(poxdata,cites,by='treename')
-
-#(7) load library for evolutionary distinctiveness (ed) measure
-library(picante)  #before loading picante, make sure latest version of nlme package is loaded
-ed <- evol.distinct(hostTree,type='equal.splits') #calculates ed measures for a suite of species by equal splits and fair proportions; returns species score
-
-#(8) rename variables in ed
-ed <- rename(ed,c('Species'='treename','w'='ed_equal'))
-
-#(9) merge ed with poxdata
-poxdata <- merge(poxdata,ed,by='treename')
-
-#(10) clean environment
-rm(cites,ed,citations,i,treename,counter)
-
-## consider adding viral genome length, viral richness (number of virus detected in each genera), and host range (number of hosts from which each virus was)
-```
-
 # Save cleaned data
 
 ```{r}
-poxdata <- poxdata %>% 
+
+poxdata_all <- poxdata_all %>% 
   relocate(virus,gen,fam,ord,gtip,treename,traitname,pcr,competence,studies,sampled,cites,ed_equal)
 
-save(poxdata, hostTree, file='Data_clean.RData')
+save(poxdata_all, poxdata, hostTree, file='Data_clean.RData')
 
 ```
 
@@ -499,11 +522,11 @@ save(poxdata, hostTree, file='Data_clean.RData')
 
 ```{r}
 
-#(1) load data
-load("Data_raw.RData")
+#(1) load clean data
+load("Data_clean.RData")
 
 #(2) create combined pcr/comp variable
-poxdata$compcr <- ifelse(data$pcr==1|data$competence==1,1,0)
+poxdata$compcr <- ifelse(poxdata$pcr==1|poxdata$competence==1,1,0)
 
 #(3) create variable labeling observations to keep if genus name in poxdata is also in hostTree
 poxdata$tree <- ifelse(poxdata$treename%in%setdiff(poxdata$treename,hostTree$tip.label),'cut','keep')
