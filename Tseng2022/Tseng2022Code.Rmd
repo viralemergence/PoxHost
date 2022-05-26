@@ -26,7 +26,7 @@ The following code reproduces the analysis from:
 
 # Data Preparation
 
-## Load required packages and set system
+### Load required packages and set system
 
 ```{r}
 
@@ -66,7 +66,7 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```
 
-## Load raw data
+### Load raw data
 
 ```{r}
 
@@ -97,7 +97,7 @@ rm(virion, vertlife, dryad, combine, opvgenes)
 
 ```
 
-## Aggregate poxdata to genus-level
+### Aggregate poxdata to genus-level
 
 ```{r}
 
@@ -153,7 +153,7 @@ rm(poxdata, mpxvdata, pcr,competence,agg_pcr, agg_competence, agg_studies)
 
 ```
 
-## Merge poxdata with broader mammal taxa to create pseudoabsences
+### Merge poxdata with broader mammal taxa to create pseudoabsences
 
 ```{r}
 
@@ -199,7 +199,7 @@ rm(gdata,taxa,gtaxa,keep,uniq_gen,uniq_virus,combinations)
 
 ```
 
-## Aggregate hostTraits to genus-level
+### Aggregate hostTraits to genus-level
 
 ```{r}
 
@@ -274,7 +274,7 @@ rm(hostTraits_binary,hostTraits_cat,hostTraits_continuous)
 
 ```
 
-## Collapse hostTree to genus-level
+### Collapse hostTree to genus-level
 
 ```{r}
 
@@ -294,7 +294,7 @@ rm(tdata)
 
 ```
 
-## Prepare poxdata for merging with hostTraits and trimming hostTree
+### Prepare poxdata for merging with hostTraits and trimming hostTree
 
 ```{r}
 
@@ -352,7 +352,7 @@ rm(fix)
 
 ```
 
-## Merge poxdata with hostTraits and trim hostTree to mirror poxdata
+### Merge poxdata with hostTraits and trim hostTree to mirror poxdata
 
 ```{r}
 
@@ -377,7 +377,7 @@ rm(hostTraits)
 
 ```
 
-## Merge poxdata with viral accessory genes
+### Merge poxdata with viral accessory genes
 
 ```{r}
 
@@ -441,7 +441,7 @@ rm(viralTraits,vars,keeps,original_cols,mode.prop)
 
 ```
 
-## Combine PubMed citations and evolutionary distinctiveness measure
+### Combine PubMed citations and evolutionary distinctiveness measure
 
 ```{r}
 
@@ -483,6 +483,14 @@ data <- merge(data,ed,by='treename')
 rm(cites,ed,citations,i,treename,counter)
 
 ## consider adding viral genome length, viral richness (number of virus detected in each genera), and host range (number of hosts from which each virus was)
+```
+
+# Save cleaned data
+
+```{r}
+
+# 02_phylofactor.R
+
 ```
 
 # Phylogenetic analysis
