@@ -404,7 +404,7 @@ ed <- rename(ed,c('Species'='treename','w'='ed_equal'))
 poxdata <- merge(poxdata,ed,by='treename')
 
 #(10) save poxdata containing only genera of taxonomic orders with known host-OPV associations for phylofactorization
-poxdata_phylo <- poxdata
+pfdata <- poxdata
 
 #(10) clean environment
 rm(cites,ed,citations,i,treename,counter)
@@ -513,13 +513,13 @@ rm(viralTraits,vars,keeps,original_cols,mode.prop)
 
 ```{r}
 
-poxdata_phylo <- poxdata_phylo %>% 
+pfdata <- pfdata %>% 
   relocate(virus,gen,fam,ord,gtip,treename,traitname,pcr,competence,studies,sampled,cites,ed_equal)
 
 poxdata <- poxdata %>% 
   relocate(virus,gen,fam,ord,gtip,treename,traitname,pcr,competence,studies,sampled,cites,ed_equal)
 
-save(poxdata_phylo, poxdata, hostTree, file='Data_clean.RData')
+save(pfdata, poxdata, hostTree, file='/Users/katietseng/Downloads/Data_clean.RData')
 
 ```
 
@@ -531,7 +531,7 @@ save(poxdata_phylo, poxdata, hostTree, file='Data_clean.RData')
 load("Data_clean.RData")
 
 #(2) create combined pcr/comp variable
-poxdata$compcr <- ifelse(poxdata$pcr==1|poxdata$competence==1,1,0)
+poxdata_phylo$compcr <- ifelse(poxdata_phylo$pcr==1|poxdata$competence==1,1,0)
 
 #(3) create variable labeling observations to keep if genus name in poxdata is also in hostTree
 poxdata$tree <- ifelse(poxdata$treename%in%setdiff(poxdata$treename,hostTree$tip.label),'cut','keep')
