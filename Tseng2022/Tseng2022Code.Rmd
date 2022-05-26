@@ -1,34 +1,17 @@
 ---
-title: "Posvirus Host Prediction"
-author: "Katie Tseng, Dan Becker, Heather Koehler, Pilar Fernandez, Stephanie Seifert"
-output:
-  pdf_document:
-  latex_engine: xelatex
-  toc: yes
-html_document:
-  fig_height: 6
-  fig_width: 6
-  highlight: tango
-  theme: journal
-editor_options: 
-  chunk_output_type: console
+title: "Poxvirus Host Prediction: 01_cleaning"
+author: "Katie Tseng, Dan Becker, Colin Carlson, Pilar Fernandez, Stephanie Seifert"
 ---
 
 ```{r, echo=F, message=F}
 knitr::opts_chunk$set(eval=F)
 ```
 
-# Introduction
-
-The following code reproduces the analysis from:
-
-> etc.
-
-# Load required packages
+# Load required packages and set system
 
 ```{r echo=F, message=T}
 
-##(1) libraries for preparing data for analysis
+##(1) libraries for data cleaning
 library(ape)
 library(dplyr)
 library(nlme)
@@ -37,29 +20,6 @@ library(vroom)
 ## treespace dependencies include XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html) and 'rgl' (https://stackoverflow.com/a/66127391/2554330)
 library(rgl) # >install.packages("rgl"); >options(rgl.useNULL=TRUE)
 library(treespace) 
-
-## libraries for phylogenetic analysis
-library(ape)
-library(caper)
-library(data.table)
-library(BiocManager)  ## BiocManager::install(c("Biostrings","ggtree"))
-library(phylofactor)  ## devtools::install_github('reptalex/phylofactor'); more info at: https://reptalex.github.io/phylofactor/)
-library(treeio)       ## BiocManager::install("treeio")
-
-## libraries for prediction model
-library(gbm);
-library(ROCR);
-library(vegan);
-library(plyr);library(dplyr);
-library(mvtnorm)
-library(xtable)
-library(parallel)
-
-```
-
-# Set system
-
-```{r echo=F, message=T}
 
 #clean environment
 rm(list=ls()) 
@@ -70,26 +30,28 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```
 
-# Load data
+# Load raw data
 
 ```{r echo=F, message=T}
 
 ##(1) load data
 load("Tseng2022.RData")
 
-##(2) poxdata: host-OPV interactions detected via PCR/isolation from Virion database; <https://github.com/viralemergence/virion/tree/main/Virion>
+##(2) poxdata: host-OPV interactions detected via PCR/isolation from Virion database
+#virion <- vroom('https://github.com/viralemergence/virion/blob/main/Virion/Virion.csv.gz')
 poxdata <- virion %>% filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation"))) 
 
-##(3) taxa: mammal species taxonomy from vertlife, <https://data.vertlife.org/>
+##(3) taxa: mammal species taxonomy from vertlife
+#vertlife <- read.csv(url('https://data.vertlife.org/mammaltree/taxonomy_mamPhy_5911species.csv'))
 taxa <- vertlife
 
-##(4) hostTraits: mammal traits from the COMBINE database, <https://doi.org/10.1002/ecy.3344> (file: "trait_data_imputed.csv")
+##(4) hostTraits: mammal traits from the COMBINE database <https://doi.org/10.1002/ecy.3344> (path: ecy3344-sup-0001-datas1.zip > COMBINE_archives > trait_data_imputed.csv)
 hostTraits <- combine
 
-##(5) hostTree: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03> (path: "Data_S8_finalFigureFiles">"_DATA")
+##(5) hostTree: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03> (path: Data_S8_finalFigureFiles > _DATA > MamPhy_fullPosterior_BDvr_Completed_5911sp_topoCons_NDexp_MCC_v2_target.tre)
 hostTree <- dryad
 
-##(6) viralTraits: OPV accessory genes from ...
+##(6) viralTraits: OPV accessory genes from ... (Steph to provide refined datatable)
 viralTraits <- opvgenes
 
 ##(7) clean environment
@@ -97,11 +59,11 @@ rm(virion, vertlife, dryad, combine, opvgenes)
 
 ```
 
-# Aggregate poxdata to genus-level
+Aggregate poxdata to genus-level
 
 ```{r echo=F, message=T}
 
-##(1) exclude if host genus or virus is NA and if variola virus
+##(1) exclude if host genus or virus is NA; exclude variola (smallpox) virus
 poxdata <- poxdata[!is.na(poxdata$HostGenus),]
 poxdata <- poxdata[!is.na(poxdata$Virus),]
 poxdata <- poxdata[!(poxdata$Virus=="variola virus"),]
@@ -111,6 +73,7 @@ mpxvdata <- poxdata %>% filter(Virus=="monkeypox virus" & (DetectionMethod %in% 
 #write.csv(mpxvdata, "~/mpxvdata.csv")
 
 ##(3) merge clade-specific data
+#TBD: Steph to share clade-specific data
 
 ##(4) extract PCR-positive data 
 pcr <- subset(poxdata[which(poxdata$DetectionMethod=="PCR/Sequencing"),], select=c("Host","HostGenus","Virus"))
@@ -127,10 +90,10 @@ competence <- aggregate(.~Host+HostGenus+Virus, data=competence, sum)
 ##(6) merge PCR/isolation-positive data; create binary vars
 poxdata <- merge(pcr, competence, by=c("Host","HostGenus","Virus"), all=TRUE)
 
-##(7) combine studies into single variable
+##(7) create studies variable
 poxdata$studies <- ifelse(is.na(poxdata$pcr),0,poxdata$pcr) + ifelse(is.na(poxdata$competence),0,poxdata$competence)
 
-##(8) create binary variables
+##(8) create binary variables for detection via pcr/competence
 poxdata$pcr=ifelse(is.na(poxdata$pcr),0,1)
 poxdata$competence=ifelse(is.na(poxdata$competence),0,1)
 
@@ -152,7 +115,7 @@ rm(poxdata, mpxvdata, pcr,competence,agg_pcr, agg_competence, agg_studies)
 
 ```
 
-# Merge poxdata with broader mammal taxa to create pseudoabsences
+Merge poxdata with broader mammal taxa to create pseudoabsences
 
 ```{r echo=F, message=T}
 
@@ -180,7 +143,7 @@ combinations <- rename(combinations,c('Var1'='gen','Var2'='virus'))
 ##(5) merge host-OPV interaction data with all possible combinations
 data <- merge(combinations,data,all.x=TRUE)
 
-##(6) create binary variable for sampled
+##(6) create binary variable for sampled host-OPV pairs
 data$sampled=ifelse(is.na(data$pcr) & is.na(data$competence),0,1)
 
 ##(7) reclassify NAs as pseudo-absences for viral detection
@@ -199,7 +162,7 @@ rm(gdata,taxa,gtaxa,keep,uniq_gen,uniq_virus,combinations)
 
 ```
 
-# Aggregate hostTraits to genus-level
+Aggregate hostTraits to genus-level
 
 ```{r echo=F, message=T}
 
@@ -274,7 +237,7 @@ rm(hostTraits_binary,hostTraits_cat,hostTraits_continuous)
 
 ```
 
-# Collapse hostTree to genus-level
+Collapse hostTree to genus-level
 
 ```{r echo=F, message=T}
 
@@ -294,7 +257,7 @@ rm(tdata)
 
 ```
 
-# Prepare poxdata for merging with hostTraits and trimming hostTree
+Prepare poxdata for merging with hostTraits and trimming hostTree
 
 ```{r echo=F, message=T}
 
@@ -345,7 +308,7 @@ rm(fix)
 
 ```
 
-# Merge poxdata with hostTraits and trim hostTree to match poxdata
+Merge poxdata with hostTraits and trim hostTree to mirror poxdata
 
 ```{r echo=F, message=T}
 
@@ -365,12 +328,12 @@ hostTree <- keep.tip(hostTree,hostTree$tip.label[hostTree$tip.label%in%data$tree
 hostTree$gtip <- NULL
 hostTree=makeLabel(hostTree)
 
-##(5) clean environment
+##(6) clean environment
 rm(hostTraits)
 
 ```
 
-# Merge poxdata with viral accessory genes
+Merge poxdata with viral accessory genes
 
 ```{r echo=F, message=T}
 
@@ -378,9 +341,9 @@ rm(hostTraits)
 viralTraits <- head(viralTraits, -2)          
 
 ## (2) rename column names
-original_cols <- colnames(viralTraits)
-colnames(viralTraits) <- paste("ag" ,original_cols,sep="_")
-names(viralTraits)[1:2] <- c("virus","OPG")
+viralTraits <- viralTraits[,-2]
+colnames(viralTraits) <- paste("ag" ,colnames(viralTraits),sep="_")
+names(viralTraits)[1] <- c("virus")
 
 ## (3) to assess variation in viralTraits, create mode function
 mode.prop <- function(x) {                
@@ -401,32 +364,32 @@ colnames(vars) <- c("var","uniq","column")
 ## drop variables with no variation
 vars <- subset(vars,vars$var<1)
 
-## visualize distribution of NA
-png("/Users/katietseng/Downloads/virus_ag_variation.png", width=4,height=4,units="in",res=600)
-ggplot(vars,
-       aes(var))+
-  geom_histogram(bins=50)+
-  geom_vline(xintercept=0.70,linetype=2,size=0.5)+
-  theme_bw()+
-  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
-  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
-  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
-  labs(y="frequency",
-       x="trait coverage across viral species")+
-  scale_x_continuous(labels=scales::percent)
-dev.off()
+# ## visualize distribution of NA
+# png("/Users/katietseng/Downloads/virus_ag_variation.png", width=4,height=4,units="in",res=600)
+# ggplot(vars,
+#        aes(var))+
+#   geom_histogram(bins=50)+
+#   geom_vline(xintercept=0.70,linetype=2,size=0.5)+
+#   theme_bw()+
+#   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+#   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+#   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+#   labs(y="frequency",
+#        x="trait coverage across viral species")+
+#   scale_x_continuous(labels=scales::percent)
+# dev.off()
 
-## drop based on threshold
-vars$keep=ifelse(vars$var>=0.7,"keep","cut")
-keeps=vars[-which(vars$keep=="cut"),]$column #creates array of column names to cut and removes from df
-keeps <- append("virus",keeps)
-viralTraits=viralTraits[keeps]
+# ## drop based on threshold
+# vars$keep=ifelse(vars$var>=0.7,"keep","cut")
+# keeps=vars[-which(vars$keep=="cut"),]$column 
+# keeps <- append("virus",keeps)
+# viralTraits=viralTraits[keeps]
 
 ## merge with poxdata
 data <- merge(data,viralTraits,by=c('virus'),all.x=TRUE)
 
 ## clean environment
-rm(vars,viralTraits,keeps,original_cols,mode.prop)
+rm(viralTraits,vars,keeps,original_cols,mode.prop)
 
 # ## identify rows with duplicate values (i.e., hosts with identical presence/absence of accessory genes)
 # which(duplicated(viralTraits[,-c(1)])| duplicated(viralTraits[,-c(1)], fromLast = TRUE))
@@ -434,18 +397,7 @@ rm(vars,viralTraits,keeps,original_cols,mode.prop)
 
 ```
 
-
-# Aggregate at genus level
-
-```{r echo=F, message=T}
-# pox_data <- virion
-# taxa <- vertlife
-# host_traits <- combine
-# virus_traits <- opvgenes
-# tree <- dryad
-```
-
-# Combine PubMed citations and evolutionary distinctiveness measure
+Combine PubMed citations and evolutionary distinctiveness measure
 
 ```{r echo=F, message=T}
 
@@ -486,13 +438,20 @@ data <- merge(data,ed,by='treename')
 ##() clean environment
 rm(cites,ed,citations,i,treename,counter)
 
+## let's add in viral genome length, viral richness (number of virus detected in each genera), and host range (number of hosts from which each virus was)
 ```
 
 # Phylogenetic analysis
 
 ```{r echo=F, message=T}
 
-# 02_phylofactor.R
+## libraries for phylogenetic analysis
+library(ape)
+library(caper)
+library(data.table)
+library(BiocManager)  ## BiocManager::install(c("Biostrings","ggtree"))
+library(phylofactor)  ## devtools::install_github('reptalex/phylofactor'); more info at: https://reptalex.github.io/phylofactor/)
+library(treeio)       ## BiocManager::install("treeio")
 
 ```
 
@@ -532,14 +491,21 @@ biplot(genpca)
 genpca <- princomp(gendist)
 biplot(genpca)
 
-
-
-
 ```
 
 # 
 
 ```{r echo=F, message=T}
+
+
+## libraries for prediction model
+library(gbm);
+library(ROCR);
+library(vegan);
+library(plyr);library(dplyr);
+library(mvtnorm)
+library(xtable)
+library(parallel)
 ```
 
 # 
