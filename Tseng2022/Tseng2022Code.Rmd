@@ -403,6 +403,9 @@ ed <- rename(ed,c('Species'='treename','w'='ed_equal'))
 #(9) merge ed with poxdata
 poxdata <- merge(poxdata,ed,by='treename')
 
+#(10) save poxdata containing only genera of taxonomic orders with known host-OPV associations for phylofactorization
+poxdata_phylo <- poxdata
+
 #(10) clean environment
 rm(cites,ed,citations,i,treename,counter)
 
@@ -413,10 +416,9 @@ rm(cites,ed,citations,i,treename,counter)
 
 ```{r}
 
-#(1) separate host-related data and interaction data into separate dataframes
+#(1) create separate dataframes for hostTraits and interaction data
 hostTraits <- subset(poxdata, select=-c(virus,pcr,competence,studies,sampled))
 hostTraits <- hostTraits[!duplicated(hostTraits$gen),]
-hostTraits$associated <- 1
 interactions <- subset(poxdata, select=c(gen,virus,pcr,competence,studies,sampled))
 
 #(1) create dataframe of all possible host-OPV combinations (for mammal genera that exist in orders w/ known OPV predictions)
@@ -426,22 +428,22 @@ combinations <- expand.grid(uniq_gen,uniq_virus)
 combinations <- rename(combinations,c('Var1'='gen','Var2'='virus'))
 
 #(2) merge host-OPV interaction data with all possible combinations
-poxdata_all <- merge(combinations,interactions,by=c("gen","virus"),all.x=TRUE)
+poxdata <- merge(combinations,interactions,by=c("gen","virus"),all.x=TRUE)
 
 #(3) merge host-related data
-poxdata_all <- merge(poxdata_all,poxdata_host,by=c("gen"),all.x=TRUE)
+poxdata <- merge(poxdata,hostTraits,by=c("gen"),all.x=TRUE)
 
 #(6) create binary variable for sampled host-OPV pairs
-poxdata_all$sampled=ifelse(is.na(poxdata_all$pcr) & is.na(poxdata_all$competence),0,1)
+poxdata$sampled=ifelse(is.na(poxdata$pcr) & is.na(poxdata$competence),0,1)
 
 #(7) reclassify NAs as pseudo-absences for viral detection
-poxdata_all$pcr=ifelse(is.na(poxdata_all$pcr),0,poxdata_all$pcr)
-poxdata_all$competence=ifelse(is.na(poxdata_all$competence),0,poxdata_all$competence)
-poxdata_all$studies=ifelse(is.na(poxdata_all$studies),0,poxdata_all$studies)
+poxdata$pcr=ifelse(is.na(poxdata$pcr),0,poxdata$pcr)
+poxdata$competence=ifelse(is.na(poxdata$competence),0,poxdata$competence)
+poxdata$studies=ifelse(is.na(poxdata$studies),0,poxdata$studies)
 
+#(8) clean environment
+rm(hostTraits,interactions,uniq_gen,uniq_virus,combinations)
 ```
-
-
 
 ### Merge poxdata with viral accessory genes
 
@@ -496,7 +498,7 @@ vars <- subset(vars,vars$var<1)
 # viralTraits=viralTraits[keeps]
 
 #(6) merge with poxdata
-poxdata_all <- merge(poxdata_all,viralTraits,by=c('virus'),all.x=TRUE)
+poxdata <- merge(poxdata,viralTraits,by=c('virus'),all.x=TRUE)
 
 #(7) clean environment
 rm(viralTraits,vars,keeps,original_cols,mode.prop)
@@ -511,10 +513,13 @@ rm(viralTraits,vars,keeps,original_cols,mode.prop)
 
 ```{r}
 
-poxdata_all <- poxdata_all %>% 
+poxdata_phylo <- poxdata_phylo %>% 
   relocate(virus,gen,fam,ord,gtip,treename,traitname,pcr,competence,studies,sampled,cites,ed_equal)
 
-save(poxdata_all, poxdata, hostTree, file='Data_clean.RData')
+poxdata <- poxdata %>% 
+  relocate(virus,gen,fam,ord,gtip,treename,traitname,pcr,competence,studies,sampled,cites,ed_equal)
+
+save(poxdata_phylo, poxdata, hostTree, file='Data_clean.RData')
 
 ```
 
