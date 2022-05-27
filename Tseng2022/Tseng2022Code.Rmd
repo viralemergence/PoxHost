@@ -835,33 +835,75 @@ library(ape)
 library(vegan)
 
 #(1) load data of viral accessory genes
-load("Tseng2022.RData")
+load("Data_raw.Rdata")
 genes <- opvgenes
 
-#(2) trim and reformat
+#(2) trim
 genes <- head(genes, -2)     
 genes <- genes[,-2]
 colnames(genes) <- paste("ag" ,colnames(genes),sep="_")
 names(genes)[1] <- c("virus")
 
-#(3) create distance matrix: returns a measure of the pairwise similarity between each virus based on whether they have the same/diff values in each of the columns
-genmat <- as.matrix(genes[,-1])
-rownames(genmat) <- genes[,1] %>% pull()
-class(genmat) <- "numeric"
-gendist <- vegdist(genmat)
+#(3) reformat as numeric data matrix
+mat <- as.matrix(genes[,-1])
+rownames(mat) <- genes[,1] %>% pull()
+class(mat) <- "numeric"
 
-#(4) principal coordinates analysis
-genpca <- pcoa(gendist) #{ape}
-#genpca <- prcomp(gendist)
+#(4) remove genes with no variation
+mat <- mat[,-which(apply(mat, 2, var)==0)]
 
-#(4) principal components analysis
+#(5) PCA with prcomp {stats}
+pca <- prcomp(mat,scale=TRUE,center=TRUE)
+pca.var <- pca$sdev^2
+pca.var.per <- round(pca.var/sum(pca.var)*100, 1)
+pca.data <- data.frame(Sample=rownames(pca$x),
+                       X=pca$x[,1],
+                       Y=pca$x[,2])
+pca.data
+ggplot(data=pca.data, aes(x=X,y=Y,label=Sample)) +
+  geom_text() +
+  xlab(paste("PC1 - ", pca.var.per[1], "%", sep="")) +
+  ylab(paste("PC2 - ", pca.var.per[2], "%", sep="")) +
+  theme_bw() + 
+  ggtitle("PCA plot")
+
 #genpca <- princomp(genmat) #{stats}
 
-#(5) let's explore
-genpca
-genpca$vectors
+#(6) PCoA with cmdscale {stats} - standardized
+dist.mat <- dist(scale((mat),center=TRUE,scale=TRUE),
+                method="euclidean")
+mds <- cmdscale(dist.mat, eig=TRUE,x.ret=TRUE) #perform MDS on gendist
+mds.var.per <- round(mds$eig/sum(mds$eig)*100,1)
+mds.values <- mds$points
+mds.data <- data.frame(Sample=rownames(mds.values),
+                       X=mds.values[,1],
+                       Y=mds.values[,2])
+ggplot(data=mds.data, aes(x=X,y=Y,label=Sample)) +
+  geom_text() +
+  xlab(paste("MDS1 - ", mds.var.per[1], "%", sep="")) +
+  ylab(paste("MDS2 - ", mds.var.per[2], "%", sep="")) +
+  theme_bw() + 
+  ggtitle("MDS plot using Euclidean distance")
+
+#(7) PCoA with pcoa {ape} - unstandardized
+dist.mat <- vegdist(mat) 
+##distance matrix (measure of the pairwise similarity between each virus based on whether they have the same/diff values in each of the columns
+pcoa <- pcoa(dist.mat) #{ape}
+pcoa$vectors
+pcoa.var.per <- round(pcoa$values$Eigenvalues/sum(pcoa$values$Eigenvalues)*100,1)
+pcoa.values <- pcoa$vectors
+pcoa.data <- data.frame(Sample=rownames(pcoa.values),
+                        X=pcoa.values[,1],
+                        Y=mds.values[,2])
+ggplot(data=pcoa.data, aes(x=X,y=Y,label=Sample)) +
+  geom_text() +
+  xlab(paste("PCoA1 - ", mds.var.per[1], "%", sep="")) +
+  ylab(paste("PCoA2 - ", mds.var.per[2], "%", sep="")) +
+  theme_bw() + 
+  ggtitle("PCoA graph using Euclidean distance")
 
 #(6) plot coordinate pairs and eigenvectors
-biplot(genpca)
+biplot(pcoa)
+biplot(pcoa, mat, dir.axis1=-1)
 
 ```
