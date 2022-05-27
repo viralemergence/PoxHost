@@ -135,7 +135,7 @@ poxdata$studies <- ifelse(is.na(poxdata$pcr),0,poxdata$pcr) + ifelse(is.na(poxda
 poxdata$pcr=ifelse(is.na(poxdata$pcr),0,1)
 poxdata$competence=ifelse(is.na(poxdata$competence),0,1)
 
-#(9) aggregate at genus level
+#(9) aggregate by genus and virus
 agg_pcr <- aggregate(pcr~HostGenus+Virus, data=poxdata, max)
 agg_competence <- aggregate(competence~HostGenus+Virus, data=poxdata, max)
 agg_studies <- aggregate(studies~HostGenus+Virus, data=poxdata, sum)
@@ -466,7 +466,7 @@ mode.prop <- function(x) {
 
 #(4) assess variation across columns (2 indicates columns)
 vars=data.frame(apply(viralTraits,2,function(x) mode.prop(x)),
-                apply(viralTraits,2,function(x) length(unique(x))))    # number of unique elements in each column
+                apply(viralTraits,2,function(x) length(unique(x)))) # number of unique elements in each column
 vars$variables=rownames(vars)
 colnames(vars) <- c("var","uniq","column")
 
@@ -530,50 +530,51 @@ save(pfdata, poxdata, hostTree, file='/Users/katietseng/Downloads/Data_clean.RDa
 #(1) load clean data
 load("Data_clean.RData")
 
-#(2) create combined pcr/comp variable
-poxdata_phylo$compcr <- ifelse(poxdata_phylo$pcr==1|poxdata$competence==1,1,0)
+#(2) trim unnecessary data columns
+colnames(pfdata)
+data <- pfdata[c(2:13)]
 
-#(3) create variable labeling observations to keep if genus name in poxdata is also in hostTree
-poxdata$tree <- ifelse(poxdata$treename%in%setdiff(poxdata$treename,hostTree$tip.label),'cut','keep')
+#(3) to remove duplicate genera, aggregate pcr and competence by genus, taking the max value
+agg_pcr <- aggregate(pcr~gen, data=data, max)
+agg_competence <- aggregate(competence~gen, data=data, max)
 
-#(4) trim poxdata
-poxdata <- poxdata[which(poxdata$tree=='keep'),]
+#(4) remove duplicate rows/genera, and merge pcr and competence data back in
+data$pcr=NULL
+data$competence=NULL
+data <- data[!duplicated(data$gen),]
+data <- list(data,agg_pcr,agg_competence) %>% reduce(full_join, by='gen')
 
-#(5) subset bdata based on positions of matches (returned as vector) - redundant?
-poxdata <- poxdata[match(hostTree$tip.label,poxdata$treename),]
+#(5) check that genus name in poxdata is also in hostTree
+which(data$treename%in%setdiff(data$treename,hostTree$tip.label))
 
+#(6) create variables label and Species (required in later functions)f
+data$label <- data$treename
+data$Species <- data$treename  
 
-## save
-poxdata$label <- poxdata$treename
-poxdata$Species <- poxdata$treename  #We refer to treenames of genus as "Species" as this is required in later functions
-
-## merge: caper::comparative.data combines phylogenies w/ datasets and ensures consistent structure and ordering
-poxdata <- comparative.data(phy=mtree,data=poxdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)
-
-## fix
-poxdata$data$tree = NULL
+#(7) merge phylogeny with dataset ensuring consistent structure and ordering (caper::comparative.data)
+cdata=comparative.data(phy=hostTree,data=data,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)
+cdata$data$tree=NULL
 
 ## proportion detected for each detection method
-nrow(poxdata)
-round(prop.table(table(poxdata$pcr)),4)*100        #values in each cell are divided by the sum of the 4 cells  
-round(prop.table(table(poxdata$competence)),4)*100
-round(prop.table(table(poxdata$compcr)),4)*100
+nrow(data)
+round(prop.table(table(data$pcr)),4)*100        #values in each cell are divided by the sum of the 4 cells
+round(prop.table(table(data$competence)),4)*100
 
 ## phylogenetic signal in response
 ## D of 0 = Brownian model, D of 1 = random (no phylogenetic signal)
 set.seed(1)
-mod1=phylo.d(poxdata,binvar=pcr,permut=10000); mod1
+mod1=phylo.d(cdata,binvar=pcr,permut=10000); mod1
 set.seed(1)
-mod2=phylo.d(poxdata,binvar=competence,permut=10000); mod2
+mod2=phylo.d(cdata,binvar=competence,permut=10000); mod2
 
 ## create taxonomy var 
-poxdata$data$taxonomy=paste(poxdata$data$ord,poxdata$data$fam,poxdata$data$gen,sep='; ')
-#poxdata$data$taxonomy=paste(poxdata$data$fam,poxdata$data$gen,sep='; ')
+cdata$data$taxonomy=paste(cdata$data$ord,cdata$data$fam,cdata$data$gen,sep='; ')
+#cdata$data$taxonomy=paste(cdata$data$fam,cdata$data$gen,sep='; ')
 
 ## create data frame of taxonomy
-taxonomy=data.frame(poxdata$data$taxonomy)
+taxonomy=data.frame(cdata$data$taxonomy)
 names(taxonomy)="taxonomy"
-taxonomy$Species=rownames(poxdata$data)
+taxonomy$Species=rownames(cdata$data)
 taxonomy=taxonomy[c("Species","taxonomy")]
 taxonomy$taxonomy=as.character(taxonomy$taxonomy)
 
