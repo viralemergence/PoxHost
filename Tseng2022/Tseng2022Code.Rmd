@@ -907,53 +907,48 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```
 
-###
+### Create taxonomic variables as predictors for the model
 
 ```{r}
 
-#(1) load data and subset interaction data and trait data to remove duplicate genera
+#(1) load data and clean environment
 load("Data_clean.RData")
 data <- poxdataMin
+rm(poxdata,poxdataMin)
 
-```
-
-###
-
-```{r}
-
-## classify true negatives
+#(2) classify true negatives
 data$type=ifelse(data$pcr==0 & data$competence==0,"true negative","other")
 
-## which species is competent but no PCR record?
+#(3) which species is competent but no PCR record?
 set=data
 set$treename[set$pcr==0 & set$competence==1]
 
-## tabulate PCR/infection and isolation
+#(4) tabulate PCR/infection and isolation
 set$inf=ifelse(set$pcr==0,"PCR negative","PCR positive")
 set$iso=ifelse(set$competence==0,"no isolation","isolation")
 table(set$inf,set$iso)
 
-## make binary columns for family
+#(5) make binary variables for each taxonomic family; remove any duplicates
 dums=dummy_cols(data["fam"])
-
-## unique
 dums=dums[!duplicated(dums$fam),]
 
-## ensure all family vars are factor
+#(6) ensure all family vars are factor
 for(i in 1:ncol(dums)){
-  
-  ## column as factor
-  dums[,i]=factor(dums[,i])
+    dums[,i]=factor(dums[,i])
 }
 
-## merge
+#(7) merge family taxa variables with dataset as predictors
 data=merge(data,dums,by="fam",all.x=T)
-rm(dums)
 
-## drop unnecessary columns
-data$X=NULL
-data$X.1=NULL
+#(8) drop unnecessary columns and clean environment
 data$traitname=NULL
+rm(dums,set)
+
+```
+
+### Assess variation and availability of data
+
+```{r}
 
 ## mode function
 mode.prop <- function(x) {                
@@ -1019,43 +1014,29 @@ mval=mval[order(mval$keep),]
 ## trim (creates array of column names to cut and removes from df)
 keeps=mval[-which(mval$keep=="cut"),]$column
 
-## order
-mval=mval[order(mval$comp),]
-
 ## drop if not well represented
 data=data[keeps]
 rm(keeps,mval)
 
-## simplify
-set=data
-set$gen=NULL
-set$treename=NULL
-set$gtip=NULL
-set$fam=NULL
-set$ord=NULL
-set$clade=NULL
-set$type=NULL
-
-## covariates
-ncol(set)-2
-
-## coverage table s1
+## save list of covariates and their coverage as table S1
+set <- subset(data,select=-c(gen,fam,ord,gtip,treename,traitname,type))
 ts1=data.frame(apply(set,2,function(x) length(x[!is.na(x)])/nrow(set)))
 
-## get names
+## rename and reorder columns
 ts1$variables=rownames(ts1)
-names(ts1)=c("comp","column")
+names(ts1)=c("coverage","feature")
 rownames(ts1)=NULL
+ts1=ts1[!ts1$feature%in%c("pcr","competence"),]
+ts1 <- subset(ts1,select=c(feature,coverage))
 
-## trim disease data
-ts1=ts1[!ts1$column%in%c("pcr","competence"),]
-ts1$feature=ts1$column
-ts1$column=NULL
-ts1$coverage=ts1$comp
-ts1$comp=NULL
-
-## write file
+## save Table S1 to results
 write.csv(ts1, "Results/TableS1.csv")
+
+```
+
+###
+
+```{r}
 
 ## check that binary variables are numeric and not factor
 str(set)
