@@ -500,15 +500,44 @@ vars <- subset(vars,vars$var<1)
 # keeps <- append("virus",keeps)
 # viralTraits=viralTraits[keeps]
 
-#(6) merge with poxdata
-poxdata <- merge(poxdata,viralTraits,by=c('virus'),all.x=TRUE)
+#(6) edit virus names
+viralTraits$virus_new <- NA
+viralTraits$virus_new <- ifelse(grepl("Abatino",viralTraits$virus)==TRUE,"abatino macacapox virus",viralTraits$virus_new)
+viralTraits$virus_new <- ifelse(grepl("Akhmeta",viralTraits$virus)==TRUE,"akhmeta virus",viralTraits$virus_new)
+viralTraits$virus_new <- ifelse(grepl("Alaskapox",viralTraits$virus)==TRUE,"alaskapox virus",viralTraits$virus_new)
+viralTraits$virus_new <- ifelse(grepl("Camelpox",viralTraits$virus)==TRUE,"camelpox virus",viralTraits$virus_new)
+viralTraits$virus_new <- ifelse(grepl("Cetacean poxvirus 1",viralTraits$virus)==TRUE,"cetacean poxvirus 1",viralTraits$virus_new)
+# viralTraits$virus_new <- ifelse(grepl("",viralTraits$virus)==TRUE,"cetacean poxvirus 2",viralTraits$virus_new)
+viralTraits$virus_new <- ifelse(grepl("Cowpox",viralTraits$virus)==TRUE,"cowpox virus",viralTraits$virus_new)
+viralTraits$virus_new <- ifelse(grepl("Ectromelia",viralTraits$virus)==TRUE,"ectromelia virus",viralTraits$virus_new)
+# viralTraits$virus_new <- ifelse(grepl("",viralTraits$virus)==TRUE,"feline poxvirus ita2_bc",viralTraits$virus_new)
+viralTraits$virus_new <- ifelse(grepl("Monkeypox",viralTraits$virus)==TRUE,"monkeypox virus",viralTraits$virus_new)
+# viralTraits$virus_new <- ifelse(grepl("",viralTraits$virus)==TRUE,"orthopoxvirus gcp2010",viralTraits$virus_new)
+# viralTraits$virus_new <- ifelse(grepl("",viralTraits$virus)==TRUE,"orthopoxvirus gcp2013",viralTraits$virus_new)
+# viralTraits$virus_new <- ifelse(grepl("",viralTraits$virus)==TRUE,"orthopoxvirus sp.",viralTraits$virus_new)
+# viralTraits$virus_new <- ifelse(grepl("",viralTraits$virus)==TRUE,"orthopoxvirus tena dona",viralTraits$virus_new)
+# viralTraits$virus_new <- ifelse(grepl("",viralTraits$virus)==TRUE,"raccoonpox virus",viralTraits$virus_new)
+# viralTraits$virus_new <- ifelse(grepl("",viralTraits$virus)==TRUE,"skunkpox virus",viralTraits$virus_new)
+# viralTraits$virus_new <- ifelse(grepl("",viralTraits$virus)==TRUE,"steller sea lion poxvirus",viralTraits$virus_new)
+viralTraits$virus_new <- ifelse(grepl("Taterapox",viralTraits$virus)==TRUE,"taterapox virus",viralTraits$virus_new)
+viralTraits$virus_new <- ifelse(grepl("Vaccinia",viralTraits$virus)==TRUE,"vaccinia virus",viralTraits$virus_new)
+#viralTraits$virus_new <- ifelse(grepl("",viralTraits$virus)==TRUE,"volepox virus virus",viralTraits$virus_new)
 
-#(7) clean environment
+#(7) reformat and drop dups
+viralTraits$virus <- viralTraits$virus_new
+viralTraits$virus_new = NULL
+viralTraits <- subset(viralTraits,!is.na(viralTraits$virus))
+viralTraits <- viralTraits[!duplicated(viralTraits$virus),]
+
+#(8) identify rows with duplicate values (i.e., hosts with identical presence/absence of accessory genes)
+which(duplicated(viralTraits[,-c(1)])| duplicated(viralTraits[,-c(1)], fromLast = TRUE))
+viralTraits$dup <- duplicated(viralTraits[,-c(1)])
+
+#(9) merge with poxdata; full join returns only rows found in both poxdata and viralTraits
+poxdata <- merge(poxdata,viralTraits,by=c('virus'))
+
+#(10) clean environment
 rm(viralTraits,vars,keeps,original_cols,mode.prop)
-
-# ## identify rows with duplicate values (i.e., hosts with identical presence/absence of accessory genes)
-# which(duplicated(viralTraits[,-c(1)])| duplicated(viralTraits[,-c(1)], fromLast = TRUE))
-# viralTraits$dup <- duplicated(viralTraits[,-c(1)])
 
 ```
 
@@ -523,6 +552,7 @@ poxdata <- poxdata %>%
   relocate(virus,gen,fam,ord,gtip,treename,traitname,pcr,competence,studies,sampled,cites,ed_equal)
 
 save(poxdataMin, poxdata, hostTree, file='/Users/katietseng/Downloads/Data_clean.RData')
+save(poxdata, file='/Users/katietseng/Downloads/poxdata_temp.RData')
 
 ```
 
@@ -873,7 +903,8 @@ pm_pf_results=pfsum(pm_pf)$results
 
 ```
 
-# Model 1: Boosted regression trees with a single response variable
+
+# Boosted regression trees (BRT)
 
 ### Load required packages and set system
 
@@ -902,8 +933,27 @@ library(mgcv)
 rm(list=ls()) 
 graphics.off()
 
-#(3)set working directory
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022")
+```
+
+### MODEL 1: Load data and set working directory for appropriate model
+
+```{r}
+
+load("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Data_clean.RData")
+data <- poxdataMin
+rm(poxdata,poxdataMin)
+setwd("/Users/katietseng/Downloads/Results/Model 1")
+
+```
+
+### MODEL 2: Load data and set working directory for appropriate model
+
+```{r}
+
+#(1) load data and clean environment
+load("/Users/katietseng/Downloads/poxdata_temp.RData")
+data <- poxdata
+setwd("/Users/katietseng/Downloads/Results/Model 2")
 
 ```
 
@@ -911,36 +961,31 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```{r}
 
-#(1) load data and clean environment
-load("Data_clean.RData")
-data <- poxdataMin
-rm(poxdata,poxdataMin)
-
-#(2) classify true negatives
+#(1) classify true negatives
 data$type=ifelse(data$pcr==0 & data$competence==0,"true negative","other")
 
-#(3) which species is competent but no PCR record?
+#(2) which species is competent but no PCR record?
 set=data
 set$treename[set$pcr==0 & set$competence==1]
 
-#(4) tabulate PCR/infection and isolation
+#(3) tabulate PCR/infection and isolation
 set$inf=ifelse(set$pcr==0,"PCR negative","PCR positive")
 set$iso=ifelse(set$competence==0,"no isolation","isolation")
 table(set$inf,set$iso)
 
-#(5) make binary variables for each taxonomic family; remove any duplicates
+#(4) make binary variables for each taxonomic family; remove any duplicates
 dums=dummy_cols(data["fam"])
 dums=dums[!duplicated(dums$fam),]
 
-#(6) ensure all family vars are factor
+#(5) ensure all family vars are factor
 for(i in 1:ncol(dums)){
-    dums[,i]=factor(dums[,i])
+  dums[,i]=factor(dums[,i])
 }
 
-#(7) merge family taxa variables with dataset as predictors
+#(6) merge family taxa variables with dataset as predictors
 data=merge(data,dums,by="fam",all.x=T)
 
-#(8) drop unnecessary columns and clean environment
+#(7) drop unnecessary columns and clean environment
 data$traitname=NULL
 rm(dums,set)
 
@@ -950,46 +995,45 @@ rm(dums,set)
 
 ```{r}
 
-## mode function
+#(1) mode function
 mode.prop <- function(x) {                
   ux <- unique(x[is.na(x)==FALSE])        # creates array of unique values
   tab <- tabulate(match(na.omit(x), ux))  # creates array of the frequency (number of times) a unique value appears in a column 
   max(tab)/length(x[is.na(x)==FALSE])     # max-frequency / number of elements in each column that are not NA
 }
 
-## assess variation across columns (2 indicates columns)
+#(2) assess variation across columns (2 indicates columns)
 vars=data.frame(apply(data,2,function(x) mode.prop(x)),
                 apply(data,2,function(x) length(unique(x))))    # number of unique elements in each column
 
-## get names
+#(3) get names
 vars$variables=rownames(vars)
 names(vars)=c("var","uniq","column")
 
-## round values
-vars$var=round(vars$var,2)
+# ## round values
+# vars$var=round(vars$var,2)
 
-## label variables "cut" if homogeneous (100%)
+#(4)label variables "cut" if homogeneous (100%)
 vars$keep=ifelse(vars$var<1,"keep","cut")
-vars$keep=ifelse(vars$column%in%c('pcr','competence','antibodies','fam'),'keep',vars$keep) # ensures we keep these columns
+vars$keep=ifelse(vars$column%in%c('fam','virus','gen','pcr','competence','fam'),'keep',vars$keep) # ensures we keep these columns
 vars=vars[order(vars$keep),]
 
-## trim (creates array of column names to cut and removes from df)
+#(5) trim (creates array of column names to cut and removes from df)
 keeps=vars[-which(vars$keep=="cut"),]$column
 
-## drop if no variation
+#(6) drop if no variation
 data=data[keeps]
 rm(keeps,vars)
 
-## assess missing values
+#(7) assess missing values
 mval=data.frame(apply(data,2,function(x) length(x[!is.na(x)])/nrow(data))) # proportion of values that are not NA
 
-## get names
+#(8) get names
 mval$variables=rownames(mval)
 names(mval)=c("comp","column")
 
-## visualize distribution of NA
-setwd("/Users/katietseng/Downloads")
-png("Results/Figure S1.png", width=4,height=4,units="in",res=600)
+#(9) visualize distribution of NA
+png("Figure S1.png", width=4,height=4,units="in",res=600)
 ggplot(mval[!mval$column%in%c("gen","treename","pcr","competence","tip.label","fam"),],
        aes(comp))+
   geom_histogram(bins=50)+
@@ -1003,45 +1047,42 @@ ggplot(mval[!mval$column%in%c("gen","treename","pcr","competence","tip.label","f
   scale_x_continuous(labels = scales::percent)
 dev.off()
 
-## round values
-mval$comp=round(mval$comp,2)
-
-## label variables "cut" if >30% values are NA
+#(10) label variables "cut" if >30% values are NA
 mval$keep=ifelse(mval$comp>=0.70,"keep","cut")
 table(mval$keep)
 mval=mval[order(mval$keep),]
 
-## trim (creates array of column names to cut and removes from df)
+#(11) trim (creates array of column names to cut and removes from df)
 keeps=mval[-which(mval$keep=="cut"),]$column
 
-## drop if not well represented
+#(12) drop if not well represented
 data=data[keeps]
 rm(keeps,mval)
 
-## save list of covariates and their coverage as table S1
-set <- subset(data,select=-c(gen,fam,ord,gtip,treename,traitname,type))
+#(14) save list of covariates and their coverage as table S1
+set <- subset(data,select=-c(gen,fam,ord,gtip,treename,type))
 ts1=data.frame(apply(set,2,function(x) length(x[!is.na(x)])/nrow(set)))
 
-## rename and reorder columns
+#(15) rename and reorder columns
 ts1$variables=rownames(ts1)
 names(ts1)=c("coverage","feature")
 rownames(ts1)=NULL
 ts1=ts1[!ts1$feature%in%c("pcr","competence"),]
 ts1 <- subset(ts1,select=c(feature,coverage))
 
-## save Table S1 to results
-write.csv(ts1, "Results/TableS1.csv")
+#(16) save Table S1 to results
+write.csv(ts1, "TableS1.csv")
+
+#(17) check that binary variables are numeric and not factor
+str(set)
 
 ```
 
-###
+### Model tuning function [hfit]: assesses model performance for each combination of tuning parameters with
 
 ```{r}
 
-## check that binary variables are numeric and not factor
-str(set)
-
-## hyperparameter tuning ifelse
+#(1) hyperparameter tuning ifelse
 #hok="ok"
 hok="notok"
 if(hok!="ok"){
@@ -1127,15 +1168,15 @@ if(hok!="ok"){
     # #threshold<-opt_t #set as threshold value
     # #threshold = 0.2
     
-    ## sensitiviy and specificity                                #e.g., test run produced sensitivity of 0 b/c no predictedScores were > 0.5; and specificity of 1 b/c all predictedScores were <0.5
+    ## sensitivity and specificity                              #e.g., test run produced sensitivity of 0 b/c no predictedScores were > 0.5; and specificity of 1 b/c all predictedScores were <0.5
     sen=InformationValue::sensitivity(result,preds)              #calculates sensitivity (# of obs with event AND predicted to have event, divided by # of obs w/ event) for a given logit model where input is the actual binary flag (as numerica vector) for the response variable and the predicted probability scores for each observation; if predicted value is above the threshold (defaults to 0.5), it will be considered an event (1) or else a non-event (0)
     spec=InformationValue::specificity(result,preds)             #calculates specificity (# of obs w/o event AND predicted to not have event, divided by # of obs w/o event)  
     
     ## AUC on train
-    auc_train=gbm.roc.area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))   #compute Information Retrieval measures for pairwise loss for a single group, where input is the observed value and the predicted value
+    auc_train=gbm_roc_area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))   #compute Information Retrieval measures for pairwise loss for a single group, where input is the observed value and the predicted value
     
     ## AUC on test
-    auc_test=gbm.roc.area(yTest,predict(gbmOut,dataTest,n.trees=best.iter,type="response"))
+    auc_test=gbm_roc_area(yTest,predict(gbmOut,dataTest,n.trees=best.iter,type="response"))
     
     ## print
     print(paste("hpar row ",row," done; test AUC is ",auc_test,sep=""))  #prints "hpar row [x] done; test AUC is []"
@@ -1149,7 +1190,7 @@ if(hok!="ok"){
                 wrow=row))
   }
   
-  ## run the function
+  ## run the function for PCR
   hpars=lapply(1:nrow(hgrid),function(x) hfit(x,response="pcr"))
   
   ## get results
@@ -1168,7 +1209,7 @@ if(hok!="ok"){
   ## save
   hsearch$type="PCR"
   
-  ## rerun for competence
+  ## rerun the function for competence
   hpars=lapply(1:nrow(hgrid),function(x) hfit(x,response="competence"))
   
   ## get results
@@ -1192,65 +1233,68 @@ if(hok!="ok"){
   search$type=factor(search$type,levels=c("PCR","competence"))
   
   ## export
-  setwd("/Users/katietseng/Downloads")
-  write.csv(search,"Results/par tuning data summary.csv")
+  write.csv(search,"par tuning data summary.csv")
   
 }else{
   
   ## load
-  setwd("/Users/katietseng/Downloads")
-  search=read.csv("Results/par tuning data summary.csv")
+  search=read.csv("par tuning data summary.csv")
   
 }
 
-## factor parameters
+```
+
+### Model tuning results: Figure S2
+```{r}
+
+#(1) factor parameters
 search$shrinkage=factor(search$shrinkage)
 lvl=rev(sort(unique(search$shrinkage)))  #sorts unique shrinkage parameters in order of largest to smallest
 search$shrinkage=factor(search$shrinkage,levels=lvl); rm(lvl)  #applies as factor
 
-## factor other
+#(2) factor other
 search$interaction.depth=factor(search$interaction.depth)
 
-## fix type
+#(3) fix type
 search$type=plyr::revalue(search$type,    #replace specified values w/ new values
                           c("PCR"="RT-PCR",
                             "competence"="virus isolation"))
 
-## PCR beta regression for AUC
+#(4) PCR beta regression for AUC
 mod=gam(testAUC~interaction.depth*shrinkage,   #gam: Generalized additive models with integrated smoothness estimation
         data=search[search$type=="RT-PCR",],method="REML",family=betar)
 anova(mod)
 
-## virus isolation
+#(5) competence beta regression for AUC
 mod=gam(testAUC~interaction.depth*shrinkage,
         data=search[search$type=="virus isolation",],method="REML",family=betar)
 anova(mod)
 
-## PCR beta regression for sensitivity
+#(6) PCR beta regression for sensitivity
 mod=gam(sen~interaction.depth*shrinkage,
         data=search[search$type=="RT-PCR",],method="REML",family=betar)
 anova(mod)
 
-## virus isolation
+#(7) competence beta regression for sensitivity
 mod=gam(sen~interaction.depth*shrinkage,
         data=search[search$type=="virus isolation",],method="REML",family=betar)
 anova(mod)
 
 
-## PCR beta regression for specificity
+#(8) PCR beta regression for specificity
 mod=gam(spec~interaction.depth*shrinkage,
         data=search[search$type=="RT-PCR",],method="REML",family=betar)
 anova(mod)
 
-## virus isolation
+#(9) competence beta regression for specificity
 mod=gam(spec~interaction.depth*shrinkage,
         data=search[search$type=="virus isolation",],method="REML",family=betar)
 anova(mod)
 
-## recast from wide to long
+#(10) recast from wide to long
 search2=gather(search,measure,value,testAUC:sen)
 
-## revalue and factor (relabel values and change to factor)
+#(11) revalue and factor (relabel values and change to factor)
 search2$measure=plyr::revalue(search2$measure,
                               c("sen"="sensitivity",  
                                 "spec"="specificity",
@@ -1258,10 +1302,8 @@ search2$measure=plyr::revalue(search2$measure,
 search2$measure=factor(search2$measure,
                        levels=c("test AUC","sensitivity","specificity"))
 
-
-## visualize
-setwd("/Users/katietseng/Downloads")
-png("Results/Figure S2.png",width=5,height=8,units="in",res=600)
+#(12) visualize - Figure S2
+png("Figure S2.png",width=5,height=8,units="in",res=600)
 set.seed(1)
 ggplot(search2,aes(shrinkage,value,
                    colour=interaction.depth,fill=interaction.depth))+
@@ -1288,9 +1330,14 @@ ggplot(search2,aes(shrinkage,value,
   scale_y_continuous(n.breaks=4)
 dev.off()
 
-## clean
+#(11) clean
 rm(search,search2,hok,mod)
 
+```
+
+###
+
+```{r}
 ## brt function to use different data partitions
 brt_part=function(seed,response){
   
@@ -1362,10 +1409,10 @@ brt_part=function(seed,response){
   spec=InformationValue::specificity(result,preds)
   
   ## AUC on train
-  auc_train=gbm.roc.area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))
+  auc_train=gbm_roc_area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))
   
   ## AUC on test
-  auc_test=gbm.roc.area(yTest,predict(gbmOut,dataTest,n.trees=best.iter,type="response"))
+  auc_test=gbm_roc_area(yTest,predict(gbmOut,dataTest,n.trees=best.iter,type="response"))
   
   ## skip if poisson
   if(response=="cites"){
@@ -1428,21 +1475,23 @@ brt_part=function(seed,response){
               seed=seed))
 }
 
+```
+
+###
+
+```{r}
+
 ## apply across 10 splits each
 smax=101
 pcr_brts=lapply(1:smax,function(x) brt_part(seed=x,response="pcr"))
 comp_brts=lapply(1:smax,function(x) brt_part(seed=x,response="competence"))
 
-## write to files
-setwd("/Users/katietseng/Downloads")
-saveRDS(pcr_brts,"Results/pcr brts.rds")
-saveRDS(comp_brts,"Results/comp brts.rds")
-
 ## run wos brts
 pm_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="cites"))
 
-## write
-saveRDS(pm_brts,"Results/pm brts.rds")
+## save results to wd
+save(pcr_brts,comp_brts,pm_brts,file="Data_results.RData")
+
 ```
 
 # Principal components analysis of viral accessory genes
