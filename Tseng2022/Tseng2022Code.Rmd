@@ -1189,10 +1189,10 @@ if(hok!="ok"){
     spec=InformationValue::specificity(result,preds)             #calculates specificity (# of obs w/o event AND predicted to not have event, divided by # of obs w/o event)  
     
     ## AUC on train
-    auc_train=gbm_roc_area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))   #compute Information Retrieval measures for pairwise loss for a single group, where input is the observed value and the predicted value
+    auc_train=gbm.roc.area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))   #compute Information Retrieval measures for pairwise loss for a single group, where input is the observed value and the predicted value
     
     ## AUC on test
-    auc_test=gbm_roc_area(yTest,predict(gbmOut,dataTest,n.trees=best.iter,type="response"))
+    auc_test=gbm.roc.area(yTest,predict(gbmOut,dataTest,n.trees=best.iter,type="response"))
     
     ## print
     print(paste("hpar row ",row," done; test AUC is ",auc_test,sep=""))  #prints "hpar row [x] done; test AUC is []"
@@ -1426,10 +1426,10 @@ brt_part=function(seed,response){
   spec=InformationValue::specificity(result,preds)
   
   ## AUC on train
-  auc_train=gbm_roc_area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))
+  auc_train=gbm.roc.area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))
   
   ## AUC on test
-  auc_test=gbm_roc_area(yTest,predict(gbmOut,dataTest,n.trees=best.iter,type="response"))
+  auc_test=gbm.roc.area(yTest,predict(gbmOut,dataTest,n.trees=best.iter,type="response"))
   
   ## skip if poisson
   if(response=="cites"){
