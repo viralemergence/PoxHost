@@ -1089,7 +1089,7 @@ setwd("/Users/katietseng/Downloads/Results/Test")
 
 ```
 
-### Model tuning function [hfit]: assesses model performance for each combination of tuning parameters with
+### Model tuning to asses model performance for each combination of tuning parameters
 
 ```{r}
 
@@ -1263,54 +1263,50 @@ if(hok!="ok"){
 ### Model tuning results: Figure S2
 ```{r}
 
-#(1) factor parameters
+#(1) convert parameters to factor and relabel values
 search$shrinkage=factor(search$shrinkage)
-lvl=rev(sort(unique(search$shrinkage)))  #sorts unique shrinkage parameters in order of largest to smallest
+lvl=rev(sort(unique(search$shrinkage)))  #sorts unique shrinkage par from large to small
 search$shrinkage=factor(search$shrinkage,levels=lvl); rm(lvl)  #applies as factor
-
-#(2) factor other
 search$interaction.depth=factor(search$interaction.depth)
-
-#(3) fix type
 search$type=plyr::revalue(search$type,    #replace specified values w/ new values
                           c("PCR"="RT-PCR",
                             "competence"="virus isolation"))
 
-#(4) PCR beta regression for AUC
-mod=gam(testAUC~interaction.depth*shrinkage,   #gam: Generalized additive models with integrated smoothness estimation
+#(2) PCR beta regression for AUC
+mod=gam(testAUC~interaction.depth*shrinkage,   #gen additive models (gam) w/ integrated smoothness estimation
         data=search[search$type=="RT-PCR",],method="REML",family=betar)
 anova(mod)
 
-#(5) competence beta regression for AUC
+#(3) Competence beta regression for AUC
 mod=gam(testAUC~interaction.depth*shrinkage,
         data=search[search$type=="virus isolation",],method="REML",family=betar)
 anova(mod)
 
-#(6) PCR beta regression for sensitivity
+#(4) PCR beta regression for sensitivity
 mod=gam(sen~interaction.depth*shrinkage,
         data=search[search$type=="RT-PCR",],method="REML",family=betar)
 anova(mod)
 
-#(7) competence beta regression for sensitivity
+#(5) Competence beta regression for sensitivity
 mod=gam(sen~interaction.depth*shrinkage,
         data=search[search$type=="virus isolation",],method="REML",family=betar)
 anova(mod)
 
 
-#(8) PCR beta regression for specificity
+#(6) PCR beta regression for specificity
 mod=gam(spec~interaction.depth*shrinkage,
         data=search[search$type=="RT-PCR",],method="REML",family=betar)
 anova(mod)
 
-#(9) competence beta regression for specificity
+#(7) competence beta regression for specificity
 mod=gam(spec~interaction.depth*shrinkage,
         data=search[search$type=="virus isolation",],method="REML",family=betar)
 anova(mod)
 
-#(10) recast from wide to long
+#(8) recast from wide to long
 search2=gather(search,measure,value,testAUC:sen)
 
-#(11) revalue and factor (relabel values and change to factor)
+#(9) relabel values and convert to factor 
 search2$measure=plyr::revalue(search2$measure,
                               c("sen"="sensitivity",  
                                 "spec"="specificity",
@@ -1318,7 +1314,7 @@ search2$measure=plyr::revalue(search2$measure,
 search2$measure=factor(search2$measure,
                        levels=c("test AUC","sensitivity","specificity"))
 
-#(12) visualize - Figure S2
+#(10) visualize - Figure S2
 png("Figure S2.png",width=5,height=8,units="in",res=600)
 set.seed(1)
 ggplot(search2,aes(shrinkage,value,
@@ -1346,12 +1342,31 @@ ggplot(search2,aes(shrinkage,value,
   scale_y_continuous(n.breaks=4)
 dev.off()
 
-#(11) clean
-rm(search,search2,hok,mod)
+#(11) to determine optimal parameters for model training, subset tuning results by number of trees
+search_nt5000 <- search[search$n.trees==5000,]
+search_nt15000 <- search[search$n.trees==15000,]
+search_nt5000_sh0.01 <- search_nt5000[search_nt5000$shrinkage==0.010,]  #subset models with shrinakge==0.010
+
+#(12) plot best.iter by type (pcr/competence) to see max number of trees to include
+search_nt5000 %>%
+  ggplot( aes(x=best, fill=type)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) 
+search_nt15000 %>%
+  ggplot( aes(x=best, fill=type)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) 
+search_nt5000_sh0.01 %>%
+  ggplot( aes(x=best, fill=type)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) 
+
+#(13) clean
+rm(search,search2,hok,mod,search_nt5000,search_nt15000,search_nt5000_sh0.01)
 
 ```
 
-###
+### BRT function to use different data partitions
 
 ```{r}
 ## brt function to use different data partitions
@@ -1395,14 +1410,15 @@ brt_part=function(seed,response){
   dist=ifelse(response=="cites","poisson","bernoulli")
   
   ## n.trees
-  nt=ifelse(response=="cites",10000,5000)
+  nt=ifelse(response=="cites",10000,
+     ifelse(response=="pcr",4500,5000)) #see plots of best.iter 
   
   ## BRT
   set.seed(1)
   gbmOut=gbm(response ~ . ,data=dataTrain,
              n.trees=nt,
              distribution=dist,
-             shrinkage=0.001,
+             shrinkage=0.01, #see plots of best.iter 
              interaction.depth=3,
              n.minobsinnode=4,
              cv.folds=5,class.stratify.cv=TRUE,
@@ -1458,9 +1474,8 @@ brt_part=function(seed,response){
   
   ## relative importance
   bars=summary(gbmOut,n.trees=best.iter,plotit=F)
-  # bars$rel.inf=round(bars$rel.inf,2)
-  bars$rel_inf=round(bars$rel_inf,2)
-  
+  bars$rel.inf=round(bars$rel.inf,2)
+
   ## predict with cites
   preds=predict(gbmOut,data,n.trees=best.iter,type="response")
   pred_data=data[c("gtip",'treename',"fam","ord","pcr","competence")]
@@ -1559,58 +1574,88 @@ mat <- mat[,-which(apply(mat, 2, var)==0)]
 ### Run PCA
 ```{r}
 
-#(1) PCA using stats::prcomp -> scaling/centering not appropriate
-pca <- prcomp(mat)
+#PCA using stats::prcomp 
+pca <- prcomp(mat)      #scaling/centering not appropriate
 
 pca_relvar <- pca$sdev^2 / sum(pca$sdev^2)
 pca_relvar_per <- round(pca_var*100,1)
-pca.data <- data.frame(Sample=rownames(pca$x),
-                       X=pca$x[,1],
-                       Y=pca$x[,2])
-pca.data
 
-#(2) PCA coordinate plot
-ggplot(data=pca.data, aes(x=X,y=Y,label=Sample)) +
-  geom_text() +
-  xlab(paste("PC1 - ", pca.var.per[1], "%", sep="")) +
-  ylab(paste("PC2 - ", pca.var.per[2], "%", sep="")) +
-  theme_bw() + 
-  ggtitle("PCA plot")
+# pca.data <- data.frame(Sample=rownames(pca$x),
+#                        X=pca$x[,1],
+#                        Y=pca$x[,2])
+# pca.data
+# 
+# #(2) PCA plot
+# ggplot(data=pca.data, aes(x=X,y=Y,label=Sample)) +
+#   geom_text() +
+#   xlab(paste("PC1 - ", pca.var.per[1], "%", sep="")) +
+#   ylab(paste("PC2 - ", pca.var.per[2], "%", sep="")) +
+#   theme_bw() + ggtitle("PCA plot")
 
-#(3) Screeplot
-fviz_eig(pca) # these values agree with pca_relvar (variance explained)
-screeplot(pca, type="l", npcs=10, main="Screeplot of the first 10 PCs")  
+```
+
+### Eigenvalues and Variance
+
+```{r}
+
+#(4) Screeplot - Variance (Eigenvalues)
+screeplot(pca, type="lines", npcs=10, main="Scree plot of Eigenvalues for the first 10 PCs")  
 abline(h = 1, col="red", lty=5)
 legend("topright", legend=c("Eigenvalue = 1"),
-       col=c("red"), lty=5, cex=0.6)
-# not sure how these values are obtained)
+       col=c("red"), lty=5, cex=1)
 
-#pca <- princomp(mat) #{stats}
+#(3) Screeplot - Explained/cumulative variance (%)
+fviz_eig(pca, choice=c("variance"), main = "Scree plot of explained variances") # these values agree with pca_relvar (variance explained)
 
-#####
-#Cumulative variance plot
+#(5) Cumulative variance plot
 cumpro <- cumsum(pca$sdev^2 / sum(pca$sdev^2))
-plot(cumpro[0:15], xlab = "PC #", ylab = "Amount of explained variance", main = "Cumulative variance plot")
+plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance", main = "Cumulative variance plot")
 abline(v = 4, col="blue", lty=5)
-abline(h = 0.77, col="blue", lty=5)
-legend("topleft", legend=c("Cut-off @ PC6"),
-       col=c("blue"), lty=5, cex=0.6)
+abline(h = 0.695589, col="blue", lty=5)
+legend("topleft", legend=c("Cut-off @ PC4"),
+       col=c("blue"), lty=5, cex=1)
 
-#PCA variables - dim1 and 2
-fviz_pca_var(pca,
-               col.var = "contrib", # Color by contributions to the PC
-               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-               repel = TRUE     # Avoid text overlapping
-               )
+```
 
-#PCA variables - dim3 and 4
-fviz_pca_var(pca,
-               axes = c(3, 4),
-               col.var = "contrib", # Color by contributions to the PC
-               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-               repel = TRUE     # Avoid text overlapping
-               )
+### Plots of individuals
 
+```{r}
+
+fviz_pca_ind(pca) + ggtitle("2D PCA-plot")
+
+fviz_pca_ind(pca, geom.ind = "point", pointshape = 21, 
+             pointsize = 2, 
+             col.ind = "black", 
+             addEllipses = F,
+             label = "var",
+             col.var = "black",
+             palette = "rickandmorty",
+             repel = TRUE,
+             alpha.ind = 0.7)+
+      ggtitle("2D PCA-plot") +
+      theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+### Plots of variables
+
+```{r}
+
+#PCA variables 1 and 2
+fviz_pca_var(pca, 
+             col.var = "contrib", # Color by contributions to the PC
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     # Avoid text overlapping
+             )
+
+#PCA variables 3 and 4
+fviz_pca_var(pca, axes = c(3, 4),
+             col.var = "contrib", 
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE     
+            )
+
+##check pilar's pca code for table of contributions
 ```
 
 ### Run PCoA
