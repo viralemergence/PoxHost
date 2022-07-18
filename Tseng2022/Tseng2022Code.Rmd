@@ -30,7 +30,7 @@ The following code reproduces the analysis from:
 
 ```{r}
 
-#(1) libraries for preparing data for analysis
+#(1) Libraries for preparing data for analysis
 library(ape)
 library(dplyr)
 library(nlme)
@@ -40,11 +40,11 @@ library(vroom)
 library(rgl) # >install.packages("rgl"); >options(rgl.useNULL=TRUE)
 library(treespace) 
 
-#(2) clean environment
+#(2) Clean environment
 rm(list=ls()) 
 graphics.off()
 
-#(3)set working directory
+#(3) Set working directory
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022")
 
 ```
@@ -53,29 +53,29 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```{r}
 
-#(1) load data
+#(1) Load data
 load("Data_raw.RData")
 
-#(2) poxdata: host-OPV interactions detected via PCR/isolation from Virion database
+#(2) Pox data: host-OPV interactions detected via PCR/isolation from Virion database
 ##virion <- vroom('https://github.com/viralemergence/virion/blob/main/Virion/Virion.csv.gz')
 poxdata <- virion %>% filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation"))) 
 
-#(3) taxa: mammal species taxonomy from vertlife
+#(3) Taxa: mammal species taxonomy from vertlife
 ##vertlife <- read.csv(url('https://data.vertlife.org/mammaltree/taxonomy_mamPhy_5911species.csv'))
 taxa <- vertlife
 
-#(4) hostTraits: mammal traits from the COMBINE database <https://doi.org/10.1002/ecy.3344>
+#(4) Host traits: mammal traits from the COMBINE database <https://doi.org/10.1002/ecy.3344>
 ##path: ecy3344-sup-0001-datas1.zip > COMBINE_archives > trait_data_imputed.csv)
 hostTraits <- combine
 
-#(5) hostTree: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03>
+#(5) Host tree: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03>
 ##path: Data_S8_finalFigureFiles > _DATA > MamPhy_fullPosterior_BDvr_Completed_5911sp_topoCons_NDexp_MCC_v2_target.tre)
 hostTree <- dryad
 
-#(6) viralTraits: OPV accessory genes from ... (Steph to provide refined datatable)
+#(6) Viral traits: OPV accessory genes from ... (Steph to provide refined datatable)
 viralTraits <- opvgenes
 
-#(7) clean environment
+#(7) Clean environment
 rm(virion, vertlife, dryad, combine, opvgenes)
 
 ```
@@ -84,54 +84,54 @@ rm(virion, vertlife, dryad, combine, opvgenes)
 
 ```{r}
 
-#(1) exclude if host genus or virus is NA; exclude variola (smallpox) virus
+#(1) Exclude if host genus or virus is NA; Exclude variola (smallpox) virus
 poxdata <- poxdata[!is.na(poxdata$HostGenus),]
 poxdata <- poxdata[!is.na(poxdata$Virus),]
 poxdata <- poxdata[!(poxdata$Virus=="variola virus"),]
 
-#(2) to dis-aggregate West African from Congo Basin MPXV clades, export MPXV interactions
+#(2) Export MPXV interactions to disaggregate MPXV clades
 mpxvdata <- poxdata %>% filter(Virus=="monkeypox virus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation")))
 #write.csv(mpxvdata, "~/mpxvdata.csv")
 
-#(3) merge clade-specific data
+#(3) Merge clade-specific data
 #TBD: Steph to share clade-specific data
 
-#(4) extract PCR-positive data 
+#(4) Extract PCR-positive data 
 pcr <- subset(poxdata[which(poxdata$DetectionMethod=="PCR/Sequencing"),], select=c("Host","HostGenus","Virus"))
 pcr$Host <- ifelse(is.na(pcr$Host),"sp.",pcr$Host)
 pcr$pcr <- 1
 pcr <- aggregate(.~Host+HostGenus+Virus, data=pcr, sum)
 
-#(5) extract isolation-positive data 
+#(5) Extract competence-positive data 
 competence <- subset(poxdata[which(poxdata$DetectionMethod=="Isolation/Observation"),], select=c("Host","HostGenus","Virus"))
 competence$Host <- ifelse(is.na(competence$Host),"sp.",competence$Host)
 competence$competence <- 1
 competence <- aggregate(.~Host+HostGenus+Virus, data=competence, sum)
 
-#(6) merge PCR/isolation-positive data; create binary vars
+#(6) Merge PCR and competence data
 poxdata <- merge(pcr, competence, by=c("Host","HostGenus","Virus"), all=TRUE)
 
-#(7) create studies variable
+#(7) Create studies variable
 poxdata$studies <- ifelse(is.na(poxdata$pcr),0,poxdata$pcr) + ifelse(is.na(poxdata$competence),0,poxdata$competence)
 
-#(8) create binary variables for detection via pcr/competence
+#(8) Create binary variables for detection via PCR and competence
 poxdata$pcr=ifelse(is.na(poxdata$pcr),0,1)
 poxdata$competence=ifelse(is.na(poxdata$competence),0,1)
 
-#(9) aggregate by genus and virus
+#(9) Aggregate by genus and virus
 agg_pcr <- aggregate(pcr~HostGenus+Virus, data=poxdata, max)
 agg_competence <- aggregate(competence~HostGenus+Virus, data=poxdata, max)
 agg_studies <- aggregate(studies~HostGenus+Virus, data=poxdata, sum)
 
-#(10) merge pcr, competence and studies variables
+#(10) Merge PCR, competence and studies variables
 poxdata <- merge(agg_pcr,agg_competence)
 poxdata <- merge(poxdata,agg_studies)
 
-#(11) rename variables
+#(11) Rename variables
 poxdata <- rename(poxdata,c('HostGenus'='gen','Virus'='virus'))
 poxdata$gen <- str_to_title(poxdata$gen)
 
-#(12) clean environment
+#(12) Clean environment
 rm(mpxvdata, pcr,competence,agg_pcr, agg_competence, agg_studies)
 
 ```
@@ -140,35 +140,35 @@ rm(mpxvdata, pcr,competence,agg_pcr, agg_competence, agg_studies)
 
 ```{r}
 
-#(1) drop duplicate genera in taxa
+#(1) Drop duplicate genera in taxa
 gtaxa <- taxa[!duplicated(taxa$gen),]
 gtaxa <- gtaxa[c('gen','fam','ord')]
 
-#(2) check for mismatched names, then merge poxdata with taxa
+#(2) Check for mismatched names; Then merge poxdata with taxa
 poxdata$gen[!poxdata$gen %in% taxa$gen]
 poxdata <- merge(gtaxa,poxdata,by='gen',all.x=TRUE)
 
-#(3) keep only genera from orders in which positive associations exist
+#(3) Keep only genera from orders in which positive associations exist
 keep <- subset(poxdata, pcr==1 | competence==1)
 poxdata$keep <- ifelse(poxdata$ord %in% keep$ord,TRUE,FALSE)
 poxdata <- subset(poxdata,keep==TRUE)
 poxdata$keep=NULL
 
-#(6) create binary variable for sampled host-OPV pairs
+#(6) Create binary variable for sampled host-OPV pairs
 poxdata$sampled=ifelse(is.na(poxdata$pcr) & is.na(poxdata$competence),0,1)
 
-#(7) reclassify NAs as pseudo-absences for viral detection
+#(7) Reclassify NAs as pseudo-absences for viral detection
 poxdata$pcr=ifelse(is.na(poxdata$pcr),0,poxdata$pcr)
 poxdata$competence=ifelse(is.na(poxdata$competence),0,poxdata$competence)
 poxdata$studies=ifelse(is.na(poxdata$studies),0,poxdata$studies)
 
-#(8) replace NA taxonomic values based on host genera
+#(8) Replace NA taxonomic values based on host genera
 poxdata=merge(poxdata,gtaxa,by='gen',all.x=TRUE)
 poxdata <- rename(poxdata,c('fam.y'='fam','ord.y'='ord'))
 poxdata$fam.x=NULL
 poxdata$ord.x=NULL
 
-#(9) clean environment
+#(9) Clean environment
 rm(taxa,gtaxa,keep)
 
 ```
@@ -177,10 +177,10 @@ rm(taxa,gtaxa,keep)
 
 ```{r}
 
-#(1) observe variable names
+#(1) Observe variable names
 colnames(hostTraits)
 
-#(2) to aggregate continuous/integer variables, use the median as the summary measure
+#(2) To aggregate continuous/integer variables, use the median as the summary measure
 hostTraits_continuous=aggregate(cbind(adult_mass_g,brain_mass_g,adult_body_length_mm,adult_forearm_length_mm,
                                    max_longevity_d,maturity_d,female_maturity_d,male_maturity_d,
                                    age_first_reproduction_d,gestation_length_d,teat_number_n,
@@ -193,12 +193,12 @@ hostTraits_continuous=aggregate(cbind(adult_mass_g,brain_mass_g,adult_body_lengt
                              ~ order+family+genus, data=hostTraits, FUN=median, na.action=na.pass, na.rm=TRUE)
 ##'na.action=na.pass, na.rm=TRUE' is specified such that if species w/in a genus has a combination of real values & NAs, the median of real values will be returned (as opposed to omitting the genus or returning NA)
 
-#(3) to aggregate binary variables, use the mean as the summary measure
+#(3) To aggregate binary variables, use the mean as the summary measure
 hostTraits$fossoriality[hostTraits$fossoriality==2]<-0  #recode 0/1
 hostTraits_binary=aggregate(cbind(hibernation_torpor,fossoriality,freshwater,marine,terrestrial_non.volant,terrestrial_volant,
                                island_dwelling,disected_by_mountains,glaciation) ~ order+family+genus, data=hostTraits, FUN=mean, na.action=na.pass, na.rm=TRUE)
 
-#(4) to aggregate categorical variables transform into binary
+#(4) To aggregate categorical variables, first transform the variables to binary
 hostTraits_cat <- hostTraits
 hostTraits_cat$trophic_herbivores <- ifelse(hostTraits_cat$trophic_level==1,1,0)
 hostTraits_cat$trophic_omnivores <- ifelse(hostTraits_cat$trophic_level==2,1,0)
@@ -225,7 +225,7 @@ hostTraits_cat$biogeo_neotropical <- ifelse(grepl("Neotropical",hostTraits_cat$b
 hostTraits_cat$biogeo_oceanian <- ifelse(grepl("Oceanian",hostTraits_cat$biogeographical_realm),1,0)
 hostTraits_cat$biogeo_palearctic <- ifelse(grepl("Palearctic",hostTraits_cat$biogeographical_realm),1,0)
 
-#(5) to aggregate transformed categorical-to-binary variables, use the mean as the summary measure
+#(5) To aggregate transformed categorical-to-binary variables, use the mean as the summary measure
 hostTraits_cat=aggregate(cbind(trophic_herbivores,trophic_omnivores,trophic_carnivores,
                             activity_nocturnal,activity_crepuscular,activity_diurnal,
                             forager_marine,forager_ground,forager_scansorial,forager_arboreal,forager_aerial,
@@ -233,17 +233,17 @@ hostTraits_cat=aggregate(cbind(trophic_herbivores,trophic_omnivores,trophic_carn
                             biogeo_afrotropical,biogeo_antarctic,biogeo_australasian,biogeo_indomalayan,biogeo_nearctic,biogeo_neotropical,biogeo_oceanian,biogeo_palearctic)
                        ~ order+family+genus, data=hostTraits_cat, FUN=mean, na.action=na.pass, na.rm=TRUE)
 
-#(6) merge continuous variables with binary variables and clean environment
+#(6) Merge continuous variables with binary variables and simplify dataframe
 hostTraits <- full_join(hostTraits_continuous, hostTraits_binary, by = c("order","family","genus"),keep=TRUE)
 hostTraits <- rename(hostTraits,c('order.x'='order','family.x'='family','genus.x'='genus'))
 hostTraits=subset(hostTraits, select=-c(order.y,family.y,genus.y))
 
-#(7) merge transformed categorical variables and clean environment
+#(7) Merge transformed categorical variables and simplify dataframe
 hostTraits <- full_join(hostTraits, hostTraits_cat, by = c("order","family","genus"),keep=TRUE)
 hostTraits <- rename(hostTraits,c('order.x'='order','family.x'='family','genus.x'='genus'))
 hostTraits <- subset(hostTraits, select=-c(order.y,family.y,genus.y))
 
-#(8) clean environment
+#(8) Clean environment
 rm(hostTraits_binary,hostTraits_cat,hostTraits_continuous)
 
 ```
@@ -252,18 +252,18 @@ rm(hostTraits_binary,hostTraits_cat,hostTraits_continuous)
 
 ```{r}
 
-#(1) reformat
+#(1) Reformat
 hostTree$tip.label[hostTree$tip.label=="_Anolis_carolinensis"] <- "Anolis_carolinensis"
 
-#(2) create dataframe linking tip labels with their corresponding categories (genus and species)
+#(2) Create dataframe linking tip labels with their corresponding categories (genus and species)
 tdata <- data.frame(matrix(NA,nrow=length(hostTree$tip.label),ncol=0))
 tdata$genus <- sapply(strsplit(hostTree$tip.label,'_'),function(x) paste(x[1],sep='_'))
 tdata$species <- hostTree$tip.label
 
-#(3) collapse tree to genus level
+#(3) Collapse tree to genus level
 hostTree <- makeCollapsedTree(tree=hostTree,df=tdata[c('genus','species')])
 
-#(4) clean environment
+#(4) Clean environment
 rm(tdata)
 
 ```
@@ -272,21 +272,21 @@ rm(tdata)
 
 ```{r}
 
-#(1) are all poxdata genera in hostTree?
+#(1) Check if all poxdata genera are in hostTree
 poxdata$gtip <- poxdata$gen
 hostTree$gtip <- hostTree$tip.label
 poxdata$intree <- ifelse(poxdata$gtip%in%setdiff(poxdata$gtip,hostTree$gtip),'missing','upham')
 
-#(2) are all poxdata genera in hostTraits?
+#(2) Check if all poxdata genera are in hostTraits
 hostTraits$gtip <- hostTraits$genus
 poxdata$intraits <- ifelse(poxdata$gtip%in%setdiff(poxdata$gtip,hostTraits$gtip),'missing','traits')
 
-#(3) create dataframe of just observations with mismatched names
+#(3) Create a dataframe of just the observations with mismatched names
 fix <- poxdata[c('gtip','intree','intraits')]
 fix <- fix[fix$intree=='missing'|fix$intraits=='missing',]
 fix <- unique(fix)
 
-#(4) identify homotypic synonyms or proxy species via IUCN (https://www.iucnredlist.org/) and NCBI (http://www.ncbi.nlm.nih.gov/taxonomy)
+#(4) For those with mismatched names, identify homotypic synonyms or proxy species via IUCN (https://www.iucnredlist.org/) and NCBI (http://www.ncbi.nlm.nih.gov/taxonomy)
 fix$treename <- NA
 fix$traitname <- NA
 fix$proxy <- NA
@@ -306,21 +306,21 @@ fix$traitname <- ifelse(fix$gtip=="Pseudalopex","Lycalopex",fix$traitname)
   ##source: https://www.iucnredlist.org/species/6926/87695615
 ## hostTraits$genus[which(grepl('Tympanoctomys',hostTraits$genus))]
 
-#(5) merge revised names with poxdata
+#(5) Merge revised names with poxdata
 fix <- subset(fix, select=-c(intree,intraits))
 poxdata <- merge(poxdata,fix,by='gtip',all.x=T)
 
-#(6) treename will be used for merging poxdata & hostTree
+#(6) If 'treename' is missing, first relabel as NA, then relabel with 'gtip'
 poxdata$treename <- ifelse(poxdata$treename=='',NA,as.character(poxdata$treename))
 poxdata$treename <- ifelse(is.na(poxdata$treename),as.character(poxdata$gtip),as.character(poxdata$treename))
 
-#(7) traitname will be used for merging poxdata & hostTraits
+#(7) If 'traitname' is missing, first relabel as NA; If 'traitname' is NA and missing in 'intraits', then relabel with 'proxy'; If 'traitname' is not NA and missing in 'intraits', then relabel with 'traitname'
 poxdata$traitname <- ifelse(poxdata$traitname=='',NA,as.character(poxdata$traitname))
 poxdata$traitname <- ifelse(poxdata$intraits=='missing' & is.na(poxdata$traitname),as.character(poxdata$proxy),
                       ifelse(poxdata$intraits=='missing' & !is.na(poxdata$traitname),as.character(poxdata$traitname),
                              as.character(poxdata$gtip)))
 
-#(8) simplify and clean environment
+#(8) Simplify and clean environment
 poxdata <- subset(poxdata, select=-c(intree,intraits,proxy))
 rm(fix)
 
@@ -330,20 +330,20 @@ rm(fix)
 
 ```{r}
 
-#(2) merge traits with poxdata
+#(2) Merge traits with poxdata
 hostTraits$traitname <- hostTraits$gtip
 poxdata <- merge(poxdata,hostTraits,by=c('traitname'),all.x=T)
 
-#(3) clean up poxdata
+#(3) Clean up poxdata
 poxdata <- rename(poxdata,c('gtip.x'='gtip'))
 poxdata <- subset(poxdata,select=-c(order, family, genus,gtip.y))
 
-#(4) trim hostTree to mirror poxdata
+#(4) Trim hostTree to mirror poxdata
 hostTree <- keep.tip(hostTree,hostTree$tip.label[hostTree$tip.label%in%poxdata$treename])
 hostTree$gtip <- NULL
 hostTree=makeLabel(hostTree)
 
-#(5) clean environment
+#(5) Clean environment
 rm(hostTraits)
 
 ```
@@ -352,122 +352,125 @@ rm(hostTraits)
 
 ```{r}
 
-#(1) load library for PubMed citations
+#(1) Load library for PubMed citations
 library(easyPubMed)
 
-#(2) create function to count citations
+#(2) Create function to count citations
 counter=function(name){
   as.numeric(as.character(get_pubmed_ids(gsub('_','-',name))$Count))
 }
 citations=c()
 
-#(3) extract unique genera from poxdata
+#(3) Extract unique genera from poxdata
 treename <- unique(poxdata$treename)
 
-#(4) apply counter function while looping through treenames
+#(4) Apply counter function while looping through treenames
 for(i in 1:length(treename)) {
   citations[i]=counter(treename[i])
   print(i)
 }
 
-#(5) compile citation numbers
+#(5) Compile citation numbers
 cites <- data.frame(treename=treename,cites=citations)
 
-#(6) merge cites with poxdata
+#(6) Merge cites with poxdata
 poxdata <- merge(poxdata,cites,by='treename')
 
-#(7) load library for evolutionary distinctiveness (ed) measure
+#(7) Load library for evolutionary distinctiveness (ed) measure
 library(picante)  #before loading picante, make sure latest version of nlme package is loaded
 ed <- evol.distinct(hostTree,type='equal.splits') #calculates ed measures for a suite of species by equal splits and fair proportions; returns species score
 
-#(8) rename variables in ed
+#(8) Rename variables in ed
 ed <- rename(ed,c('Species'='treename','w'='ed_equal'))
 
-#(9) merge ed with poxdata
+#(9) Merge ed with poxdata
 poxdata <- merge(poxdata,ed,by='treename')
 
-#(10) clean environment
+#(10) Clean environment
 rm(cites,ed,citations,i,treename,counter)
 
 ## consider adding viral genome length, viral richness (number of virus detected in each genera), and host range (number of hosts from which each virus was)
+
 ```
 
 # Save simple dataset for phylogenetic analysis and Model #1
 
 ```{r}
 
-#(1) save poxdata containing only genera of taxonomic orders with known host-OPV associations for phylofactorization and Model #1 (with single response variable)
+#(1) Save poxdata containing only genera of taxonomic orders with known host-OPV associations for phylofactorization and Model #1 (with single response variable)
 poxdataMin <- subset(poxdata,select=-c(virus))
 
-#(2) remove duplicate genera: aggregate to genus-level taking the max value of pcr/comp and the sum of studies
+#(2) Remove duplicate genera: aggregate to genus-level taking the max value of pcr/comp and the sum of studies
 agg_pcr <- aggregate(pcr~gen, data=poxdataMin, max)
 agg_competence <- aggregate(competence~gen, data=poxdataMin, max)
 agg_studies <- aggregate(studies~gen, data=poxdataMin, sum)
 
-#(3) remove duplicate genera: merge pcr and competence data back in
+#(3) Remove duplicate genera: merge pcr and competence data back in
 poxdataMin$pcr=NULL
 poxdataMin$competence=NULL
 poxdataMin$studies=NULL
 poxdataMin <- poxdataMin[!duplicated(poxdataMin$gen),]
 poxdataMin <- list(poxdataMin,agg_pcr,agg_competence,agg_studies) %>% reduce(full_join, by='gen')
 
-#(4) clean environment
+#(4) Clean environment
 rm(agg_competence,agg_pcr,agg_studies)
+
 ```
 
 # Add all possible host-OPV combinations for link prediction model
 
 ```{r}
 
-#(1) create separate dataframes for hostTraits and interaction data
+#(1) Create separate dataframes for hostTraits and interaction data
 hostTraits <- subset(poxdata, select=-c(virus,pcr,competence,studies,sampled))
 hostTraits <- hostTraits[!duplicated(hostTraits$gen),]
 interactions <- subset(poxdata, select=c(gen,virus,pcr,competence,studies,sampled))
 
-#(1) create dataframe of all possible host-OPV combinations (for mammal genera that exist in orders w/ known OPV predictions)
+#(2) Create dataframe of all possible host-OPV combinations (for mammal genera that exist in orders w/ known OPV predictions)
 uniq_gen <- unique(poxdata$gen[!is.na(poxdata$gen)])
 uniq_virus <- unique(poxdata$virus[!is.na(poxdata$virus)])
 combinations <- expand.grid(uniq_gen,uniq_virus)
 combinations <- rename(combinations,c('Var1'='gen','Var2'='virus'))
 
-#(2) merge host-OPV interaction data with all possible combinations
+#(3) Merge host-OPV interaction data with all possible combinations
 poxdata <- merge(combinations,interactions,by=c("gen","virus"),all.x=TRUE)
 
-#(3) merge host-related data
+#(4) Merge host-related data
 poxdata <- merge(poxdata,hostTraits,by=c("gen"),all.x=TRUE)
 
-#(6) create binary variable for sampled host-OPV pairs
+#(5) Create binary variable for sampled host-OPV pairs
 poxdata$sampled=ifelse(is.na(poxdata$pcr) & is.na(poxdata$competence),0,1)
 
-#(7) reclassify NAs as pseudo-absences for viral detection
+#(6) Reclassify NAs as pseudo-absences for viral detection
 poxdata$pcr=ifelse(is.na(poxdata$pcr),0,poxdata$pcr)
 poxdata$competence=ifelse(is.na(poxdata$competence),0,poxdata$competence)
 poxdata$studies=ifelse(is.na(poxdata$studies),0,poxdata$studies)
 
-#(8) clean environment
+#(7) Clean environment
 rm(hostTraits,interactions,uniq_gen,uniq_virus,combinations)
+
 ```
 
 ### Merge poxdata with viral accessory genes
 
 ```{r}
 
-#(1) simplify data
+#(1) Simplify data
 viralTraits <- head(viralTraits, -2)          
 
-#(2) rename column names
+#(2) Rename column names
 viralTraits <- viralTraits[,-2]
 colnames(viralTraits) <- paste("ag" ,colnames(viralTraits),sep="_")
 names(viralTraits)[1] <- c("virus")
 
-#(3) to assess variation in viralTraits, create mode function
+#(3) To assess variation in viralTraits, create mode function
 mode.prop <- function(x) {                
   ux <- unique(x[is.na(x)==FALSE])        # creates array of unique values
   tab <- tabulate(match(na.omit(x), ux))  # creates array of the frequency a unique value appears in a column 
   max(tab)/length(x[is.na(x)==FALSE])     # max-frequency / number of elements in each column that are not NA
 }
 
-#(4) assess variation across columns (2 indicates columns)
+#(4) Assess variation across columns (2 indicates columns)
 vars=data.frame(apply(viralTraits,2,function(x) mode.prop(x)),
                 apply(viralTraits,2,function(x) length(unique(x)))) # number of unique elements in each column
 vars$variables=rownames(vars)
@@ -476,10 +479,10 @@ colnames(vars) <- c("var","uniq","column")
 ## trim
 #vars <- vars[-c(1,2), ]
 
-#(5) drop variables with no variation
+#(5) Drop variables with no variation
 vars <- subset(vars,vars$var<1)
 
-# ## visualize distribution of NA
+# #(6) visualize distribution of NA
 # png("/Users/katietseng/Downloads/virus_ag_variation.png", width=4,height=4,units="in",res=600)
 # ggplot(vars,
 #        aes(var))+
@@ -494,13 +497,13 @@ vars <- subset(vars,vars$var<1)
 #   scale_x_continuous(labels=scales::percent)
 # dev.off()
 
-# ## drop based on threshold
+# #(7) drop based on threshold
 # vars$keep=ifelse(vars$var>=0.7,"keep","cut")
 # keeps=vars[-which(vars$keep=="cut"),]$column 
 # keeps <- append("virus",keeps)
 # viralTraits=viralTraits[keeps]
 
-#(6) edit virus names
+#(8) edit virus names
 viralTraits$virus_new <- NA
 viralTraits$virus_new <- ifelse(grepl("Abatino",viralTraits$virus)==TRUE,"abatino macacapox virus",viralTraits$virus_new)
 viralTraits$virus_new <- ifelse(grepl("Akhmeta",viralTraits$virus)==TRUE,"akhmeta virus",viralTraits$virus_new)
@@ -523,20 +526,20 @@ viralTraits$virus_new <- ifelse(grepl("Taterapox",viralTraits$virus)==TRUE,"tate
 viralTraits$virus_new <- ifelse(grepl("Vaccinia",viralTraits$virus)==TRUE,"vaccinia virus",viralTraits$virus_new)
 #viralTraits$virus_new <- ifelse(grepl("",viralTraits$virus)==TRUE,"volepox virus virus",viralTraits$virus_new)
 
-#(7) reformat and drop dups
+#(9) reformat and drop dups
 viralTraits$virus <- viralTraits$virus_new
 viralTraits$virus_new = NULL
 viralTraits <- subset(viralTraits,!is.na(viralTraits$virus))
 viralTraits <- viralTraits[!duplicated(viralTraits$virus),]
 
-#(8) identify rows with duplicate values (i.e., hosts with identical presence/absence of accessory genes)
+#(10) identify rows with duplicate values (i.e., hosts with identical presence/absence of accessory genes)
 which(duplicated(viralTraits[,-c(1)])| duplicated(viralTraits[,-c(1)], fromLast = TRUE))
 viralTraits$dup <- duplicated(viralTraits[,-c(1)])
 
-#(9) merge with poxdata; full join returns only rows found in both poxdata and viralTraits
+#(11) merge with poxdata; full join returns only rows found in both poxdata and viralTraits
 poxdata <- merge(poxdata,viralTraits,by=c('virus'))
 
-#(10) clean environment
+#(12) clean environment
 rm(viralTraits,vars,keeps,original_cols,mode.prop)
 
 ```
@@ -545,12 +548,15 @@ rm(viralTraits,vars,keeps,original_cols,mode.prop)
 
 ```{r}
 
+#(1) Subset dataframe excluding virus for Model 1 (single response variable model)
 poxdataMin <- poxdataMin %>% 
   relocate(gen,fam,ord,gtip,treename,traitname,pcr,competence,studies,sampled,cites,ed_equal)
 
+#(2) Subset dataframe including virus for Model 2 (link-prediction model)
 poxdata <- poxdata %>% 
   relocate(virus,gen,fam,ord,gtip,treename,traitname,pcr,competence,studies,sampled,cites,ed_equal)
 
+#(3) Save dataframes for analysis **poxdata_temp.RData is for practice analysis**
 save(poxdataMin, poxdata, hostTree, file='/Users/katietseng/Downloads/Data_clean.RData')
 save(poxdata, file='/Users/katietseng/Downloads/poxdata_temp.RData')
 
@@ -562,7 +568,7 @@ save(poxdata, file='/Users/katietseng/Downloads/poxdata_temp.RData')
 
 ```{r}
 
-#(1) libraries for phylogenetic analysis
+#(1) Libraries for phylogenetic analysis
 library(ape)
 library(caper)
 library(data.table)
@@ -571,11 +577,11 @@ library(phylofactor)  ## devtools::install_github('reptalex/phylofactor'); more 
 library(treeio)       ## BiocManager::install("treeio")
 library(ggtree)
 
-#(2) clean environment
+#(2) Clean environment
 rm(list=ls()) 
 graphics.off()
 
-#(3) set working directory
+#(3) Set working directory
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022")
 
 ```
@@ -584,22 +590,22 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```{r}
 
-#(1) load data and trim unnecessary columns
+#(1) Load data and trim unnecessary columns
 load("Data_clean.RData")
 data <- poxdataMin
 
-#(2) check that genus name in poxdata is also in hostTree
+#(2) Check that genus name in poxdata is also in hostTree
 which(data$treename%in%setdiff(data$treename,hostTree$tip.label))
 
-#(3) create variables label and Species (required in later functions)
+#(3) Create variables label and Species (required in later functions)
 data$label <- data$treename
 data$Species <- data$treename  
 
-#(4) merge phylogeny w/ data ensuring consistent structure & ordering (caper::comparative.data)
+#(4) Merge phylogeny w/ data ensuring consistent structure & ordering (caper::comparative.data)
 cdata=comparative.data(phy=hostTree,data=data,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)
 cdata$data$tree=NULL
 
-#(5) what proportion of genera have evidence of infection?
+#(5) What proportion of genera have evidence of infection?
 nrow(data)
 count(data$pcr==1)
 round(prop.table(table(data$pcr)),4)*100 
@@ -620,7 +626,7 @@ mod2 <- phylo.d(cdata,binvar=competence,permut=10000); mod2
 
 ```{r}
 
-#(1) create dataframe of taxonomy
+#(1) Create dataframe of taxonomy
 cdata$data$taxonomy=paste(cdata$data$ord,cdata$data$fam,cdata$data$gen,sep='; ')
 taxonomy <- data.frame(cdata$data$taxonomy)
 names(taxonomy) <- "taxonomy"
@@ -680,7 +686,7 @@ cladeget=function(pf,factor){
   return(spp)
 }
 
-#(3) summarize pf object                               
+#(3) Summarize pf object                               
 pfsum=function(pf){                                  
   
   ## get formula
@@ -755,23 +761,23 @@ pfsum=function(pf){
   return(list(set=dat,results=results))       #returns number of clades with significantly greater propensity of infection adjusting for FWER using Holm rejection procedure
 }
 
-#(4) phylofactorization of infection data
+#(4) Phylofactorization of infection data
 set.seed(1)
 pcr_pf=gpf(Data=cdata$data,tree=cdata$phy,
            frmla.phylo=pcr~phylo,
            family=binomial,algorithm='phylo',nfactors=10,min.group.size=5)
 
-#(5) summarize infection PF results
+#(5) Summarize infection PF results
 HolmProcedure(pcr_pf)
 pcr_pf_results=pfsum(pcr_pf)$results        
 
-#(6) phylofactorization of competence data
+#(6) Phylofactorization of competence data
 set.seed(1)
 hc_pf=gpf(Data=cdata$data,tree=cdata$phy,     
           frmla.phylo=competence~phylo,
           family=binomial,algorithm='phylo',nfactors=2,min.group.size=5)
 
-#(7) summarize competence PF results
+#(7) Summarize competence PF results
 HolmProcedure(hc_pf)
 hc_pf_results=pfsum(hc_pf)$results       
 
@@ -781,12 +787,12 @@ hc_pf_results=pfsum(hc_pf)$results
 
 ```{r}
 
-#(1) save tree for plotting
+#(1) Save tree for plotting
 cdata$data$infect=factor(cdata$data$pcr)
 cdata$data$comp=factor(cdata$data$competence)
 dtree=treeio::full_join(as.treedata(cdata$phy),cdata$data,by="label")
 
-#(2) fix palette
+#(2) Fix palette
 AlberPalettes <- c("YlGnBu","Reds","BuPu", "PiYG")
 AlberColours <- sapply(AlberPalettes, function(a) RColorBrewer::brewer.pal(5, a)[4])
 afun=function(x){
@@ -794,24 +800,24 @@ afun=function(x){
   return(a)
 }
 
-#(3) make low and high, and set x max
+#(3) Make low and high, and set x max
 pcols=afun(2)
 plus=1
 pplus=plus+1
 
-#(4) fix taxa font formatting
+#(4) Fix taxa font formatting
 pcr_pf_results$taxa
 pcr_pf_results$taxa[1]="Rodentia"
 hc_pf_results$taxa
 hc_pf_results$taxa[1]="italic(Felidae)"
 
-#(5) plot pcr infection w/ ggtree
+#(5) Plot pcr infection w/ ggtree
 pcr_gg=ggtree(dtree,size=0.25)+
   geom_tippoint(aes(colour=infect),shape=15)+
   scale_colour_manual(values=c("grey80","black"))+
   guides(colour="none")   
 
-#(6) add clades to plot
+#(6) Add clades to plot
 for(i in 1:nrow(pcr_pf_results)){
   
   pcr_gg=pcr_gg+
@@ -829,13 +835,13 @@ for(i in 1:nrow(pcr_pf_results)){
 }
 pcr_gg=pcr_gg
 
-#(7) plot competence
+#(7) Plot competence
 comp_gg=ggtree(dtree,size=0.25)+
   geom_tippoint(aes(colour=comp),shape=15)+
   scale_colour_manual(values=c("grey80","black"))+
   guides(colour=F)
 
-#(8) add clades to plot
+#(8) Add clades to plot
 for(i in 1:nrow(hc_pf_results)){
   
   comp_gg=comp_gg+
@@ -853,7 +859,7 @@ for(i in 1:nrow(hc_pf_results)){
 }
 comp_gg=comp_gg
 
-#(9) print tree figures for infection and competence
+#(9) Print tree figures for infection and competence
 library(ggpubr)
 png("Results/Figure 1.png",width=6,height=6,units="in",res=300)
 ggarrange(pcr_gg,comp_gg,ncol=2,widths=c(1.2,1),
@@ -868,32 +874,32 @@ dev.off()
 
 ```{r}
 
-#(1) log1p pubmed cites
+#(1) Create log-transformed variable of pubmed cites
 cdata$data$logcites=log1p(cdata$data$cites)
 
-#(2) model PCR with pubmed cites as weight variable
+#(2) Model PCR with pubmed cites as weight variable
 set.seed(1)
 pcr_pf_pm=gpf(Data=cdata$data,tree=cdata$phy,
                  frmla.phylo=pcr~phylo,
                  weights=cdata$data$logcites,
                  family=binomial,algorithm='phylo',nfactors=10,min.group.size=5)
 
-#(3) summarize
+#(3) Summarize
 HolmProcedure(pcr_pf_pm)
 pcr_pf_pm_results=pfsum(pcr_pf_pm)$results       
 
-#(4) model competence with pubmed cites as weight variable
+#(4) Model competence with pubmed cites as weight variable
 set.seed(1)
 hc_pf_pm=gpf(Data=cdata$data,tree=cdata$phy,
                 frmla.phylo=competence~phylo,
                 weights=cdata$data$logcites,
                 family=binomial,algorithm='phylo',nfactors=10,min.group.size=5)
 
-#(5) summarize
+#(5) Summarize
 HolmProcedure(hc_pf_pm)
 hc_pf_pm_results=pfsum(hc_pf_pm)$results       
 
-#(6) model cites themselves (not log1pm-transformed)
+#(6) Model cites themselves (not log1pm-transformed)
 set.seed(1)
 pm_pf=gpf(Data=cdata$data,tree=cdata$phy,
              frmla.phylo=cites~phylo,
@@ -910,7 +916,7 @@ pm_pf_results=pfsum(pm_pf)$results
 
 ```{r}
 
-#(1) libraries for BRT model
+#(1) Libraries for BRT model
 library(gbm)
 library(fastDummies)
 library(rsample)
@@ -929,7 +935,7 @@ library(caret)
 library(InformationValue)
 library(mgcv)
 
-#(2) clean environment
+#(2) Clean environment
 rm(list=ls()) 
 graphics.off()
 
@@ -939,9 +945,12 @@ graphics.off()
 
 ```{r}
 
+#(1) Load data and clean environment
 load("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Data_clean.RData")
 data <- poxdataMin
 rm(poxdata,poxdataMin)
+
+#(2) Set working directory
 setwd("/Users/katietseng/Downloads/Results/Model 1")
 
 ```
@@ -950,12 +959,14 @@ setwd("/Users/katietseng/Downloads/Results/Model 1")
 
 ```{r}
 
-#(1) load data and clean environment
+#(1) Load data and clean environment
 load("/Users/katietseng/Downloads/poxdata_temp.RData")
 data <- poxdata
+
+#(2) Set working directory
 setwd("/Users/katietseng/Downloads/Results/Model 2")
 
-#(2) ensure all accessory gene vars are numeric
+#(2) Ensure all accessory gene variables are numeric
 ag_columns <- colnames(data[which(grepl("ag_",names(data)))])
 data[,c(ag_columns)] <- lapply(data[c(ag_columns)],as.numeric)
 
@@ -965,31 +976,31 @@ data[,c(ag_columns)] <- lapply(data[c(ag_columns)],as.numeric)
 
 ```{r}
 
-#(1) classify true negatives
+#(1) Classify true negatives
 data$type=ifelse(data$pcr==0 & data$competence==0,"true negative","other")
 
-#(2) which species is competent but no PCR record?
+#(2) Which species is competent but no PCR record?
 set=data
 set$treename[set$pcr==0 & set$competence==1]
 
-#(3) tabulate PCR/infection and isolation
+#(3) Tabulate PCR/infection and isolation
 set$inf=ifelse(set$pcr==0,"PCR negative","PCR positive")
 set$iso=ifelse(set$competence==0,"no isolation","isolation")
 table(set$inf,set$iso)
 
-#(4) make binary variables for each taxonomic family; remove any duplicates
+#(4) Make binary variables for each taxonomic family; remove any duplicates
 dums=dummy_cols(data["fam"])
 dums=dums[!duplicated(dums$fam),]
 
-#(5) ensure all family vars are factor
+#(5) Ensure all family vars are factor
 for(i in 1:ncol(dums)){
   dums[,i]=factor(dums[,i])
 }
 
-#(6) merge family taxa variables with dataset as predictors
+#(6) Merge family taxa variables with dataset as predictors
 data=merge(data,dums,by="fam",all.x=T)
 
-#(7) drop unnecessary columns and clean environment
+#(7) Drop unnecessary columns and clean environment
 data$traitname=NULL
 rm(dums,set,ag_columns)
 
@@ -999,40 +1010,40 @@ rm(dums,set,ag_columns)
 
 ```{r}
 
-#(1) mode function
+#(1) Mode function
 mode.prop <- function(x) {                
   ux <- unique(x[is.na(x)==FALSE])        # creates array of unique values
   tab <- tabulate(match(na.omit(x), ux))  # creates array of the frequency (number of times) a unique value appears in a column 
   max(tab)/length(x[is.na(x)==FALSE])     # max-frequency / number of elements in each column that are not NA
 }
 
-#(2) assess variation across columns (2 indicates columns)
+#(2) Assess variation across columns (2 indicates columns)
 vars=data.frame(apply(data,2,function(x) mode.prop(x)),
                 apply(data,2,function(x) length(unique(x))))    # number of unique elements in each column
 
-#(3) get names
+#(3) Get names
 vars$variables=rownames(vars)
 names(vars)=c("var","uniq","column")
 
 # ## round values
 # vars$var=round(vars$var,2)
 
-#(4)label variables "cut" if homogeneous (100%)
+#(4)Label variables "cut" if homogeneous (100%)
 vars$keep=ifelse(vars$var<1,"keep","cut")
 vars$keep=ifelse(vars$column%in%c('fam','virus','gen','pcr','competence','fam'),'keep',vars$keep) # ensures we keep these columns
 vars=vars[order(vars$keep),]
 
-#(5) trim (creates array of column names to cut and removes from df)
+#(5) Trim (creates array of column names to cut and removes from df)
 keeps=vars[-which(vars$keep=="cut"),]$column
 
-#(6) drop if no variation
+#(6) Drop if no variation
 data=data[keeps]
 rm(keeps,vars)
 
-#(7) assess missing values
+#(7) Assess missing values
 mval=data.frame(apply(data,2,function(x) length(x[!is.na(x)])/nrow(data))) # proportion of values that are not NA
 
-#(8) get names
+#(8) Get names
 mval$variables=rownames(mval)
 names(mval)=c("comp","column")
 # 
@@ -1051,39 +1062,40 @@ names(mval)=c("comp","column")
 #   scale_x_continuous(labels = scales::percent)
 # dev.off()
 
-#(10) label variables "cut" if >30% values are NA
+#(10) Label variables "cut" if >30% values are NA
 mval$keep=ifelse(mval$comp>=0.70,"keep","cut")
 table(mval$keep)
 mval=mval[order(mval$keep),]
 
-#(11) trim (creates array of column names to cut and removes from df)
+#(11) Trim (creates array of column names to cut and removes from df)
 keeps=mval[-which(mval$keep=="cut"),]$column
 
-#(12) drop if not well represented
+#(12) Drop if not well represented
 data=data[keeps]
 rm(keeps,mval)
 
-#(14) save list of covariates and their coverage as table S1
+#(14) Save list of covariates and their coverage as table S1
 set <- subset(data,select=-c(virus,gen,fam,ord,gtip,treename,type,studies,sampled))
 ts1=data.frame(apply(set,2,function(x) length(x[!is.na(x)])/nrow(set)))
 
-#(15) rename and reorder columns
+#(15) Rename and reorder columns
 ts1$variables=rownames(ts1)
 names(ts1)=c("coverage","feature")
 rownames(ts1)=NULL
 ts1=ts1[!ts1$feature%in%c("pcr","competence"),]
 ts1 <- subset(ts1,select=c(feature,coverage))
 # 
-# #(16) save Table S1 to results
+# #(16) Save Table S1 to results
 # write.csv(ts1, "TableS1.csv")
 
-#(17) check that binary variables are numeric and not factor
+#(17) Check that binary variables are numeric and not factor
 str(set)
 
 ```
 
 ### Temp: create simple version w/o accessory genes
 ```{r}
+
 set <- subset(set, select=-c(which(grepl("ag_",colnames(set)))))
 setwd("/Users/katietseng/Downloads/Results/Test")
 
@@ -1093,7 +1105,7 @@ setwd("/Users/katietseng/Downloads/Results/Test")
 
 ```{r}
 
-#(1) hyperparameter tuning ifelse
+#(1) Hyperparameter tuning ifelse
 #hok="ok"
 hok="notok"
 if(hok!="ok"){
@@ -1263,7 +1275,7 @@ if(hok!="ok"){
 ### Model tuning results: Figure S2
 ```{r}
 
-#(1) convert parameters to factor and relabel values
+#(1) Convert parameters to factor and relabel values
 search$shrinkage=factor(search$shrinkage)
 lvl=rev(sort(unique(search$shrinkage)))  #sorts unique shrinkage par from large to small
 search$shrinkage=factor(search$shrinkage,levels=lvl); rm(lvl)  #applies as factor
@@ -1298,15 +1310,15 @@ mod=gam(spec~interaction.depth*shrinkage,
         data=search[search$type=="RT-PCR",],method="REML",family=betar)
 anova(mod)
 
-#(7) competence beta regression for specificity
+#(7) Competence beta regression for specificity
 mod=gam(spec~interaction.depth*shrinkage,
         data=search[search$type=="virus isolation",],method="REML",family=betar)
 anova(mod)
 
-#(8) recast from wide to long
+#(8) Recast from wide to long
 search2=gather(search,measure,value,testAUC:sen)
 
-#(9) relabel values and convert to factor 
+#(9) Relabel values and convert to factor 
 search2$measure=plyr::revalue(search2$measure,
                               c("sen"="sensitivity",  
                                 "spec"="specificity",
@@ -1314,7 +1326,7 @@ search2$measure=plyr::revalue(search2$measure,
 search2$measure=factor(search2$measure,
                        levels=c("test AUC","sensitivity","specificity"))
 
-#(10) visualize - Figure S2
+#(10) Visualize - Figure S2
 png("Figure S2.png",width=5,height=8,units="in",res=600)
 set.seed(1)
 ggplot(search2,aes(shrinkage,value,
@@ -1342,12 +1354,12 @@ ggplot(search2,aes(shrinkage,value,
   scale_y_continuous(n.breaks=4)
 dev.off()
 
-#(11) to determine optimal parameters for model training, subset tuning results by number of trees
+#(11) To determine optimal parameters for model training, subset tuning results by number of trees
 search_nt5000 <- search[search$n.trees==5000,]
 search_nt15000 <- search[search$n.trees==15000,]
 search_nt5000_sh0.01 <- search_nt5000[search_nt5000$shrinkage==0.010,]  #subset models with shrinakge==0.010
 
-#(12) plot best.iter by type (pcr/competence) to see max number of trees to include
+#(12) Plot best.iter by type (pcr/competence) to see max number of trees to include
 search_nt5000 %>%
   ggplot( aes(x=best, fill=type)) +
   geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
@@ -1361,7 +1373,7 @@ search_nt5000_sh0.01 %>%
   geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
   scale_fill_manual(values=c("#69b3a2", "#404080")) 
 
-#(13) clean
+#(13) Clean
 rm(search,search2,hok,mod,search_nt5000,search_nt15000,search_nt5000_sh0.01)
 
 ```
@@ -1369,7 +1381,8 @@ rm(search,search2,hok,mod,search_nt5000,search_nt15000,search_nt5000_sh0.01)
 ### BRT function to use different data partitions
 
 ```{r}
-## brt function to use different data partitions
+
+#(1) BRT function to use different data partitions
 brt_part=function(seed,response){
   
   ## make new data
@@ -1514,18 +1527,17 @@ brt_part=function(seed,response){
 
 ```{r}
 
-## apply across 100 splits each
+#(1) apply across 100 splits each
 # smax=101
 smax=100
 pcr_brts=lapply(1:smax,function(x) brt_part(seed=x,response="pcr"))
 comp_brts=lapply(1:smax,function(x) brt_part(seed=x,response="competence"))
-# 
-# ## run wos brts
-# pm_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="cites"))
 
-## save results to wd
-# save(pcr_brts,comp_brts,pm_brts,file="Data_results.RData")
-save(pcr_brts,comp_brts,file="Data_results.RData")
+#(2) run wos brts
+pm_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="cites"))
+
+#(3) save results to wd
+save(pcr_brts,comp_brts,pm_brts,file="Data_results.RData")
 
 ```
 
@@ -1539,7 +1551,9 @@ save(pcr_brts,comp_brts,file="Data_results.RData")
 library(ape)
 library(vegan)
 library(dplyr)
+library(reshape2)
 library(factoextra) #fviz_eig
+
 #(2) clean environment
 rm(list=ls()) 
 graphics.off()
@@ -1550,23 +1564,23 @@ graphics.off()
 
 ```{r}
 
-#(1) load data of viral accessory genes
+#(1) Load data of viral accessory genes
 load("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Data_raw.Rdata")
 genes <- opvgenes
 rm(combine,dryad,vertlife,virion)
 
-#(2) trim
+#(2) Trim
 genes <- head(genes, -2)     
 genes <- genes[,-2]
 colnames(genes) <- paste("ag" ,colnames(genes),sep="_")
 names(genes)[1] <- c("virus")
 
-#(3) reformat as numeric data matrix
+#(3) Reformat as numeric data matrix
 mat <- as.matrix(genes[,-1])
 rownames(mat) <- genes[,1] %>% pull()
 class(mat) <- "numeric"
 
-#(4) remove genes with no variation
+#(4) Remove genes with no variation
 mat <- mat[,-which(apply(mat, 2, var)==0)]
 
 ```
@@ -1574,7 +1588,7 @@ mat <- mat[,-which(apply(mat, 2, var)==0)]
 ### Run PCA
 ```{r}
 
-#PCA using stats::prcomp 
+#(1) PCA using stats::prcomp 
 pca <- prcomp(mat)      #scaling/centering not appropriate
 
 pca_relvar <- pca$sdev^2 / sum(pca$sdev^2)
@@ -1594,20 +1608,39 @@ pca_relvar_per <- round(pca_var*100,1)
 
 ```
 
+### Tables
+
+```{r}
+
+#(1) View summary results
+summary(pca)
+View(pca$rotation)
+
+#(2) Table of importance of components
+pca_importance <- as.data.frame(t(summary(pca)$importance))
+pca_importance$Eigenvalue <- pca_importance$`Standard deviation`^2
+pca_importance <- pca_importance %>% relocate(Eigenvalue) 
+
+#(3) Table of loadings
+pca_loadings <- as.data.frame(pca$rotation)
+pca_loadings <- pca_loadings[,c(1:4)]
+
+```
+
 ### Eigenvalues and Variance
 
 ```{r}
 
-#(4) Screeplot - Variance (Eigenvalues)
+#(1) Screeplot - Variance (Eigenvalues)
 screeplot(pca, type="lines", npcs=10, main="Scree plot of Eigenvalues for the first 10 PCs")  
 abline(h = 1, col="red", lty=5)
 legend("topright", legend=c("Eigenvalue = 1"),
        col=c("red"), lty=5, cex=1)
 
-#(3) Screeplot - Explained/cumulative variance (%)
+#(2) Screeplot - Explained/cumulative variance (%)
 fviz_eig(pca, choice=c("variance"), main = "Scree plot of explained variances") # these values agree with pca_relvar (variance explained)
 
-#(5) Cumulative variance plot
+#(3) Cumulative variance plot
 cumpro <- cumsum(pca$sdev^2 / sum(pca$sdev^2))
 plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance", main = "Cumulative variance plot")
 abline(v = 4, col="blue", lty=5)
@@ -1617,10 +1650,11 @@ legend("topleft", legend=c("Cut-off @ PC4"),
 
 ```
 
-### Plots of individuals
+### Plots
 
 ```{r}
 
+#(1) Plots of individuals
 fviz_pca_ind(pca) + ggtitle("2D PCA-plot")
 
 fviz_pca_ind(pca, geom.ind = "point", pointshape = 21, 
@@ -1635,32 +1669,26 @@ fviz_pca_ind(pca, geom.ind = "point", pointshape = 21,
       ggtitle("2D PCA-plot") +
       theme(plot.title = element_text(hjust = 0.5))
 
-```
-
-### Plots of variables
-
-```{r}
-
-#PCA variables 1 and 2
+#(2) Plot of PCA variables 1 and 2
 fviz_pca_var(pca, 
              col.var = "contrib", # Color by contributions to the PC
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE     # Avoid text overlapping
              )
 
-#PCA variables 3 and 4
+#(3) Plot of PCA variables 3 and 4
 fviz_pca_var(pca, axes = c(3, 4),
              col.var = "contrib", 
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE     
             )
 
-##check pilar's pca code for table of contributions
 ```
 
 ### Run PCoA
 
 ```{r}
+
 #(1) PCoA with cmdscale {stats} - unstandardized
 dist.mat <- dist(scale((mat)),
                 method="euclidean")
@@ -1694,9 +1722,130 @@ ggplot(data=pcoa.data, aes(x=X,y=Y,label=Sample)) +
   theme_bw() + 
   ggtitle("PCoA graph using Euclidean distance")
 
-#(6) plot coordinate pairs and projections
+#(2) plot coordinate pairs and projections
 biplot(pcoa)
 biplot(pcoa, mat, dir.axis1=-1)
 
-#scree plot - elbow, saturation (eigenvalue)
 ```
+
+# BRT Figures
+
+### Load required packages and set system
+
+```{r}
+
+#(1) Libraries for BRT figures
+library(ROCR)
+library(tidyr)
+library(ggplot2)
+library(sciplot)
+library(fastDummies)
+library(caper)
+library(ape)
+library(phylofactor)
+library(treeio)
+library(ggtree)
+library(plotrix)
+library(rstatix)
+library(ggrepel)
+library(ggpubr)
+library(plyr)
+
+#(2) Clean environment
+rm(list=ls()) 
+graphics.off()
+
+#(3) Set working directory
+setwd("/Users/katietseng/Downloads/Results/Kamiak")
+
+```
+
+### Evaluate performance measures
+
+```{r}
+
+#### If needed, increase vector memory in R environment and reboot R before proceeding (https://stackoverflow.com/questions/51295402/r-on-macos-error-vector-memory-exhausted-limit-reached)
+
+#(1) Load BRT results for PCR data
+load("pcr_brts.RData")
+#load("comp_brts.RData")
+
+#(2) Explore PCR prediction results
+pcr_brts[[1]]$predict
+pcr_brts[[1]]$predict$pred
+
+#These roc performance measures were calculated for each iteration using ROCR::prediction/performance functions
+head(pcr_brts[[5]]$roc$fpr)
+pcr_brts[[1]]$roc$tpr
+
+#(3) Create list of ROC fpr and tpr values from PCR-model results
+roc_out <- list()
+roc_out$fpr <- list()
+roc_out$tpr <- list()
+for (i in 1:length(pcr_brts)) {
+  roc_out$fpr[[i]] <- pcr_brts[[i]]$roc$fpr
+  roc_out$tpr[[i]] <- pcr_brts[[i]]$roc$tpr
+}
+plot(roc_out$fpr, roc_out$tpr)
+plot(do.call(cbind, roc_out), type = "l", 
+      colorize=TRUE,lwd=2,main='ROC curves')
+roc_fpr <- reshape2::melt(roc_out$fpr, value.name="fpr")
+roc_tpr <- reshape2::melt(roc_out$tpr, value.name="tpr")
+roc <- merge(roc_fpr,roc_tpr,by="L1")
+roc <- cbind(roc_fpr$fpr, roc_tpr)
+colnames(roc) <- c('fpr','tpr','seed')
+ggplot(roc) + geom_line(aes(fpr, tpr, group = seed), 
+    alpha = 0.3)
+plot(roc$fpr, roc$tpr, col=factor(roc$seed), type="l",colorize=TRUE,lwd=2,main='ROC curves')
+
+#(3) Create list of PCR predictions and true values/labels from PCR-model results
+pcr_out <- list()
+pcr_out$predictions <- list()
+pcr_out$labels <- list()
+for (i in 1:length(pcr_brts)) {  
+  pcr_out$predictions[[i]] <- pcr_brts[[i]]$predict$pred
+  pcr_out$labels[[i]] <- pcr_brts[[i]]$predict$pcr
+} 
+
+#(4) Transform predictions & labels into standardized format using ROCR::prediction
+pred = prediction(pcr_out$predictions,pcr_out$labels)
+class(pred)
+slotNames(pred)
+  
+#(5) ROC curves (x-axis: fpr, y-axis: tpr) using ROC::performance 
+perf = performance(pred,'tpr','fpr')
+slotNames(perf)
+plot(perf,colorize=TRUE,lwd=2,main='ROC curves')
+plot(perf,lwd=2,avg="vertical",spread.estimate="boxplot",main='ROC curves', add=TRUE)
+  # shows average vertical curve, boxplots and spread
+
+#(6) Find optimal threshold (cutoff) for calculating sensitivity (tpr) and specificity (1-fpr)
+cutoffs <- data.frame(cut=perf@alpha.values[[1]], fpr=perf@x.values[[1]], tpr=perf@y.values[[1]])
+opt_threshold <- cutoffs[which.max((1-cutoffs$fpr) + cutoffs$tpr), "cut"]
+
+#(7) Precision/recall curve (x-axis: recall, y-axis: precision)
+perf <- performance(pred, "prec", "rec")
+plot(perf)
+
+#(8) Sensitivity/specificity curve (x-axis: specificity, y-axis: sensitivity)
+perf <- performance(pred, "sens", "spec")
+plot(perf)
+
+#(9) AUC
+perf <- performance(pred, "auc")
+```
+
+# ## get net AUC
+# mean(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC)))
+# se(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC)))
+# 
+# ## get net sensitivity
+# mean(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen)))
+# se(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen)))
+
+## independent auc
+mean(sapply(pcr_brts,function(x) x$testAUC))
+se(sapply(pcr_brts,function(x) x$testAUC))
+# mean(sapply(comp_brts,function(x) x$testAUC))
+# se(sapply(comp_brts,function(x) x$testAUC))
+
