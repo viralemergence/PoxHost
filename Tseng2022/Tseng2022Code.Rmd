@@ -1491,7 +1491,8 @@ brt_part=function(seed,response){
 
   ## predict with cites
   preds=predict(gbmOut,data,n.trees=best.iter,type="response")
-  pred_data=data[c("gtip",'treename',"fam","ord","pcr","competence")]
+  #pred_data=data[c("gtip",'treename',"fam","ord","pcr","competence")]
+  pred_data=data[c("virus","gtip",'treename',"fam","ord","pcr","competence")]
   pred_data$pred=preds
   pred_data$type=response
   
