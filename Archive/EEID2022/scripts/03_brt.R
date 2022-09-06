@@ -31,7 +31,7 @@ library(InformationValue)
 library(mgcv)
 
 ## set working directory and load files
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/EEID2022")
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Archive/EEID2022")
 data=read.csv('data/cleaned/pox cleaned response and traits.csv')
 
 ## classify true negatives
@@ -169,7 +169,7 @@ ts1$comp=NULL
 ## write file
 write.csv(ts1, "figs/TableS1.csv")
 
-## check that binary variables are numeric and not factor
+## check that binary variables are numeric and not factor (with the exception of fam_* variables)
 str(set)
 
 ## hyperparameter tuning ifelse
