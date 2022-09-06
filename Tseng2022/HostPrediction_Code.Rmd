@@ -1,5 +1,5 @@
 ---
-title: "Poxvirus Host Prediction"
+title: "Orthopoxvirus Host Prediction"
 author: "Katie Tseng, Dan Becker, Colin Carlson, etc."
 output:
   pdf_document:
@@ -72,11 +72,8 @@ hostTraits <- combine
 ##path: Data_S8_finalFigureFiles > _DATA > MamPhy_fullPosterior_BDvr_Completed_5911sp_topoCons_NDexp_MCC_v2_target.tre)
 hostTree <- dryad
 
-#(6) Viral traits: OPV accessory genes from ... (Steph to provide refined datatable)
-viralTraits <- opvgenes
-
-#(7) Clean environment
-rm(virion, vertlife, dryad, combine, opvgenes)
+#(6) Clean environment
+rm(virion, vertlife, dryad, combine)
 
 ```
 
