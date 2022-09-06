@@ -18,13 +18,7 @@ editor_options:
 knitr::opts_chunk$set(eval=F)
 ```
 
-# Introduction
-
-The following code reproduces the analysis from:
-
-> etc.
-
-# Data Preparation
+# I. Data Preparation
 
 ### Load required packages and set system
 
@@ -384,7 +378,7 @@ rm(cites,ed,citations,i,treename,counter)
 
 ```
 
-# Aggregate to genus level
+### Aggregate to genus level
 
 ```{r}
 
@@ -413,7 +407,7 @@ rm(agg_competence,agg_pcr,agg_studies)
 ```
 
 
-# Save cleaned data
+### Save cleaned data
 
 ```{r}
 
@@ -422,7 +416,7 @@ rm(agg_competence,agg_pcr,agg_studies)
 
 ```
 
-# Phylogenetic analysis
+# II. Phylogenetic analysis
 
 ### Load required packages and set system
 
@@ -770,7 +764,7 @@ pm_pf_results=pfsum(pm_pf)$results
 ```
 
 
-# Boosted regression trees (BRT)
+# III. Boosted regression trees (BRT)
 
 ### Load required packages and set system
 
@@ -1366,3 +1360,7 @@ pm_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="cites"))
 save(pcr_brts,comp_brts,pm_brts,file="Data/HostData_results.RData")
 
 ```
+
+# IV. BRT figures
+
+# V. Maps
