@@ -54,12 +54,13 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 ```{r}
 
 #(1) Load data
-load("Data_raw.RData")
+load("Data/Data_raw.RData")
 # load(url('https://github.com/viralemergence/PoxHost/blob/fbc89ca541c580e8eb7f521d4e0cd5f1198a3d9f/Tseng2022/Data_raw.RData'))
 
 #(2) Pox data: host-OPV interactions detected via PCR/isolation from Virion database
 ##virion <- vroom('https://github.com/viralemergence/virion/blob/main/Virion/Virion.csv.gz')
 poxdata <- virion %>% filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation"))) 
+
 #(3) Taxa: mammal species taxonomy from vertlife
 ##vertlife <- read.csv(url('https://data.vertlife.org/mammaltree/taxonomy_mamPhy_5911species.csv'))
 taxa <- vertlife
@@ -417,7 +418,7 @@ rm(agg_competence,agg_pcr,agg_studies)
 ```{r}
 
 #(3) Save cleaned for analysis
-#save(poxdata, hostTree, file='HostData_Clean.RData')
+#save(poxdata, hostTree, file="Data/HostData_clean.RData")
 
 ```
 
@@ -450,7 +451,7 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 ```{r}
 
 #(1) Load data and trim unnecessary columns
-load("HostData_Clean.RData")
+load("Data/HostData_clean.RData")
 data <- poxdata
 
 #(2) Check that genus name in poxdata is also in hostTree
@@ -720,7 +721,7 @@ comp_gg=comp_gg
 
 #(9) Print tree figures for infection and competence
 library(ggpubr)
-png("Results/Figure 1.png",width=6,height=6,units="in",res=300)
+png("Output/Figure 1.png",width=6,height=6,units="in",res=300)
 ggarrange(pcr_gg,comp_gg,ncol=2,widths=c(1.2,1),
           labels=c("(a) RT-PCR","(b) virus isolation"),
           label.x=c(-0.1,-0.2),
@@ -798,19 +799,8 @@ library(mgcv)
 rm(list=ls()) 
 graphics.off()
 
-```
-
-### MODEL 1: Load data and set working directory for appropriate model
-
-```{r}
-
-#(1) Load data and clean environment
-load("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/HostData_Clean.RData")
-data <- poxdata
-rm(poxdata)
-
-#(2) Set working directory
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Output")
+#(3) Set working directory
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022")
 
 ```
 
@@ -818,31 +808,36 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```{r}
 
-#(1) Classify true negatives
+#(1) Load data and clean environment
+load("Data/HostData_clean.RData")
+data <- poxdata
+rm(poxdata)
+
+#(2) Classify true negatives
 data$type=ifelse(data$pcr==0 & data$competence==0,"true negative","other")
 
-#(2) Which species is competent but no PCR record?
+#(3) Which species is competent but no PCR record?
 set=data
 set$treename[set$pcr==0 & set$competence==1]
 
-#(3) Tabulate PCR/infection and isolation
+#(4) Tabulate PCR/infection and isolation
 set$inf=ifelse(set$pcr==0,"PCR negative","PCR positive")
 set$iso=ifelse(set$competence==0,"no isolation","isolation")
 table(set$inf,set$iso)
 
-#(4) Make binary variables for each taxonomic family; remove any duplicates
+#(5) Make binary variables for each taxonomic family; remove any duplicates
 dums=dummy_cols(data["fam"])
 dums=dums[!duplicated(dums$fam),]
 
-#(5) Ensure all family vars are factor
+#(6) Ensure all family vars are factor
 for(i in 1:ncol(dums)){
   dums[,i]=factor(dums[,i])
 }
 
-#(6) Merge family taxa variables with dataset as predictors
+#(7) Merge family taxa variables with dataset as predictors
 data=merge(data,dums,by="fam",all.x=T)
 
-#(7) Drop unnecessary columns and clean environment
+#(8) Drop unnecessary columns and clean environment
 data$traitname=NULL
 rm(dums,set,ag_columns)
 
@@ -890,7 +885,7 @@ mval$variables=rownames(mval)
 names(mval)=c("comp","column")
 # 
 # #(9) visualize distribution of NA
-# png("Figure S1.png", width=4,height=4,units="in",res=600)
+# png("Output/Figure S1.png", width=4,height=4,units="in",res=600)
 # ggplot(mval[!mval$column%in%c("gen","treename","pcr","competence","tip.label","fam"),],
 #        aes(comp))+
 #   geom_histogram(bins=50)+
@@ -928,7 +923,7 @@ ts1=ts1[!ts1$feature%in%c("pcr","competence"),]
 ts1 <- subset(ts1,select=c(feature,coverage))
 
 #(16) Save Table S1 to results
-write.csv(ts1, "TableS1.csv")
+write.csv(ts1, "Output/TableS1.csv")
 
 #(17) Check that binary variables are numeric and not factor (with the exception of fam_* variables)
 str(set)
@@ -1091,12 +1086,12 @@ if(hok!="ok"){
   search$type=factor(search$type,levels=c("PCR","competence"))
   
   ## export
-  write.csv(search,"par tuning data summary.csv")
+  write.csv(search,"Output/par tuning data summary.csv")
   
 }else{
   
   ## load
-  search=read.csv("par tuning data summary.csv")
+  search=read.csv("Output/par tuning data summary.csv")
   
 }
 
@@ -1157,7 +1152,7 @@ search2$measure=factor(search2$measure,
                        levels=c("test AUC","sensitivity","specificity"))
 
 #(10) Visualize - Figure S2
-png("Figure S2.png",width=5,height=8,units="in",res=600)
+png("Output/Figure S2.png",width=5,height=8,units="in",res=600)
 set.seed(1)
 ggplot(search2,aes(shrinkage,value,
                    colour=interaction.depth,fill=interaction.depth))+
@@ -1368,6 +1363,6 @@ comp_brts=lapply(1:smax,function(x) brt_part(seed=x,response="competence"))
 pm_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="cites"))
 
 #(3) save results to wd
-save(pcr_brts,comp_brts,pm_brts,file="HostData_Results.RData")
+save(pcr_brts,comp_brts,pm_brts,file="Data/HostData_results.RData")
 
 ```
