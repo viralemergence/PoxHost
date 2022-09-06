@@ -5,7 +5,7 @@ Predicting the orthopoxvirus-mammal network with viral genetic features
 This repository contains data and code to reproduce all analyses from <...>.
 
 ## Instructions 
-To run the analysis, you can fork and clone this repository or download the "Tseng2020" folder to your local desktop. The code is separated into two markdown files each contained within their corresponding model folders: one for the host prediction model – *HostPrediction_Code.Rmd* – and the other for the link prediction model – *LinkPrediction_Code.Rmd*. Both markdown files are organized similarly into five parts (see *File organization*) and draw data from the same source file, *Data_raw.RData*. All output (e.g., cleaned datasets, model output, figures and tables) are saved in the "Output" folder within each corresponding model folder. 
+To run the analysis, you can fork and clone this repository or download the "Tseng2020" folder directly to your local desktop. The code is separated into two markdown files, each contained within their corresponding folders: one for the host prediction model – *HostPrediction_Code.Rmd* – and the other for the link prediction model – *LinkPrediction_Code.Rmd*. Both markdown files are organized similarly into five parts (see *File organization*) and draw data from the same source file, *Data_raw.RData*. Output for both models (e.g., cleaned datasets, model output, figures and tables) are saved to their corresponding "Output" folders.
 
 ### File organization
 1. Data Preparation
