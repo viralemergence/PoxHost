@@ -20,15 +20,17 @@ The following code reproduces the analyses from <...>, pertaining to the host pr
 To reproduce the analyses pertaining to the link prediction model, please see the markdown file LinkPrediction_Code.Rmd located in the PoxHost repository on GitHub: https://github.com/viralemergence/PoxHost.
 
 To run the following script, two files are required in your home directory:
-(1) Data_raw.RData, the raw data file; and
+(1) Data_raw.RData, the raw data file;
+(2) MAMMALS.shp, the shape file of mammal geographical range (for mapping - part five); and
 (2) "Output" folder, where all output will be saved - e.g., cleaned datasets, model results, figures, and tables.
 
 ### Before proceeding, we recommend setting knit options and your working directory
+
 ```{r, echo=F, message=F}
 knitr::opts_chunk$set(eval=F)
 
 # Set working directory
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022")
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model")
 ```
 
 # I. Data Preparation
@@ -57,7 +59,7 @@ graphics.off()
 
 ```{r}
 
-#(1) Load data
+#(1) Load raw data
 load("Data_raw.RData")
 # load(url('https://github.com/viralemergence/PoxHost/blob/fbc89ca541c580e8eb7f521d4e0cd5f1198a3d9f/Tseng2022/Data_raw.RData'))
 
@@ -77,8 +79,8 @@ hostTraits <- combine
 ##path: Data_S8_finalFigureFiles > _DATA > MamPhy_fullPosterior_BDvr_Completed_5911sp_topoCons_NDexp_MCC_v2_target.tre)
 hostTree <- dryad
 
-#(6) Clean environment
-rm(virion, opvgenes, vertlife, dryad, combine)
+#(7) Clean environment
+rm(virion, vertlife, dryad, combine)
 
 ```
 
@@ -2391,7 +2393,6 @@ dev.off()
 
 # 5. Maps
 
-
 ### Load required packages and set system
 
 ```{r}
@@ -2400,28 +2401,33 @@ dev.off()
 library(classInt)
 library(tidyverse)
 library(raster)
-library(rgdal)
+library(rgdal)  # switches to sf in 2023
 library(dismo)
 library(XML)
 library(maps)
 library(sp)
 library(dplyr)
-
 library(devtools)
 #install_github("hunzikp/velox")
 library(velox)
+library(fasterize)
+library(sf)
 
 #(2) Clean environment
 rm(list=ls()) 
 graphics.off()
 
+```
 
-## load files
-setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
+### Threshold the results
+
+```{r}
+
+#(1) load files
 set.seed(12345)
-pred <- read.csv("data/cleaned/PoxHost predictions.csv")
+pred <- read.csv("Output/PoxHost_predictions.csv")
 
-## 1. Threshold the results
+#(2) Threshold the results
 library(PresenceAbsence)
 
 ###################### INTERMISSION START: THRESHOLD IMPACTS ###################### 
@@ -2450,51 +2456,57 @@ sapply(unlist(ts.c[2]), cut.c)
 
 ###################### INTERMISSION ENDS ###################### 
 
+#(3) Optimal thresholds for PCR
 t.pcr <- optimal.thresholds(data.frame(pred[,c('treename','PCR','pred_pcr')]),
                             threshold = 10001,
                             opt.methods = 10,
                             req.sens = 0.95,
                             na.rm = TRUE)
 
+#(4) Optimal threshold for competence
 t.comp <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
                              threshold = 10001,
                              opt.methods = 10,
                              req.sens = 0.95,
                              na.rm = TRUE)
 
-## Threshold the results to binary outputs
+#(5) Threshold the results to binary outputs
 pred %>%
   mutate(bin_comp = (pred_comp > t.comp$pred_comp),
          bin_pcr = (pred_pcr) > t.pcr$pred_pcr) -> pred
 
-## How many predicted undiscovered hosts by PCR?
+#(6) How many predicted undiscovered hosts by PCR?
 table(pred$pred_pcr[pred$PCR==0] > t.pcr$pred_pcr)
 
-## How many predicted undiscovered hosts by competence
+#(7) How many predicted undiscovered hosts by competence
 table(pred$pred_comp[pred$competence==0] > t.comp$pred_comp)
 
-## Do the predicted competence hosts overlap with PCR
+#(8) Do the predicted competence hosts overlap with PCR
 pred %>% filter(competence==0, pred_comp > t.comp$pred_comp)
 
-## Pull out the relevant lists 
+#(9) Pull out the relevant lists 
 pred %>% filter(competence==1) %>% pull(treename) %>% gsub("_"," ",.) -> known.comp
 pred %>% filter(PCR==1) %>% pull(treename) %>% gsub("_"," ",.) -> known.pcr
 pred %>% filter(bin_comp==1) %>% pull(treename) %>% gsub("_"," ",.) -> pred.comp
 pred %>% filter(bin_pcr==1) %>% pull(treename) %>% gsub("_"," ",.) -> pred.pcr
 
+#(10) Sort
 sort(pred.pcr[!(pred.pcr %in% known.pcr)])
 sort(pred.comp[!(pred.comp %in% known.comp)])
 
-## 2. Let's make some maps?
-library(fasterize)
-library(rgdal)   # switch to sf in 2023
-library(raster)
-library(sf)
+```
 
-iucn <- st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/MAMMALS/MAMMALS.shp", layer='MAMMALS')
-r <- disaggregate(getData("worldclim",var="alt",res=2.5)*0,2) # Make a blank raster
+### Let's make some maps! - Figure 4
+```{r}
 
-## Create four layers
+#(1) Load shape file of mammal geographic range (from IUCN Red List database)  from raw datafile
+##<https://www.iucnredlist.org/resources/spatial-data-download>
+iucn <- st_read(dsn = "MAMMALS.shp", layer='MAMMALS')
+
+#(2) Make a blank raster
+r <- disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
+
+#(3) Create four layers
 iucn$treename=sapply(strsplit(iucn$binomial,' '),function(x) paste(x[1],sep=' '))
 
 iucn.1 <- iucn[iucn$treename %in% known.comp,] 
@@ -2507,7 +2519,7 @@ map.knp <- (fasterize(iucn.2, r, fun="sum"))
 map.prc <- (fasterize(iucn.3, r, fun="sum"))
 map.prp <- (fasterize(iucn.4, r, fun="sum"))
 
-## Add zeros for the continental area 
+#(4) Add zeros for the continental area 
 fix <- function(x) {sum(x,r,na.rm=TRUE)+r}
 
 map.knc <- fix(map.knc)
@@ -2520,15 +2532,14 @@ raster::trim() -> maps
 
 names(maps) <- c('KnownPCR', 'KnownComp', 'PredPCR', 'PredComp')
 
-# Generate the actual visualization
+#(5) Generate the actual visualization
 library(rasterVis)
 library(RColorBrewer)
 
 mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
 mycolors[1] <- "#C0C0C0"
 
-setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/figs")
-png("Figure 4.png",width=10,height=10,units="in",res=300)
+png("Output/Figure4.png",width=10,height=10,units="in",res=300)
 rasterVis::levelplot(maps,  
                      col.regions = mycolors,
                      #at = seq(0, 15, 1),
