@@ -8,19 +8,19 @@ This repository contains data and code to reproduce all analyses from <...>.
 To run the analysis, you can fork and clone this repository or download the "Tseng2020" folder directly to your local desktop (see *Recommended file organization*). The code is separated into two markdown files, each contained within their corresponding folders: one for the host prediction model – *HostPrediction_Code.Rmd* – and the other for the link prediction model – *LinkPrediction_Code.Rmd*. Both markdown files are organized similarly into five parts (see *Code organization*) and draw data from the same source file, *Data_raw.RData*. 
 
 ### Recommended file organization
-> Tseng2020
-     > Host Prediction Model
-          > HostPrediction_Code.Rmd
-          > HostPrediction_Code.pdf
-          > Data_raw.RData
-          > MAMMALS.shp *see NOTES below*
-          > Output/ *see NOTES below*
-     > Link Prediction Model
-          > LinkPrediction_Code.Rmd
-          > LinkPrediction_Code.pdf
-          > Data_raw.RData
-          > MAMMALS.shp *see NOTES below*
-          > Output/ *see NOTES below*
+- Tseng2020 > Host Prediction Model > 
+      - HostPrediction_Code.Rmd
+      - HostPrediction_Code.pdf
+      - Data_raw.RData
+      - MAMMALS.shp *see NOTES below*
+      - Output/ *see NOTES below*
+- Tseng 2020 > Link Prediction Model >
+      - HostPrediction_Code.Rmd
+      - HostPrediction_Code.pdf
+      - Data_raw.RData
+      - MAMMALS.shp *see NOTES below*
+      - Output/ *see NOTES below*
+
 *NOTE: 
 - MAMMALS.shp is a large shape file (>1GB) of mammal geographical range required in the last section of the code ("5. Mapping host distributions"). We recommend you download and save it directly to the the working directory of your local desktop. The file can be obtained from the IUCN Red List Spatial Database <https://www.iucnredlist.org/resources/spatial-data-download>.
 - Before proceeding to run the code, we recommend you create an "Output" sub-folder (e.g., ~/Tseng2022/#### Prediction Model/Output/) contained within each model folder. The code for both models will save all output (e.g., cleaned datasets, model output, figures and tables) to the corresponding "Output" folders. 
