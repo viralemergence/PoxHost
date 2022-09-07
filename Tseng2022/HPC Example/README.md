@@ -12,43 +12,105 @@ To follow along with this example, download the folder ~/Tseng2022/[HPC Example]
 | KatieJob_07Sep2022.sh     | Bash shell script (aka Slurm script) for submitting job                              |
 
 ## Instructions 
-To run the analysis, you can fork and clone this repository or download the "Tseng2020" folder directly to your local desktop (see *File organization (recommended)*). The code is separated into two markdown files, each contained within their corresponding folders: one for the host prediction model – *HostPrediction_Code.Rmd* – and the other for the link prediction model – *LinkPrediction_Code.Rmd*. Both markdown files are organized similarly into five parts (see *Code organization*) and draw data from the same source file, *Data_raw.RData*. 
+1. Login to Kamiak to view your allocated compute partitions:
+	$ ssh [username]@kamiak.wsu.edu
+	$ sinfo -p fernandez							#view partition
+	$ squeue -p fernandez							#view current jobs
 
-### File organization (recommended)
-1. Tseng2020 > Host Prediction Model > ... 
-      - HostPrediction_Code.Rmd
-      - HostPrediction_Code.pdf
-      - Data_raw.RData
-      - MAMMALS.shp (*see NOTES*)
-      - Output/ (*see NOTES*)
-2. Tseng 2020 > Link Prediction Model > ...
-      - LinkPrediction_Code.Rmd
-      - LinkPrediction_Code.pdf
-      - Data_raw.RData
-      - MAMMALS.shp (*see NOTES*)
-      - Output/ (*see NOTES*)
+2. Request a compute node (aka idev session)
+	$ idev -p fernandez 							#receive access to one core for one hour (60 minutes default)
+	$ idev -p fernandez -t 180						#receive access to one core for three hours (note @cn##)
+	### $ exit									#returns you to login node (which is shared by all users)
 
-*NOTE: 
-- MAMMALS.shp is a large shape file (>1GB) of mammal geographical range required in the last section of the code ("5. Mapping host distributions"). We recommend you download and save it directly to the the working directory of your local desktop. The file can be obtained from the IUCN Red List Spatial Database <https://www.iucnredlist.org/resources/spatial-data-download>.
-- Before proceeding to run the code, we recommend you create an "Output" sub-folder (e.g., ~/Tseng2022/#### Prediction Model/Output/) contained within each model folder. The code for both models will save all output (e.g., cleaned datasets, model output, figures and tables) to the corresponding "Output" folders. 
 
-### Code organization
-1. Data Preparation
-     - Input: *Data_raw.RData*
-     - Output: *HostData_clean.RData*
-2. Phylogenetic analysis
-     - Input: *HostData_clean.RData*
-     - Output: Figure1
-3. Boosted regression trees (BRT)
-     - Input: *HostData_clean.RData*
-     - Output: FigureS1, TableS1, *par_tuning_data_summary.csv*, FigureS2, *HostData_results.RData*
-4. BRT figures 
-     - Input: *HostData_results.RData*, *HostData_clean.RData*
-     - Output: FigureS3, Figure2, TableS5, FigureS4, *PoxHost_predictions.csv*, Figure3, TableS6.csv
-5. Mapping host distributions
-     - Input: *PoxHost_predictions.csv*, *MAMMALS.shp*
-     - Output: Figure4
+3. Pre-install necessary R packages to your local node - EXAMPLE:
+	### You only need to do this install step once for each package.
+### Do not include install.packages() in your R script: attempts to install packages on Kamiak’s R will fail b/c of permissions. 
+	$ mkdir -pv~/lib/R_libs							#create local directory for R libraries
+	$ module load r/4.1.0							#load specific R version
+	$ R											#open R program
+$ library(gbm)								#check if package already exists
+$ install.packages(“gbm”, dependencies = TRUE, repos = "http://cran.rstudio.com")																	#installs package & dependencies and auto selects CRAN mirror
+$ q()										#quit R program; to kill a command, Control+c
+$ library(gbm)								#shows that gbm is now loaded
+$ ls lib/R_libs/								#view local R libraries 
 
-### Running the BRT models on an HPC cluster
-To run the BRT models on a high performance computing (HPC) cluster (highly recommended), sample scripts and examples are available in the folder ~/Tseng2022/[HPC Example](https://github.com/viralemergence/PoxHost/tree/main/Tseng2022/HPC%20Example).
 
+4. Prepare R script 
+	### In this example, we title the R script: Kamiak_BRT_07Sep2022
+	### Once packages are installed from the previous step, remove/comment out any install.packages() commands in your   R script
+### Wherever you send your job to (.sh), it will set the file path of your job script as your home directory. Any file paths referenced IN your R script (e.g., reading in data or saving data) needs to match your home directory (file path of your job script). 
+
+
+5. Create your batch job script (.sh) - sample code as follows
+	#!/bin/bash										#specifies Unix shell to be used
+	#SBATCH --partition=fernandez						#specify partition to be used
+	#SBATCH --job-name=[job name]						#job name
+	#SBATCH --output=[job name]_%j.out					#standard output file
+	#SBATCH --error=[job name]_%j.err					#standard error file
+	#SBATCH --mail-type=ALL								#send email on job start, job end and job fault
+	#SBATCH --mail-user=[username]@wsu.edu				#address where job status emails will be used
+	#SBATCH --nodes=1									#node count
+	#SBATCH --ntasks=1									#total number of tasks across all nodes
+	#SBATCH --cpus-per-task=40							#cpu-cores per task (Fernandez node has 40 cores)
+	#SBATCH --mem-per-cpu=4G							#memory per cpu-core (4G is default) 
+	module load r/4.1.0								#load specified R version (newest is default)
+	Rscript --vanilla [R script title].R  				#’vanilla’ runs R script from clean environment
+	echo "Completed job $SLURM_JOBID on nodes $SLURM_JOB_NODELIST" 
+
+
+6. Transfer files to Kamiak - EXAMPLE: R script (.R), data file (.RData), Output folder, shell script (.sh), etc.
+$ logout												#logout of Kamiak
+$ scp -r /~/HPC Example/Kamiak_BRT_07Sep2022.sh [username]@kamiak.wsu.edu:~	#login password will be requested
+$ scp -r /~/HPC Example/HostData_clean.RData [username]@kamiak.wsu.edu:~		#login password will be requested
+$ scp -r /~/HPC Example/Output/ [username]@kamiak.wsu.edu:~				#login password will be requested
+$ scp -r /~/HPC Example/KatieJob_07Sep2022.sh [username]@kamiak.wsu.edu:~		#login password will be requested
+$ ls													#check that contents were saved to home directory
+
+
+7. Before submitting job, let’s test R script 
+$ head Kamiak_BRT_07Sep2022.R 							#view your R script
+$ vim Kamiak_BRT_07Sep2022.R 							#with vim, you can now edit the file
+$ R													#open R
+$ load(“HostData_clean.RData”)							#let’s try running a couple lines of code
+$ data <- poxdata									#after testing, to exit vim w/o saving: press Esc key, type :q, and hit Enter key
+
+
+8. Submit job script to job queue/scheduler
+$ ssh [username]@kamiak.wsu.edu	    						#log back into Kamiak
+$ sbatch KatieJob_07Sep2022.sh							#you will get an email from SLURM notifying you the
+$ squeue -u [username]									 job is running and a 2nd email when it’s finished
+$ squeue -j [job number]									
+$ exit
+
+
+9. To check job progress, read contents of the output file; to check for errors, read contents of the error file
+$ cat [job name]_43310144.out							#read the contents of the file
+$ cat [job name]_43310144.err			
+$ tail -4 [job name]_43310144.out						#read the last four lines of the file (default is 10)
+
+
+10. Once the job is complete:
+$ ssh [username]@kamiak.wsu.edu	    						#log back into Kamiak
+$ ls													#check that data files were saved
+$ logout												#log out to proceed with file transfer
+$ cd Downloads/Results/Kamiak							#cd [filepath] of where you want to save file
+$ scp -r [username]@kamiak.wsu.edu:~/pcr_brts.RData .		#Copy from Kamiak – DO NOT FORGET “ .” at the end
+
+
+11. To edit a file, use vim or nano (text editors for Unix/Linux OS) 
+$ vim [job name]_15Jun2022.sh							#view and edit a file
+$ i													#insert text in file
+$ q:!												#quit without saving changes
+$ q:													#quit with saving changes
+
+
+12. Other helpful commands
+	$ export R_LIBS_USER=~/lib/R_lbs
+
+
+13. Additional resources:
+- https://www.hpc-carpentry.org/hpc-shell/00-hpc-intro/index.html
+- https://researchcomputing.princeton.edu/support/knowledge-base/slurm#arrays
+- https://hpc.wsu.edu/users-guide/
+- https://s3.wp.wsu.edu/uploads/sites/1122/2021/10/kamia¬¬¬k_cheat_sheet_vm.pdf	
