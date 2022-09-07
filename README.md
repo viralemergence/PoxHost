@@ -43,4 +43,4 @@ To run the analysis, you can fork and clone this repository or download the "Tse
      - Output: Figure4
 
 ### Running the BRT models on an HPC cluster
-To run the BRT models on a high performance computing (HPC) cluster (highly recommended), sample scripts and examples are available in the folder ~/Tseng2022/[HPC Example] (https://github.com/viralemergence/PoxHost/tree/main/Tseng2022/HPC%20Example).
+To run the BRT models on a high performance computing (HPC) cluster (highly recommended), sample scripts and examples are available in the folder ~/Tseng2022/[HPC Example](https://github.com/viralemergence/PoxHost/tree/main/Tseng2022/HPC%20Example).
