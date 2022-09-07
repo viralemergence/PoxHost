@@ -1378,7 +1378,7 @@ rm(search,search2,hok,mod,search_nt5000,search_nt15000,search_nt5000_sh0.01)
 
 ```
 
-### BRT function to use different data partitions
+### BRT function for applying across multiple data partitions
 
 ```{r}
 
@@ -1524,7 +1524,7 @@ brt_part=function(seed,response){
 
 ```
 
-###
+### Apply BRT function across 100 partitions to generate ensemble
 
 ```{r}
 

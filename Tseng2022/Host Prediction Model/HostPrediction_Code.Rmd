@@ -14,8 +14,21 @@ editor_options:
   chunk_output_type: console
 ---
 
+# Introduction
+
+The following code reproduces the analyses from <...>, pertaining to the host prediction model. 
+To reproduce the analyses pertaining to the link prediction model, please see the markdown file LinkPrediction_Code.Rmd located in the PoxHost repository on GitHub: https://github.com/viralemergence/PoxHost.
+
+To run the following script, two files are required in your home directory:
+(1) Data_raw.RData, the raw data file; and
+(2) "Output" folder, where all output will be saved - e.g., cleaned datasets, model results, figures, and tables.
+
+### Before proceeding, we recommend setting knit options and your working directory
 ```{r, echo=F, message=F}
 knitr::opts_chunk$set(eval=F)
+
+# Set working directory
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022")
 ```
 
 # I. Data Preparation
@@ -38,9 +51,6 @@ library(treespace)
 rm(list=ls()) 
 graphics.off()
 
-#(3) Set working directory
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022")
-
 ```
 
 ### Load raw data
@@ -48,7 +58,7 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 ```{r}
 
 #(1) Load data
-load("Data/Data_raw.RData")
+load("Data_raw.RData")
 # load(url('https://github.com/viralemergence/PoxHost/blob/fbc89ca541c580e8eb7f521d4e0cd5f1198a3d9f/Tseng2022/Data_raw.RData'))
 
 #(2) Pox data: host-OPV interactions detected via PCR/isolation from Virion database
@@ -412,7 +422,7 @@ rm(agg_competence,agg_pcr,agg_studies)
 ```{r}
 
 #(3) Save cleaned for analysis
-#save(poxdata, hostTree, file="Data/HostData_clean.RData")
+#save(poxdata, hostTree, file="Output/HostData_clean.RData")
 
 ```
 
@@ -435,8 +445,8 @@ library(ggtree)
 rm(list=ls()) 
 graphics.off()
 
-#(3) Set working directory
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022")
+# #(3) Set working directory
+# setwd("~/Tseng2022")
 
 ```
 
@@ -445,7 +455,7 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 ```{r}
 
 #(1) Load data and trim unnecessary columns
-load("Data/HostData_clean.RData")
+load("Output/HostData_clean.RData")
 data <- poxdata
 
 #(2) Check that genus name in poxdata is also in hostTree
@@ -764,7 +774,7 @@ pm_pf_results=pfsum(pm_pf)$results
 ```
 
 
-# III. Boosted regression trees (BRT)
+# 3. Boosted regression trees (BRT)
 
 ### Load required packages and set system
 
@@ -793,8 +803,8 @@ library(mgcv)
 rm(list=ls()) 
 graphics.off()
 
-#(3) Set working directory
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022")
+# #(3) Set working directory
+# setwd("~/Tseng2022")
 
 ```
 
@@ -803,7 +813,7 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 ```{r}
 
 #(1) Load data and clean environment
-load("Data/HostData_clean.RData")
+load("Output/HostData_clean.RData")
 data <- poxdata
 rm(poxdata)
 
@@ -1080,12 +1090,12 @@ if(hok!="ok"){
   search$type=factor(search$type,levels=c("PCR","competence"))
   
   ## export
-  write.csv(search,"Output/par tuning data summary.csv")
+  write.csv(search,"Output/par_tuning_data_summary.csv")
   
 }else{
   
   ## load
-  search=read.csv("Output/par tuning data summary.csv")
+  search=read.csv("Output/par_tuning_data_summary.csv")
   
 }
 
@@ -1197,7 +1207,7 @@ rm(search,search2,hok,mod,search_nt5000,search_nt15000,search_nt5000_sh0.01)
 
 ```
 
-### BRT function to use different data partitions
+### BRT function for applying across multiple data partitions
 
 ```{r}
 
@@ -1343,11 +1353,11 @@ brt_part=function(seed,response){
 
 ```
 
-###
+### Apply BRT function across 100 partitions to generate ensemble
 
 ```{r}
 
-#(1) apply across 100 splits each
+#(1) Apply across 100 splits each
 # smax=101
 smax=100
 pcr_brts=lapply(1:smax,function(x) brt_part(seed=x,response="pcr"))
@@ -1357,10 +1367,10 @@ comp_brts=lapply(1:smax,function(x) brt_part(seed=x,response="competence"))
 pm_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="cites"))
 
 #(3) save results to wd
-save(pcr_brts,comp_brts,pm_brts,file="Data/HostData_results.RData")
+save(pcr_brts,comp_brts,pm_brts,file="Output/HostData_results.RData")
 
 ```
 
-# IV. BRT figures
+# 4. BRT figures
 
-# V. Maps
+# 5. Maps
