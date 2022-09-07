@@ -51,7 +51,7 @@ $ ls lib/R_libs/							#view local R libraries
 ```R
 #!/bin/bash							#specifies Unix shell to be used
 #SBATCH --partition=fernandez					#specify partition to be used
-#SBATCH --job-name=[job name]					#job name
+#SBATCH --job-name=_**[job name]_**					#job name
 #SBATCH --output=[job name]_%j.out				#standard output file
 #SBATCH --error=[job name]_%j.err				#standard error file
 #SBATCH --mail-type=ALL						#send email on job start, job end and job fault
