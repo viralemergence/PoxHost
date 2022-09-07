@@ -16,7 +16,8 @@ editor_options:
 
 # Introduction
 
-The following code reproduces the analyses from <...>, pertaining to the host prediction model. 
+The following code reproduces the analyses from <...>, pertaining to the host prediction model. The code is subdivided into five parts: "1. Data Preparation", "2. Phylogenetic Analysis", "3. Boosted Regression Trees", "4. BRT Figures", "5. Mapping Host Distributions".
+
 To reproduce the analyses pertaining to the link prediction model, please see the markdown file LinkPrediction_Code.Rmd located in the PoxHost repository on GitHub: https://github.com/viralemergence/PoxHost.
 
 To run the following script, two files are required in your working directory:
@@ -33,7 +34,7 @@ knitr::opts_chunk$set(eval=F)
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model")
 ```
 
-# I. Data Preparation
+# 1. Data Preparation
 
 ### Load required packages and set system
 
@@ -428,7 +429,7 @@ rm(agg_competence,agg_pcr,agg_studies)
 
 ```
 
-# II. Phylogenetic analysis
+# 2. Phylogenetic Analysis
 
 ### Load required packages and set system
 
@@ -776,7 +777,7 @@ pm_pf_results=pfsum(pm_pf)$results
 ```
 
 
-# 3. Boosted regression trees (BRT)
+# 3. Boosted Regression Trees
 
 ### Load required packages and set system
 
@@ -1373,7 +1374,7 @@ save(pcr_brts,comp_brts,pm_brts,file="Output/HostData_results.RData")
 
 ```
 
-# 4. BRT figures
+# 4. BRT Figures
 
 ### Load required packages and set system
 
@@ -2391,7 +2392,7 @@ dev.off()
 
 ```
 
-# 5. Maps
+# 5. Mapping Host Distributions
 
 ### Load required packages and set system
 
@@ -2497,6 +2498,7 @@ sort(pred.comp[!(pred.comp %in% known.comp)])
 ```
 
 ### Let's make some maps! - Figure 4
+
 ```{r}
 
 ## Before proceeding, make sure you have downloaded "MAMMALS.shp" to your working directory. This shape file of mammal geographic range can be obtained from IUCN Red List Spatial Database: <https://www.iucnredlist.org/resources/spatial-data-download>. This file (>1GB) is only required for this section of the code ("5. Mapping host distribution").
