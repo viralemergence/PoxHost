@@ -18,97 +18,109 @@ $ ssh [username]@kamiak.wsu.edu
 $ sinfo -p fernandez							#view partition
 $ squeue -p fernandez							#view current jobs
 ```
-2. Request a compute node (aka idev session)
-	$ idev -p fernandez 							#receive access to one core for one hour (60 minutes default)
-	$ idev -p fernandez -t 180						#receive access to one core for three hours (note @cn##)
-	### $ exit									#returns you to login node (which is shared by all users)
 
+2. Request a compute node (aka idev session)
+```R
+$ idev -p fernandez 							#receive access to one core for one hour (60 minutes default)
+$ idev -p fernandez -t 180						#receive access to one core for three hours (note @cn##)
+### $ exit									#returns you to login node (which is shared by all users)
+```
 
 3. Pre-install necessary R packages to your local node - EXAMPLE:
-	### You only need to do this install step once for each package.
+```R
+### You only need to do this install step once for each package.
 ### Do not include install.packages() in your R script: attempts to install packages on Kamiak’s R will fail b/c of permissions. 
-	$ mkdir -pv~/lib/R_libs							#create local directory for R libraries
-	$ module load r/4.1.0							#load specific R version
-	$ R											#open R program
+$ mkdir -pv~/lib/R_libs							#create local directory for R libraries
+$ module load r/4.1.0							#load specific R version
+$ R											#open R program
 $ library(gbm)								#check if package already exists
-$ install.packages(“gbm”, dependencies = TRUE, repos = "http://cran.rstudio.com")																	#installs package & dependencies and auto selects CRAN mirror
-$ q()										#quit R program; to kill a command, Control+c
+$ install.packages(“gbm”, dependencies = TRUE, repos = "http://cran.rstudio.com")																		#installs package & dependencies and auto selects CRAN mirror
+$ q()									#quit R program; to kill a command, Control+c
 $ library(gbm)								#shows that gbm is now loaded
-$ ls lib/R_libs/								#view local R libraries 
+$ ls lib/R_libs/							#view local R libraries 
+```
 
-
-4. Prepare R script 
-	### In this example, we title the R script: Kamiak_BRT_07Sep2022
-	### Once packages are installed from the previous step, remove/comment out any install.packages() commands in your   R script
+4. Prepare R script 	
+```R
+### In this example, we title the R script: Kamiak_BRT_07Sep2022
+### Once packages are installed from the previous step, remove/comment out any install.packages() commands in your   R script
 ### Wherever you send your job to (.sh), it will set the file path of your job script as your home directory. Any file paths referenced IN your R script (e.g., reading in data or saving data) needs to match your home directory (file path of your job script). 
-
+```
 
 5. Create your batch job script (.sh) - sample code as follows
-	#!/bin/bash										#specifies Unix shell to be used
-	#SBATCH --partition=fernandez						#specify partition to be used
-	#SBATCH --job-name=[job name]						#job name
-	#SBATCH --output=[job name]_%j.out					#standard output file
-	#SBATCH --error=[job name]_%j.err					#standard error file
-	#SBATCH --mail-type=ALL								#send email on job start, job end and job fault
-	#SBATCH --mail-user=[username]@wsu.edu				#address where job status emails will be used
-	#SBATCH --nodes=1									#node count
-	#SBATCH --ntasks=1									#total number of tasks across all nodes
-	#SBATCH --cpus-per-task=40							#cpu-cores per task (Fernandez node has 40 cores)
-	#SBATCH --mem-per-cpu=4G							#memory per cpu-core (4G is default) 
-	module load r/4.1.0								#load specified R version (newest is default)
-	Rscript --vanilla [R script title].R  				#’vanilla’ runs R script from clean environment
-	echo "Completed job $SLURM_JOBID on nodes $SLURM_JOB_NODELIST" 
-
+```R
+#!/bin/bash							#specifies Unix shell to be used
+#SBATCH --partition=fernandez					#specify partition to be used
+#SBATCH --job-name=[job name]					#job name
+#SBATCH --output=[job name]_%j.out				#standard output file
+#SBATCH --error=[job name]_%j.err				#standard error file
+#SBATCH --mail-type=ALL						#send email on job start, job end and job fault
+#SBATCH --mail-user=[username]@wsu.edu				#address where job status emails will be used
+#SBATCH --nodes=1						#node count
+#SBATCH --ntasks=1						#total number of tasks across all nodes
+#SBATCH --cpus-per-task=40					#cpu-cores per task (Fernandez node has 40 cores)
+#SBATCH --mem-per-cpu=4G					#memory per cpu-core (4G is default) 
+module load r/4.1.0						#load specified R version (newest is default)
+Rscript --vanilla [R script title].R  				#’vanilla’ runs R script from clean environment
+echo "Completed job $SLURM_JOBID on nodes $SLURM_JOB_NODELIST" 
+```
 
 6. Transfer files to Kamiak - EXAMPLE: R script (.R), data file (.RData), Output folder, shell script (.sh), etc.
-$ logout												#logout of Kamiak
+```R
+$ logout									#logout of Kamiak
 $ scp -r /~/HPC Example/Kamiak_BRT_07Sep2022.sh [username]@kamiak.wsu.edu:~	#login password will be requested
-$ scp -r /~/HPC Example/HostData_clean.RData [username]@kamiak.wsu.edu:~		#login password will be requested
-$ scp -r /~/HPC Example/Output/ [username]@kamiak.wsu.edu:~				#login password will be requested
-$ scp -r /~/HPC Example/KatieJob_07Sep2022.sh [username]@kamiak.wsu.edu:~		#login password will be requested
-$ ls													#check that contents were saved to home directory
-
+$ scp -r /~/HPC Example/HostData_clean.RData [username]@kamiak.wsu.edu:~	#login password will be requested
+$ scp -r /~/HPC Example/Output/ [username]@kamiak.wsu.edu:~			#login password will be requested
+$ scp -r /~/HPC Example/KatieJob_07Sep2022.sh [username]@kamiak.wsu.edu:~	#login password will be requested
+$ ls										#check that contents were saved to home directory
+``
 
 7. Before submitting job, let’s test R script 
-$ head Kamiak_BRT_07Sep2022.R 							#view your R script
-$ vim Kamiak_BRT_07Sep2022.R 							#with vim, you can now edit the file
-$ R													#open R
-$ load(“HostData_clean.RData”)							#let’s try running a couple lines of code
-$ data <- poxdata									#after testing, to exit vim w/o saving: press Esc key, type :q, and hit Enter key
-
+```R
+$ head Kamiak_BRT_07Sep2022.R 			#view your R script
+$ vim Kamiak_BRT_07Sep2022.R 			#with vim, you can now edit the file
+$ R						#open R
+$ load(“HostData_clean.RData”)			#let’s try running a couple lines of code
+$ data <- poxdata				#after testing, to exit vim w/o saving: press Esc key, type :q, and hit Enter key
+```
 
 8. Submit job script to job queue/scheduler
-$ ssh [username]@kamiak.wsu.edu	    						#log back into Kamiak
-$ sbatch KatieJob_07Sep2022.sh							#you will get an email from SLURM notifying you the
-$ squeue -u [username]									 job is running and a 2nd email when it’s finished
+```R
+$ ssh [username]@kamiak.wsu.edu	    		#log back into Kamiak
+$ sbatch KatieJob_07Sep2022.sh			#you will get an email from SLURM notifying you the job is running and a 2nd email when it’s finished
+$ squeue -u [username]				 
 $ squeue -j [job number]									
 $ exit
-
+```
 
 9. To check job progress, read contents of the output file; to check for errors, read contents of the error file
-$ cat [job name]_43310144.out							#read the contents of the file
+```R
+$ cat [job name]_43310144.out			#read the contents of the file
 $ cat [job name]_43310144.err			
-$ tail -4 [job name]_43310144.out						#read the last four lines of the file (default is 10)
-
+$ tail -4 [job name]_43310144.out		#read the last four lines of the file (default is 10)
+```
 
 10. Once the job is complete:
-$ ssh [username]@kamiak.wsu.edu	    						#log back into Kamiak
-$ ls													#check that data files were saved
-$ logout												#log out to proceed with file transfer
-$ cd Downloads/Results/Kamiak							#cd [filepath] of where you want to save file
-$ scp -r [username]@kamiak.wsu.edu:~/pcr_brts.RData .		#Copy from Kamiak – DO NOT FORGET “ .” at the end
-
+```R
+$ ssh [username]@kamiak.wsu.edu	    			#log back into Kamiak
+$ ls							#check that data files were saved
+$ logout						#log out to proceed with file transfer
+$ cd Downloads/Results/Kamiak				#cd [filepath] of where you want to save file
+$ scp -r [username]@kamiak.wsu.edu:~/pcr_brts.RData .	#Copy from Kamiak – DO NOT FORGET “ .” at the end
+```
 
 11. To edit a file, use vim or nano (text editors for Unix/Linux OS) 
-$ vim [job name]_15Jun2022.sh							#view and edit a file
-$ i													#insert text in file
-$ q:!												#quit without saving changes
-$ q:													#quit with saving changes
-
+```R
+$ vim [job name]_15Jun2022.sh				#view and edit a file
+$ i							#insert text in file
+$ q:!							#quit without saving changes
+$ q:							#quit with saving changes
+```
 
 12. Other helpful commands
-	$ export R_LIBS_USER=~/lib/R_lbs
-
+```R
+$ export R_LIBS_USER=~/lib/R_lbs
+```
 
 13. Additional resources:
 - https://www.hpc-carpentry.org/hpc-shell/00-hpc-intro/index.html
