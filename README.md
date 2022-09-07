@@ -12,14 +12,14 @@ To run the analysis, you can fork and clone this repository or download the "Tse
       - HostPrediction_Code.Rmd
       - HostPrediction_Code.pdf
       - Data_raw.RData
-      - MAMMALS.shp *see NOTES below*
-      - Output/ *see NOTES below*
+      - MAMMALS.shp (*see NOTES*)
+      - Output/ (*see NOTES*)
 2. Tseng 2020 > Link Prediction Model > ...
       - LinkPrediction_Code.Rmd
       - LinkPrediction_Code.pdf
       - Data_raw.RData
-      - MAMMALS.shp *see NOTES below*
-      - Output/ *see NOTES below*
+      - MAMMALS.shp (*see NOTES*)
+      - Output/ (*see NOTES*)
 
 *NOTE: 
 - MAMMALS.shp is a large shape file (>1GB) of mammal geographical range required in the last section of the code ("5. Mapping host distributions"). We recommend you download and save it directly to the the working directory of your local desktop. The file can be obtained from the IUCN Red List Spatial Database <https://www.iucnredlist.org/resources/spatial-data-download>.
