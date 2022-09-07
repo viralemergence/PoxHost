@@ -1363,14 +1363,1030 @@ smax=100
 pcr_brts=lapply(1:smax,function(x) brt_part(seed=x,response="pcr"))
 comp_brts=lapply(1:smax,function(x) brt_part(seed=x,response="competence"))
 
-#(2) run wos brts
+#(2) Run wos brts
 pm_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="cites"))
 
-#(3) save results to wd
+#(3) Save results to wd
 save(pcr_brts,comp_brts,pm_brts,file="Output/HostData_results.RData")
 
 ```
 
 # 4. BRT figures
+
+### Load required packages and set system
+
+```{r}
+
+#(1) Libraries for preparing data for analysis
+library(tidyr)
+library(ggplot2)
+library(sciplot)
+library(fastDummies)
+library(caper)
+library(ape)
+library(phylofactor)
+library(treeio)
+library(ggtree)
+library(plotrix)
+library(rstatix)
+library(ggrepel)
+library(ggpubr)
+library(plyr)
+
+#(2) Clean environment
+rm(list=ls()) 
+graphics.off()
+
+```
+
+### Evaluate performance measures: 
+How accurately did infection and competence BRT models distinguish OPV positive and negative species?
+
+```{r}
+
+#### If needed, increase vector memory in R environment and reboot R before proceeding (https://stackoverflow.com/questions/51295402/r-on-macos-error-vector-memory-exhausted-limit-reached)
+
+#(1) Load data
+load("Output/HostData_results.RData")
+
+#(2) Index non-missing
+pcr_keep=which(!is.na(sapply(pcr_brts,function(x) x$testAUC)))
+comp_keep=which(!is.na(sapply(comp_brts,function(x) x$testAUC)))
+
+#(3) All
+keep=intersect(pcr_keep,comp_keep)
+
+#(4) Trim
+pcr_brts=pcr_brts[keep]
+comp_brts=comp_brts[keep]
+
+#(5) Get net AUC
+mean(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC)))
+se(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC)))
+
+#(6) Get net sensitivity
+mean(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen)))
+se(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen)))
+
+#(7) Get net specificity
+mean(c(sapply(pcr_brts,function(x) x$spec),sapply(comp_brts,function(x) x$spec)))
+se(c(sapply(pcr_brts,function(x) x$spec),sapply(comp_brts,function(x) x$spec)))
+
+#(8) Get net AUC for cites
+mean(sapply(pm_brts,function(x) x$testAUC))
+se(sapply(pm_brts,function(x) x$testAUC))
+
+#(9) Clean environment
+rm(pm_brts)
+
+#(10) Get independent AUC for PCR and comp
+mean(sapply(pcr_brts,function(x) x$testAUC))
+se(sapply(pcr_brts,function(x) x$testAUC))
+mean(sapply(comp_brts,function(x) x$testAUC))
+se(sapply(comp_brts,function(x) x$testAUC))
+
+```
+
+### Compare performance between BRTs trained on infection vs. competence:
+
+```{r}
+
+#(1) Function for extracting data, performing unpaired t-test and determining effect size via Cohen's d
+tfun=function(measure){
+  
+  ## format data
+  n=length(sapply(pcr_brts,function(x) x$testAUC))
+  adata=data.frame(y=c(sapply(pcr_brts,function(x) x[measure][[1]]),
+                       sapply(comp_brts,function(x) x[measure][[1]])),
+                   response=c(rep('infection',n),rep('competence',n)),
+                   seed=c(sapply(pcr_brts,function(x) x$seed),
+                          sapply(comp_brts,function(x) x$seed)))
+  rm(n)
+  
+  ## factor
+  adata$response=factor(adata$response,levels=c('infection','competence'))
+  
+  ## make jitter position
+  adata$x=as.numeric(factor(adata$response))
+  set.seed(1)
+  adata$xj=jitter(adata$x,0.5)
+  
+  ## fix response
+  adata$response2=revalue(adata$response,c("infection"="RT-PCR",
+                                           "competence"="virus isolation"))
+  
+  ## t-test
+  tsum=t.test(y~response,data=adata,
+              alternative='two.sided',
+              var.equal=F,paired=F)  
+  
+  ## effect size
+  csum=cohens_d(y~response,data=adata,paired=F,var.equal=F)
+  
+  ## return
+  return(list(adata=adata,tsum=tsum,csum=csum))
+}
+
+#(2) Run for AUC
+adata=tfun("testAUC")
+
+#(3) Run for sensitivity
+mean(sapply(pcr_brts,function(x) x$sen))
+se(sapply(pcr_brts,function(x) x$sen))
+mean(sapply(comp_brts,function(x) x$sen))
+se(sapply(comp_brts,function(x) x$sen))
+
+#(4) Compare w/ tfun function
+sedata=tfun("sen")
+
+#(5) Run for specificity
+mean(sapply(pcr_brts,function(x) x$spec))
+se(sapply(pcr_brts,function(x) x$spec))
+mean(sapply(comp_brts,function(x) x$spec))
+se(sapply(comp_brts,function(x) x$spec))
+
+#(6) Compare w/ tfun function
+spdata=tfun("spec")
+
+#(7) Adjust p values
+ps=c(adata$tsum$p.value,
+     sedata$tsum$p.value,
+     spdata$tsum$p.value)
+round(p.adjust(ps,method="BH"),4)    #"BH" (aka "fdr") = Benjamini & Hochberg (1995) method control the false discovery rate, the expected proportion of false discoveries amongst the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate)
+
+```
+
+###Generate boxplot of model performance: Figure S3 and Figure 2A
+
+```{r}
+
+#(1) Aggregate dataset
+data1=sedata$adata
+data2=spdata$adata
+
+#(2) Types
+data1$type="sensitivity"
+data2$type="specificity"
+sdata=rbind.data.frame(data1,data2)
+rm(data1,data2)
+
+#(3) Figure S3 - boxplot of model performance for supplement
+png("Output/Figure S3.png",width=4,height=5,units="in",res=300)
+set.seed(1)
+ggplot(sdata)+
+  #geom_violin(aes(x=x,y=auc,group=x),trim=T,scale="count",width=0.5)+
+  geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+
+  geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
+  scale_x_continuous(breaks=c(1,2),
+                     labels=levels(sdata$response2),
+                     limits=c(0.5,2.5))+
+  theme_bw()+
+  facet_wrap(~type,scales="free_y",strip.position="left",ncol=1)+
+  theme(strip.placement="outside",
+        strip.background=element_blank())+
+  labs(x="Response variable",
+       y=NULL)+
+  theme(axis.text.y=element_text(size=10),
+        axis.text.x=element_text(size=12),
+        axis.title=element_text(size=12),
+        strip.text=element_text(size=12))+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  guides(colour="none")
+dev.off()
+
+#(4) Figure 2A - plot of AUC for main text
+set.seed(1)
+f2A=ggplot(adata$adata)+
+  geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+
+  geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
+  scale_x_continuous(breaks=c(1,2),
+                     labels=levels(adata$adata$response2),
+                     limits=c(0.5,2.5))+
+  theme_bw()+
+  labs(x="Response variable",
+       y="Model performance (AUC)")+
+  theme(axis.text=element_text(size=10),
+        axis.text.x=element_text(size=12),
+        axis.title=element_text(size=12))+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  guides(colour="none")
+
+```
+
+### Identify relative feature importance
+
+```{r}
+
+#(1) Relative importance for PCR
+vinf=lapply(pcr_brts,function(x) x$rinf)
+pcr_vinf=do.call(rbind,vinf)
+
+#(2) Relative importance for competence
+vinf=lapply(comp_brts,function(x) x$rinf)
+comp_vinf=do.call(rbind,vinf)
+
+#(3) Aggregate mean, SE, var for PCR
+vdata_pcr=data.frame(aggregate(rel.inf~var,data=pcr_vinf,mean),
+                     aggregate(rel.inf~var,data=pcr_vinf,se)["rel.inf"],
+                     aggregate(rel.inf~var,data=pcr_vinf,var)["rel.inf"])
+names(vdata_pcr)=c("var","rel.inf","rse","rvar")
+vdata_pcr=vdata_pcr[order(vdata_pcr$rel.inf,decreasing=T),]
+
+#(4) Aggregate mean, SE, var for competence
+vdata_comp=data.frame(aggregate(rel.inf~var,data=comp_vinf,mean),
+                      aggregate(rel.inf~var,data=comp_vinf,se)["rel.inf"],
+                      aggregate(rel.inf~var,data=comp_vinf,var)["rel.inf"])
+names(vdata_comp)=c("var","rel.inf","rse","rvar")
+vdata_comp=vdata_comp[order(vdata_comp$rel.inf,decreasing=T),]
+
+#(5) Compare mean var
+mean(vdata_pcr$rvar)
+mean(vdata_comp$rvar)
+
+#(6) Compare variance in mean var
+var(vdata_pcr$rel.inf)
+var(vdata_comp$rel.inf)
+
+#(7) Clean environment
+rm(pcr_vinf,comp_vinf,vinf)
+
+```
+
+### Rank features by relative importance: Table S5
+
+```{r}
+
+#(1) Rank for pcr and competence
+vdata_pcr$pcr_rank=1:nrow(vdata_pcr)
+vdata_comp$comp_rank=1:nrow(vdata_comp)
+
+#(2) Relative infuence
+vdata_pcr$pcr_imp=vdata_pcr$rel.inf/100
+vdata_comp$comp_imp=vdata_comp$rel.inf/100
+
+#(3) Combine ranks
+ranks=merge(vdata_pcr[c("var","pcr_rank","pcr_imp")],
+            vdata_comp[c("var","comp_rank","comp_imp")],
+            by="var")
+rm(vdata_comp,vdata_pcr)
+
+#(4) Table S5 - Ranks
+ts5=ranks
+ts5$feature=ts5$var
+ts5=ts5[c("feature","pcr_imp","comp_imp","pcr_rank","comp_rank")]
+write.csv(ts5,"Output/Table S5.csv")
+
+```
+
+### Identify consistently important/unimportant host traits: Figure 2B
+
+```{r}
+
+#(1) Correlate: Were the rankings of relative feature importance sig. correlated?
+cor.test(ranks$pcr_rank,ranks$comp_rank,method="spearman")
+
+#(2) Trim to non-zero and rerank
+ranks2=ranks[-which(ranks$pcr_imp==0 & ranks$comp_imp==0),]
+ranks2=ranks2[order(ranks2$pcr_imp,decreasing=T),]
+ranks2$pcr_rank=1:nrow(ranks2)
+ranks2=ranks2[order(ranks2$comp_imp,decreasing=T),]
+ranks2$comp_rank=1:nrow(ranks2)
+
+#(3) Correlate: Were the rankings still correlated after removing traits with zero/no relative importance?
+cor.test(ranks2$pcr_rank,ranks2$comp_rank,method="spearman")
+
+#(4) Identify features with high residuals and plot
+ranks2$resid=abs(resid(lm(comp_rank~pcr_rank,data=ranks2)))  # extract residuals from linear regression as absolute values
+
+#(5) Plot residuals
+plot(ranks2$pcr_rank,ranks2$resid,
+     ylab="Residuals",xlab="pcr_rank", 
+     main="comp_rank")
+
+#(6) Flag if resid>10
+#ranks2$select=ifelse(ranks2$resid>10,"yes","no")
+ranks2$select=ifelse(ranks2$resid>18,"yes","no")
+which(ranks2$resid>20) # returns 5 values
+
+#(7) Flag if consistently low or consistently high
+n=7
+ranks2$select=ifelse(ranks2$comp_rank<n & ranks2$pcr_rank<n,"yes",ranks2$select)
+ranks2$select=ifelse(ranks2$comp_rank%in%tail(1:nrow(ranks2),n) & ranks2$pcr_rank%in%tail(1:nrow(ranks2),n),"yes",ranks2$select)
+
+#(8) Flag if high or low ranks
+# rnk=c(head(ranks2$comp_rank,n),tail(ranks2$comp_rank,n))
+# ranks2$select=ifelse(ranks2$comp_rank%in%rnk,"yes",ranks2$select)
+
+#(9) Just yes
+rset=ranks2[ranks2$select=="yes",]
+
+#(10) rset as ranks2
+rset=ranks2
+rset$var=ifelse(rset$select=="yes",rset$var,"")
+
+#(11) Figure 2B - Which traits were consistently important or unimportant?
+set.seed(1)
+f2B=ggplot(ranks2,aes(pcr_rank,comp_rank))+
+  #geom_label(data=rset,aes(label=var),size=2,fill=col,alpha=0.2)+
+  geom_text_repel(data=rset,aes(label=var),
+                  size=2,
+                  force=4,
+                  #nudge_y=-2,
+                  #nudge_x=1,
+                  direction="both",
+                  segment.size=0.5,
+                  segment.color="grey")+
+  geom_point()+
+  #scale_y_reverse(limits=c(max(c(ranks$comp_rank,ranks$pcr_rank))+3,0))+
+  #scale_x_reverse(limits=c(max(c(ranks$comp_rank,ranks$pcr_rank))+3,0))+
+  scale_y_reverse(limits=c(max(c(ranks2$comp_rank,ranks2$pcr_rank))+4,0))+
+  scale_x_reverse(limits=c(max(c(ranks2$comp_rank,ranks2$pcr_rank))+4,0))+
+  #geom_abline(slope=1,linetype=2,size=0.5)+
+  theme_bw()+
+  labs(x="Feature rank for RT-PCR",
+       y="Feature rank for virus isolation")+
+  theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=12))+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))
+
+#(12) Figure 2 - Combine Figure 2A and 2B
+png("Output/Figure 2.png",width=7,height=3.5,units="in",res=300)
+ggarrange(f2A,f2B,ncol=2,widths=c(1,1),
+          labels=c("(a)","(b)"),
+          label.x=c(0.21,0.18),
+          label.y=0.97,
+          font.label=list(face="plain",size=12))
+dev.off()
+
+```
+
+### Determine effect directions of each feature on the predicted outcome
+
+```{r}
+
+#(1) Partial dependence plots w/ pdp package
+detach("package:purrr", unload=TRUE)
+library(pdp)  #partial dependence plots help visualize the relationship b/w a subset of features and the response while accounting for the avg effect of the other predictors in the model
+library(gbm)
+
+#(2) Create function for compiling across BRTs for a given predictor, all else equal
+pdp_agg=function(mod,feature){
+  
+  ## just the plot function
+  pdep=plot(mod$mod,feature,
+            return.grid=T,
+            n.trees=mod$best,
+            plot=F,
+            continuous.resolution=200,
+            type="response")
+  
+  ## add seed
+  pdep$seed=unique(mod$roc$seed)
+  
+  ## save predictor
+  pdep$predictor=pdep[feature][,1]
+  
+  ## order
+  pdep=pdep[order(pdep$predictor),]
+  
+  ## get rank
+  pdep$rank=1:nrow(pdep)
+  
+  ## save yhat
+  pdep$yhat=pdep$y
+  
+  ## return
+  return(pdep)
+  
+}
+
+#(3) Function to plot
+pdp_plot=function(bmods,feature){
+  
+  ## pdp_agg
+  agg=do.call(rbind,lapply(bmods,function(x) pdp_agg(x,feature)))
+  
+  ## get class of the feature
+  cl=class(data[feature][,1])
+  
+  ## if else based on type
+  if(cl%in%c("numeric","integer")){
+    
+    ## get element-wise means
+    x=with(agg,tapply(predictor,rank,mean))
+    y=with(agg,tapply(yhat,rank,mean))
+    
+    ## save as mean
+    pmean=data.frame(predictor=x,yhat=y)
+    
+    ## get yrange
+    yrange=range(agg$yhat,pmean$yhat,na.rm=T)
+    
+    ## get histogram
+    hi=hist(data[feature][,1],breaks=30,plot=F)
+    hi=with(hi,data.frame(breaks[1:(length(breaks)-1)],counts))
+    names(hi)=c("mids","counts")
+    
+    ## ggplot it
+    ggplot(agg,aes(predictor,yhat,group=seed))+
+      
+      ## add histogram
+      geom_segment(data=hi,inherit.aes=F,
+                   aes(x=mids,xend=mids,
+                       y=yrange[1],yend=plotrix::rescale(counts,yrange)),
+                   size=1,colour="grey",alpha=0.25)+
+      
+      ## add lines
+      geom_line(size=1,alpha=0.25,colour="grey")+
+      
+      ## add mean
+      geom_line(data=pmean,size=2,inherit.aes=F,
+                aes(predictor,yhat))+
+      
+      ## theme
+      theme_bw()+
+      theme(axis.text=element_text(size=6),
+            axis.title=element_text(size=7))+
+      theme(axis.title.x=element_text(margin=margin(t=5,r=0,b=0,l=0)))+
+      theme(axis.title.y=element_text(margin=margin(t=0,r=5,b=0,l=0)))+
+      theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+      labs(x=feature,y="marginal effect")+
+      scale_y_continuous(labels=scales::number_format(accuracy=0.01))
+    
+    ## end numeric
+  }else{ ## factor-based plot
+    
+    ## get element-wise means
+    y=with(agg,tapply(yhat,predictor,mean))
+    
+    ## save as mean
+    #pmean=data.frame(predictor=x,yhat=y)
+    pmean=data.frame(y)
+    names(pmean)="yhat"
+    pmean$predictor=rownames(pmean)
+    rownames(pmean)=NULL
+    
+    ## make temp data
+    temp=data
+    temp$predictor=temp[feature][,1]
+    
+    ## do nothing
+    agg=agg
+    pmean=pmean
+    temp=temp
+    
+    ## get yrange
+    yrange=range(agg$yhat,pmean$yhat,na.rm=T)
+    
+    ## fix temp to yrange
+    temp$yhat=ifelse(temp$pcr==1,max(yrange),min(yrange))
+    
+    ## ggplot with rug
+    set.seed(1)
+    ggplot(agg,aes(predictor,yhat,group=seed))+
+      
+      ## add individual BRTs
+      geom_jitter(size=1,alpha=0.25,colour="grey",width=0.1)+
+      
+      ## add mean
+      geom_point(data=pmean,size=2,inherit.aes=F,shape=15,
+                 aes(predictor,yhat))+
+      
+      ## add rug
+      geom_rug(data=temp,inherit.aes=F,
+               aes(predictor,yhat),
+               sides="b",position="jitter",
+               colour="grey",alpha=0.25,
+               na.rm=T)+
+      
+      ## theme
+      theme_bw()+
+      theme(axis.text=element_text(size=6),
+            axis.title=element_text(size=7))+
+      theme(axis.title.x=element_text(margin=margin(t=5,r=0,b=0,l=0)))+
+      theme(axis.title.y=element_text(margin=margin(t=0,r=5,b=0,l=0)))+
+      theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+      labs(x=feature,y="marginal effect")+
+      scale_y_continuous(limits=c(yrange[1]-0.01,yrange[2]+0.01),
+                         labels=scales::number_format(accuracy=0.01))
+    
+  }
+  
+}
+
+#(4) Load cleaned data file
+load("Output/HostData_clean.RData")
+data <- poxdata
+
+#(5) Make binary columns for family
+dums=dummy_cols(data["fam"])
+
+#(6) Unique
+dums=dums[!duplicated(dums$fam),]
+
+#(7) Ensure all factor
+for(i in 1:ncol(dums)){
+  
+  ## column as factor
+  dums[,i]=factor(dums[,i])
+  
+}
+
+#(8) Merge
+data=merge(data,dums,by="fam",all.x=T)
+rm(dums)
+
+#(9) Top PCR
+ranks2=ranks2[order(ranks2$pcr_rank),]
+p1=pdp_plot(pcr_brts,ranks2$var[1])
+p2=pdp_plot(pcr_brts,ranks2$var[2])
+p3=pdp_plot(pcr_brts,ranks2$var[3])
+p4=pdp_plot(pcr_brts,ranks2$var[4])
+p5=pdp_plot(pcr_brts,ranks2$var[5])
+p6=pdp_plot(pcr_brts,ranks2$var[6])
+p7=pdp_plot(pcr_brts,ranks2$var[7])
+p8=pdp_plot(pcr_brts,ranks2$var[8])
+p9=pdp_plot(pcr_brts,ranks2$var[9])
+p10=pdp_plot(pcr_brts,ranks2$var[10])
+
+#(10) Top competence
+ranks2=ranks2[order(ranks2$comp_rank),]
+c1=pdp_plot(comp_brts,ranks2$var[1])
+c2=pdp_plot(comp_brts,ranks2$var[2])
+c3=pdp_plot(comp_brts,ranks2$var[3])
+c4=pdp_plot(comp_brts,ranks2$var[4])
+c5=pdp_plot(comp_brts,ranks2$var[5])
+c6=pdp_plot(comp_brts,ranks2$var[6])
+c7=pdp_plot(comp_brts,ranks2$var[7])
+c8=pdp_plot(comp_brts,ranks2$var[8])
+c9=pdp_plot(comp_brts,ranks2$var[9])
+c10=pdp_plot(comp_brts,ranks2$var[10])
+
+#(11) Figure S4 - Compile top ranked features by PCR and competence models
+library(patchwork)
+pcr_pdp_plots <- p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+plot_layout(nrow=10,ncol=1,byrow=F)
+comp_pdp_plots <- c1+c2+c3+c4+c5+c6+c7+c8+c9+c10+plot_layout(nrow=10,ncol=1,byrow=F)
+png("Output/Figure S4.png",width=4,height=10,units="in",res=300)
+ggarrange(pcr_pdp_plots,comp_pdp_plots,ncol=2,nrow=2,widths=c(4,4),heights=c(22,1),
+          labels=c("(A) Infection","(B) Competence"),
+          label.x=c(0,-0.1), label.y=0.001,
+          font.label=list(face="plain",size=12))
+dev.off()
+
+#(12) Clean environment
+rm(pcr_pdp_plots,comp_pdp_plots,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,
+   c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,
+   ranks,ranks2,ts5,f2A,f2B,adata)
+
+```
+
+### Model predictions: extract and save predicted probabilities
+
+```{r}
+
+#(1) Average predictions: PCR
+pcr_apreds=lapply(pcr_brts,function(x) x$predict)
+pcr_apreds=do.call(rbind,pcr_apreds)
+
+#(2) Aggregate
+pcr_apreds=data.frame(aggregate(pred~treename,data=pcr_apreds,mean),
+                      aggregate(cpred~treename,data=pcr_apreds,mean)['cpred'], ## holding wos constant
+                      aggregate(pcr~treename,data=pcr_apreds,prod)["pcr"],
+                      aggregate(competence~treename,data=pcr_apreds,prod)["competence"])
+
+#(3) Generate type variable
+pcr_apreds$type='PCR'
+
+#(4) Average predictions: competence
+comp_apreds=lapply(comp_brts,function(x) x$predict)
+comp_apreds=do.call(rbind,comp_apreds)
+
+#(5) Aggregate
+comp_apreds=data.frame(aggregate(pred~treename,data=comp_apreds,mean),
+                       aggregate(cpred~treename,data=comp_apreds,mean)['cpred'], ## holding wos constant
+                       aggregate(pcr~treename,data=comp_apreds,prod)["pcr"],
+                       aggregate(competence~treename,data=comp_apreds,prod)["competence"])
+
+#(6) Generate type variable
+comp_apreds$type='competence'
+
+#(7) Combine apreds
+apreds=rbind.data.frame(pcr_apreds,comp_apreds)
+
+#(8) Add study
+apreds=merge(apreds,data[c("treename","studied")],by="treename")
+
+#(9) Generate positivity variable
+apreds$positivity=ifelse(apreds$pcr==1 & apreds$type=="PCR",1,
+                         ifelse(apreds$competence==1 & apreds$type=='competence',1,0))
+
+#(10) Generate cat variable from studied
+apreds$cat=ifelse(apreds$studied==0,"unsampled",
+                  ifelse(apreds$positivity==1,"positive","negative"))
+
+#(11) Generate type variable
+library(plyr)
+apreds$type=factor(apreds$type,levels=c("PCR","competence"))
+apreds$type2=revalue(apreds$type,c("PCR"="infection"))
+
+#(12) Transform apreds long to wide
+apreds2=spread(apreds[c('treename','type','cpred')],type,cpred)
+comp_apreds$comp=comp_apreds$competence
+
+#(13) Merge with comp_apreds
+apreds2=merge(apreds2,comp_apreds[c("treename","pcr","comp")],by="treename")
+
+#(14) Fix names
+names(apreds2)=c("treename","pred_pcr","pred_comp","PCR","competence")
+
+#(15) Classify true negatives
+data$type=ifelse(data$studied>0 & data$pcr==0 & data$competence==0,"true negative","other")
+
+#(16) Merge with data
+apreds2=merge(apreds2,data[c("treename","type","studied","ord","fam","gen")],by='treename')
+
+#(17) Fix type
+apreds2$cat=ifelse(apreds2$studied==0,"unsampled",
+                   ifelse(apreds2$PCR==0 & apreds2$competence==0,"negative","positive"))
+
+#(18) Fix cat
+apreds2$cat=factor(apreds2$cat,c("positive",'negative','unsampled'))
+apreds$cat=factor(apreds$cat,levels=levels(apreds2$cat))
+
+#(19) Fix type2
+apreds$type2=revalue(apreds$type2,
+                     c("infection"="Infection",
+                       "competence"="Competence"))
+
+#(20) Save 
+preds=apreds2
+preds$fam=NULL
+preds$gen=NULL
+
+#(21) Write file
+write.csv(preds,"Output/PoxHost predictions.csv")
+
+```
+
+### Model predictions: Figures of predicted probabilities distribution - Figure 3
+
+```{r}
+
+#(1) Figure 3a - Density plot of predicted probabilities
+remotes::install_github("awhstin/awtools")
+library(awtools)
+cc=mpalette[2:4] 
+cc=rev(cc)
+f3A=ggplot(apreds,aes(cpred))+
+  geom_density(aes(fill=cat,colour=cat),alpha=0.5)+
+  facet_wrap(~type2,ncol=1,strip.position='top',scales="free_y")+
+  theme_bw()+
+  theme(legend.position="top")+
+  labs(x=expression(paste("Predicted probability (",italic(P),") of hosting")))+
+  xlim(0,1)+
+  theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=12),
+        legend.title=element_text(size=12),
+        legend.text=element_text(size=11),
+        strip.text=element_text(size=11),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(20,20,20,20))+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  scale_colour_manual(values=cc)+
+  scale_fill_manual(values=cc)+
+  guides(colour=guide_legend(title="(a) Orthopoxvirus positivity"),
+         fill=guide_legend(title="(a) Orthopoxvirus positivity"))
+f3A
+
+#(2) Figure 3b - Scatterplot of predicted probabilities
+f3B=ggplot(apreds2,aes(pred_pcr,pred_comp))+
+  geom_point(alpha=0.5,size=2,aes(colour=cat,fill=cat))+
+  geom_smooth(method='gam',colour="grey")+
+  labs(x=expression(paste(italic(P),' from RT-PCR models')),
+       y=expression(paste(italic(P),' from virus isolation models')))+
+  theme_bw()+
+  theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=12),
+        legend.title=element_text(size=12),
+        legend.text=element_text(size=11),
+        strip.text=element_text(size=11),
+        legend.margin=margin(0,0,0,0),
+        legend.box.margin=margin(20,20,20,20))+
+  theme(legend.position="top")+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  scale_colour_manual(values=cc)+
+  scale_fill_manual(values=cc)+
+  guides(colour=guide_legend(title="(a) Orthohantavirus positivity"),
+         fill=guide_legend(title="(a) Orthohantavirus positivity"))
+f3B
+
+#(3) Figure 3 - Combine figure 3a and 3b
+png("Output/Figure 3.png",width=6.5,height=4,units="in",res=300)
+f3=ggarrange(f3A,f3B,common.legend=T)
+f3
+dev.off()
+
+```
+
+### Model predictions: Explore model correlation and phylogenetic signal
+
+```{r}
+
+#(1) Test correlation between the predicted probabilities of infection vs. competence models
+cor(apreds2$pred_pcr,apreds2$pred_comp,method='spearman')
+cor.test(apreds2$pred_pcr,apreds2$pred_comp,method='spearman')
+
+#(2) load phylogeny
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/data/cleaned")
+mtree=readRDS('mammal phylo trim.rds')
+
+#(3) Setdiff
+apreds2$tree=ifelse(apreds2$treename%in%setdiff(apreds2$treename,mtree$tip.label),'cut','keep')
+table(apreds2$tree)    
+## keep: 945
+
+#(4) Trim and match
+bdata=subset(apreds2,tree=='keep')
+bdata=bdata[match(mtree$tip.label,bdata$treename),]
+
+#(5) Save
+bdata$label=bdata$treename
+bdata$Species=bdata$treename
+
+#(6) Merge
+cdata=comparative.data(phy=mtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)    #vcv=T indicates to include variance covariance array representing phylogeny within the comparative dataset
+
+#(7) Fix
+cdata$data$tree=NULL
+
+#(8) Measure phylogenetic signal (Pagel's lambda) of model predictions
+pcr_lmod=pgls(pred_pcr~1,data=cdata,lambda="ML")     #pgls fits a linear model while taking into account phylogenetic non-independence between data ponits
+comp_lmod=pgls(pred_comp~1,data=cdata,lambda="ML")   #lambda = value for lambda transformation; 'ML' uses maximum likelihood to optimize branch length transformations
+###for more info: https://static1.squarespace.com/static/5459da8ae4b042d9849b7a7b/t/57ea64eae58c62718aa34769/1474979059782/Nesin_Winternitz_Practical_1and2.pdf
+
+#(9) Summarize 
+summary(pcr_lmod)
+summary(comp_lmod)
+
+```
+
+### Model predictions: Identify taxonomic patterns
+
+```{r}
+
+#(1) Extract taxonomy
+cdata$data$taxonomy=paste(cdata$data$ord,cdata$data$fam,cdata$data$Species,sep='; ') #We refer to genus as "Species" as this is required in later functions
+
+#(2) Set taxonomy
+taxonomy=data.frame(cdata$data$taxonomy)
+names(taxonomy)="taxonomy"
+taxonomy$Species=rownames(cdata$data)
+taxonomy=taxonomy[c("Species","taxonomy")]
+taxonomy$taxonomy=as.character(taxonomy$taxonomy)
+
+#(3) Holm rejection procedure
+HolmProcedure <- function(pf,FWER=0.05){
+  
+  ## get split variable
+  cs=names(coef(pf$models[[1]]))[-1]
+  split=ifelse(length(cs)>1,cs[3],cs[1])
+  
+  ## obtain p values
+  if (pf$models[[1]]$family$family%in%c('gaussian',"Gamma","quasipoisson")){
+    pvals <- sapply(pf$models,FUN=function(fit) summary(fit)$coefficients[split,'Pr(>|t|)'])
+  } else {
+    pvals <- sapply(pf$models,FUN=function(fit) summary(fit)$coefficients[split,'Pr(>|z|)'])
+  }
+  D <- length(pf$tree$tip.label)
+  
+  ## this is the line for Holm's sequentially rejective cutoff
+  keepers <- pvals<=(FWER/(2*D-3 - 2*(0:(pf$nfactors-1))))
+  
+  
+  if (!all(keepers)){
+    nfactors <- min(which(!keepers))-1
+  } else {
+    nfactors <- pf$nfactors
+  }
+  return(nfactors)
+}
+
+#(13) Get species in a clade
+cladeget=function(pf,factor){
+  spp=pf$tree$tip.label[pf$groups[[factor]][[1]]]
+  return(spp)
+}
+
+#(4) Summarize pf object 
+pfsum=function(pf){
+  
+  ## get formula
+  chars=as.character(pf$frmla.phylo)[-1]
+  
+  ## response
+  resp=chars[1]
+  
+  ## fix
+  resp=ifelse(resp=='cbind(pos, neg)','prevalence',resp)
+  
+  ## holm
+  hp=HolmProcedure(pf)
+  
+  ## save model
+  model=chars[2]
+  
+  ## set key
+  setkey(pf$Data,'Species')
+  
+  ## make data
+  dat=data.frame(pf$Data)
+  
+  ## make clade columns in data
+  for(i in 1:hp){
+    
+    dat[,paste0(resp,'_pf',i)]=ifelse(dat$Species%in%cladeget(pf,i),'factor','other')
+    
+  }
+  
+  ## make data frame to store taxa name, response, mean, and other
+  results=data.frame(matrix(ncol=6, nrow = hp))
+  colnames(results)=c('factor','taxa','tips','node',"clade",'other')
+  
+  ## set taxonomy
+  taxonomy=dat[c('Species','taxonomy')]
+  taxonomy$taxonomy=as.character(taxonomy$taxonomy)
+  
+  ## loop
+  for(i in 1:hp){
+    
+    ## get taxa
+    tx=pf.taxa(pf,taxonomy,factor=i)$group1
+    
+    ## get tail
+    tx=sapply(strsplit(tx,'; '),function(x) tail(x,1))
+    
+    ## combine
+    tx=paste(tx,collapse=', ')
+    
+    # save
+    results[i,'factor']=i
+    results[i,'taxa']=tx
+    
+    ## get node
+    tips=cladeget(pf,i)
+    node=ggtree::MRCA(pf$tree,tips)
+    results[i,'tips']=length(tips)
+    results[i,'node']=ifelse(is.null(node) & length(tips)==1,'species',
+                             ifelse(is.null(node) & length(tips)!=1,NA,node))
+    
+    ## get means
+    ms=(tapply(dat[,resp],dat[,paste0(resp,'_pf',i)],mean))
+    
+    ## add in
+    results[i,'clade']=ms['factor']
+    results[i,'other']=ms['other']
+    
+  }
+  
+  ## return
+  return(list(set=dat,results=results))
+}
+
+#(5) Fix palette
+AlberPalettes <- c("YlGnBu","Reds","BuPu", "PiYG")
+AlberColours <- sapply(AlberPalettes, function(a) RColorBrewer::brewer.pal(5, a)[4])
+afun=function(x){
+  a=AlberColours[1:x]
+  return(a)
+}
+
+#(6) Make low and high
+pcols=afun(2)
+
+#(7) PCR predictions
+set.seed(1)
+pcrpred_pf=gpf(Data=cdata$data,tree=cdata$phy,
+               frmla.phylo=pred_pcr~phylo,
+               family=gaussian,algorithm='phylo',nfactors=10,min.group.size=5)
+
+#(8) Comp predictions
+set.seed(1)
+comppred_pf=gpf(Data=cdata$data,tree=cdata$phy,
+                frmla.phylo=pred_comp~phylo,
+                family=gaussian,algorithm='phylo',nfactors=10,min.group.size=5)
+
+#(9) Summarize
+pcrpred_pf_results=pfsum(pcrpred_pf)$results
+comppred_pf_results=pfsum(comppred_pf)$results
+
+#(10) Add model
+pcrpred_pf_results$model="infection"
+comppred_pf_results$model="competence"
+
+#(11) Bind
+predpfs=rbind.data.frame(pcrpred_pf_results,comppred_pf_results)
+
+#(12) Round
+predpfs$clade=round(predpfs$clade,2)
+predpfs$other=round(predpfs$other,2)
+
+#(13) Write
+write.csv(predpfs,"Output/Table S6.csv")
+
+```
+
+### Model predictions: Re-plot predicted probabilities with phylogenetic tree - Figure 3(C)
+
+```{r}
+
+#(1) Combine tree and data
+dtree=treeio::full_join(as.treedata(cdata$phy),cdata$data,by="label")
+
+#(2) Plot base tree
+pbase=ggtree(dtree,layout="fan",branch.length="none",size=0.25)
+
+#(3) Get tree data
+tdata=pbase$data
+
+#(4) Get tips only
+tdata=tdata[which(tdata$isTip==T),]
+
+#(5) Set x max
+xmax=max(tdata$x)+10
+
+#(6) Make data frame
+samp=data.frame(x=tdata$x,
+                y=tdata$y,
+                yend=tdata$y,
+                xend_pcr=rescale(cdata$data$pred_pcr,c(max(tdata$x),xmax)),
+                xend_comp=rescale(cdata$data$pred_comp,c(max(tdata$x),xmax)),
+                pred_pcr=(cdata$data$pred_pcr),
+                pred_comp=(cdata$data$pred_comp),
+                treename=tdata$label)
+
+#(7) Merge with cat
+samp=merge(samp,apreds2[c("treename","cat")],by="treename",all.x=T)
+
+#(8) PCR
+gg=pbase
+for(i in 1:nrow(pcrpred_pf_results)){
+  
+  gg=gg+
+    geom_hilight(node=pcrpred_pf_results$node[i],
+                 alpha=ifelse(pcrpred_pf_results$tips[i]/Ntip(cdata$phy)<0.5,0.5,0.25),
+                 fill="black")
+}
+
+#(9) Add preds
+p1=gg+
+  geom_segment(data=samp,aes(x=x,y=y,xend=xend_pcr,yend=yend,colour=cat),size=0.75)+
+  scale_colour_manual(values=cc)+
+  scale_fill_manual(values=cc)+
+  guides(colour="none")
+
+#(10) Competence
+gg=pbase
+for(i in 1:nrow(comppred_pf_results)){
+  
+  gg=gg+
+    geom_hilight(node=comppred_pf_results$node[i],
+                 alpha=ifelse(comppred_pf_results$tips[i]/Ntip(cdata$phy)<0.5,0.5,0.25),
+                 fill="black")
+}
+
+#(11) Add preds
+p2=gg+
+  geom_segment(data=samp,aes(x=x,y=y,xend=xend_comp,yend=yend,colour=cat),size=0.75)+
+  scale_colour_manual(values=cc)+
+  scale_fill_manual(values=cc)+
+  guides(colour="none")
+
+#(12) Figure F3C - Combine p1 and p2
+f3C=p1+p2
+f3C=ggarrange(p1,p2,
+              labels=c("(b) RT-PCR predictions","(c) Virus isolation predictions"),
+              label.x=c(-0.03,-0.1),
+              label.y=0.1,
+              font.label=list(face="plain",size=13))
+
+#(13) Revise Figure 3
+png("Output/Figure 3.png",width=7,height=7.25,units="in",res=300)
+#f3+f3C+plot_layout(nrow=2,heights=c(1.25,1))
+ggarrange(f3,f3C,nrow=2,heights=c(1.1,1))
+#f3B+f3C+plot_layout(nrow=2,heights=c(1,1.5))
+#f3B|(p1/p2)+plot_layout(widths=c(1.5,1))
+dev.off()
+
+```
 
 # 5. Maps
