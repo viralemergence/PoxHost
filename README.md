@@ -13,13 +13,13 @@ To run the analysis, you can fork and clone this repository or download the "Tse
      - Output: *HostData_clean.RData*
 2. Phylogenetic analysis
      - Input: *HostData_clean.RData*
-     - Output: Figure 1
+     - Output: Figure1
 3. Boosted regression trees (BRT)
      - Input: *HostData_clean.RData*
-     - Output: Figure S1, TableS1, par_tuning_data_summary.csv, Figure S2, *HostData_results.RData*
+     - Output: FigureS1, TableS1, par_tuning_data_summary.csv, FigureS2, *HostData_results.RData*
 4. BRT figures 
-     - Input: *HostData_results.RData*
-     - Output: 
+     - Input: *HostData_results.RData*, *HostData_clean.RData*
+     - Output: FigureS3, Figure2, TableS5, FigureS4, PoxHost_predictions.csv, Figure3, TableS6.csv
 5. Maps
      - Input: *HostData_results.RData*
      - Output: 
