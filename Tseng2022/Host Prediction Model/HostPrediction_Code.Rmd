@@ -19,10 +19,10 @@ editor_options:
 The following code reproduces the analyses from <...>, pertaining to the host prediction model. 
 To reproduce the analyses pertaining to the link prediction model, please see the markdown file LinkPrediction_Code.Rmd located in the PoxHost repository on GitHub: https://github.com/viralemergence/PoxHost.
 
-To run the following script, two files are required in your home directory:
+To run the following script, two files are required in your working directory:
 (1) Data_raw.RData, the raw data file;
-(2) MAMMALS.shp, the shape file of mammal geographical range (for mapping - part five); and
-(2) "Output" folder, where all output will be saved - e.g., cleaned datasets, model results, figures, and tables.
+(2) "Output" folder, where all output will be saved - e.g., cleaned datasets, model results, figures, and tables; 
+(3) MAMMALS.shp, the shape file of mammal geographical range obtained from IUCN Red List Spatial Database <https://www.iucnredlist.org/resources/spatial-data-download>. This file (>1GB) is only required in the last section of the code ("5. Mapping host distribution") and should be downloaded to your working directory before proceeding with part five.
 
 ### Before proceeding, we recommend setting knit options and your working directory
 
@@ -2499,8 +2499,9 @@ sort(pred.comp[!(pred.comp %in% known.comp)])
 ### Let's make some maps! - Figure 4
 ```{r}
 
-#(1) Load shape file of mammal geographic range (from IUCN Red List database)  from raw datafile
-##<https://www.iucnredlist.org/resources/spatial-data-download>
+## Before proceeding, make sure you have downloaded "MAMMALS.shp" to your working directory. This shape file of mammal geographic range can be obtained from IUCN Red List Spatial Database: <https://www.iucnredlist.org/resources/spatial-data-download>. This file (>1GB) is only required for this section of the code ("5. Mapping host distribution").
+
+#(1) Load shape file of mammal geographic range
 iucn <- st_read(dsn = "MAMMALS.shp", layer='MAMMALS')
 
 #(2) Make a blank raster
@@ -2550,4 +2551,3 @@ rasterVis::levelplot(maps,
                      #labels = labels,
                      maxpixels = 5e6)
 dev.off()
-
