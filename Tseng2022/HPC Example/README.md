@@ -13,10 +13,11 @@ To follow along with this example, download the folder ~/Tseng2022/[HPC Example]
 
 ## Instructions 
 1. Login to Kamiak to view your allocated compute partitions:
-	$ ssh [username]@kamiak.wsu.edu
-	$ sinfo -p fernandez							#view partition
-	$ squeue -p fernandez							#view current jobs
-
+```R
+$ ssh [username]@kamiak.wsu.edu
+$ sinfo -p fernandez							#view partition
+$ squeue -p fernandez							#view current jobs
+```
 2. Request a compute node (aka idev session)
 	$ idev -p fernandez 							#receive access to one core for one hour (60 minutes default)
 	$ idev -p fernandez -t 180						#receive access to one core for three hours (note @cn##)
