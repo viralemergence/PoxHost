@@ -73,7 +73,7 @@ $ scp -r /~/HPC Example/HostData_clean.RData [username]@kamiak.wsu.edu:~	#login 
 $ scp -r /~/HPC Example/Output/ [username]@kamiak.wsu.edu:~			#login password will be requested
 $ scp -r /~/HPC Example/KatieJob_07Sep2022.sh [username]@kamiak.wsu.edu:~	#login password will be requested
 $ ls										#check that contents were saved to home directory
-``
+```
 
 7. Before submitting job, let’s test R script 
 ```R
