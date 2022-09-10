@@ -1,6 +1,6 @@
 ---
-title: "Orthopoxvirus Host Prediction"
-author: "Katie Tseng, Dan Becker, Colin Carlson, etc."
+title: "Orthopoxvirus Host Prediction Model Code"
+author: "Katie Tseng, Dan Becker, Colin Carlson, Pilar Fernandez, and Stephanie Seifer"
 output:
   pdf_document:
   latex_engine: xelatex
@@ -20,7 +20,7 @@ The following code reproduces the analyses from <...>, pertaining to the host pr
 
 To reproduce the analyses pertaining to the link prediction model, please see the markdown file LinkPrediction_Code.Rmd located in the PoxHost repository on GitHub: https://github.com/viralemergence/PoxHost.
 
-To run the following script, two files are required in your working directory:
+To run the following script, three files are required in your working directory:
 (1) Data_raw.RData, the raw data file;
 (2) "Output" folder, where all output will be saved - e.g., cleaned datasets, model results, figures, and tables; 
 (3) MAMMALS.shp, the shape file of mammal geographical range obtained from IUCN Red List Spatial Database <https://www.iucnredlist.org/resources/spatial-data-download>. This file (>1GB) is only required in the last section of the code ("5. Mapping host distribution") and should be downloaded to your working directory before proceeding with part five.
@@ -32,13 +32,14 @@ knitr::opts_chunk$set(eval=F)
 
 # Set working directory
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model")
+
 ```
 
 # 1. Data Preparation
 
 ### Load required packages and set system
 
-```{r}
+```{r prep_load}
 
 #(1) Libraries for preparing data for analysis
 library(ape)
@@ -58,7 +59,7 @@ graphics.off()
 
 ### Load raw data
 
-```{r}
+```{r prep_raw}
 
 #(1) Load raw data
 load("Data_raw.RData")
@@ -80,14 +81,14 @@ hostTraits <- combine
 ##path: Data_S8_finalFigureFiles > _DATA > MamPhy_fullPosterior_BDvr_Completed_5911sp_topoCons_NDexp_MCC_v2_target.tre)
 hostTree <- dryad
 
-#(7) Clean environment
+#(6) Clean environment
 rm(virion, vertlife, dryad, combine)
 
 ```
 
 ### Aggregate poxdata to genus-level
 
-```{r}
+```{r prep_poxdata}
 
 #(1) Exclude if host genus or virus is NA; Exclude variola (smallpox) virus
 poxdata <- poxdata[!is.na(poxdata$HostGenus),]
@@ -136,7 +137,7 @@ rm(pcr,competence,agg_pcr, agg_competence, agg_studies)
 
 ### Merge poxdata with broader mammal taxa to create pseudoabsences
 
-```{r}
+```{r prep_pseudo}
 
 #(1) Drop duplicate genera in taxa
 gtaxa <- taxa[!duplicated(taxa$gen),]
@@ -173,7 +174,7 @@ rm(taxa,gtaxa,keep)
 
 ### Aggregate hostTraits to genus-level
 
-```{r}
+```{r prep_traits}
 
 #(1) Observe variable names
 colnames(hostTraits)
@@ -248,7 +249,7 @@ rm(hostTraits_binary,hostTraits_cat,hostTraits_continuous)
 
 ### Collapse hostTree to genus-level
 
-```{r}
+```{r prep_tree}
 
 #(1) Reformat
 hostTree$tip.label[hostTree$tip.label=="_Anolis_carolinensis"] <- "Anolis_carolinensis"
@@ -268,7 +269,7 @@ rm(tdata)
 
 ### Check for mismatched genera names in poxdata, hostTraits and hostTree
 
-```{r}
+```{r prep_names}
 
 #(1) Check if all poxdata genera are in hostTree
 poxdata$gtip <- poxdata$gen
@@ -326,7 +327,7 @@ rm(fix)
 
 ### Merge poxdata with hostTraits and trim hostTree to mirror poxdata
 
-```{r}
+```{r prep_merge}
 
 #(2) Merge traits with poxdata
 hostTraits$traitname <- hostTraits$gtip
@@ -334,7 +335,7 @@ poxdata <- merge(poxdata,hostTraits,by=c('traitname'),all.x=T)
 
 #(3) Clean up poxdata
 poxdata <- plyr::rename(poxdata,c('gtip.x'='gtip'))
-poxdata <- subset(poxdata,select=-c(order, family, genus,gtip.y))
+poxdata <- subset(poxdata,select=-c(order, family, genus, gtip.y))
 
 #(4) Trim hostTree to mirror poxdata
 hostTree <- keep.tip(hostTree,hostTree$tip.label[hostTree$tip.label%in%poxdata$treename])
@@ -348,7 +349,7 @@ rm(hostTraits)
 
 ### Add PubMed citations and evolutionary distinctiveness measure
 
-```{r}
+```{r prep_cites_ed}
 
 #(1) Load library for PubMed citations
 library(easyPubMed)
@@ -387,13 +388,11 @@ poxdata <- merge(poxdata,ed,by='treename')
 #(10) Clean environment
 rm(cites,ed,citations,i,treename,counter)
 
-## consider adding viral genome length, viral richness (number of virus detected in each genera), and host range (number of hosts from which each virus was)
-
 ```
 
 ### Aggregate to genus level
 
-```{r}
+```{r prep_genus}
 
 #(1) Remove virus variable
 poxdata <- subset(poxdata,select=-c(virus))
@@ -422,7 +421,7 @@ rm(agg_competence,agg_pcr,agg_studies)
 
 ### Save cleaned data
 
-```{r}
+```{r prep_save}
 
 #(3) Save cleaned for analysis
 #save(poxdata, hostTree, file="Output/HostData_clean.RData")
@@ -433,7 +432,7 @@ rm(agg_competence,agg_pcr,agg_studies)
 
 ### Load required packages and set system
 
-```{r}
+```{r phylo_load}
 
 #(1) Libraries for phylogenetic analysis
 library(ape)
@@ -455,7 +454,7 @@ graphics.off()
 
 ### Phylogenetic patterns
 
-```{r}
+```{r phylo_raw}
 
 #(1) Load data and trim unnecessary columns
 load("Output/HostData_clean.RData")
@@ -491,7 +490,7 @@ mod2 <- phylo.d(cdata,binvar=competence,permut=10000); mod2
 
 ### Phylofactorization
 
-```{r}
+```{r phylo_factor}
 
 #(1) Create dataframe of taxonomy
 cdata$data$taxonomy=paste(cdata$data$ord,cdata$data$fam,cdata$data$gen,sep='; ')
@@ -652,7 +651,7 @@ hc_pf_results=pfsum(hc_pf)$results
 
 ### Plot results of phylofactorization
 
-```{r}
+```{r phylo_results}
 
 #(1) Save tree for plotting
 cdata$data$infect=factor(cdata$data$pcr)
@@ -739,7 +738,7 @@ dev.off()
 
 ### Additional phylofactorization models
 
-```{r}
+```{r phylo_cites}
 
 #(1) Create log-transformed variable of pubmed cites
 cdata$data$logcites=log1p(cdata$data$cites)
@@ -781,7 +780,7 @@ pm_pf_results=pfsum(pm_pf)$results
 
 ### Load required packages and set system
 
-```{r}
+```{r brt_load}
 
 #(1) Libraries for BRT model
 library(gbm)
@@ -813,7 +812,7 @@ graphics.off()
 
 ### Create taxonomic variables as predictors for the model
 
-```{r}
+```{r brt_taxo}
 
 #(1) Load data and clean environment
 load("Output/HostData_clean.RData")
@@ -852,7 +851,7 @@ rm(dums,set,ag_columns)
 
 ### Assess variation and availability of data
 
-```{r}
+```{r brt_var}
 
 #(1) Mode function
 mode.prop <- function(x) {                
@@ -939,7 +938,7 @@ str(set)
 
 ### Model tuning to asses model performance for each combination of tuning parameters
 
-```{r}
+```{r brt_tuning}
 
 #(1) Hyperparameter tuning ifelse
 #hok="ok"
@@ -1105,7 +1104,8 @@ if(hok!="ok"){
 ```
 
 ### Model tuning results: Figure S2
-```{r}
+
+```{r brt_tuning_results}
 
 #(1) Convert parameters to factor and relabel values
 search$shrinkage=factor(search$shrinkage)
@@ -1212,7 +1212,7 @@ rm(search,search2,hok,mod,search_nt5000,search_nt15000,search_nt5000_sh0.01)
 
 ### BRT function for applying across multiple data partitions
 
-```{r}
+```{r brt_partition}
 
 #(1) BRT function to use different data partitions
 brt_part=function(seed,response){
@@ -1358,7 +1358,7 @@ brt_part=function(seed,response){
 
 ### Apply BRT function across 100 partitions to generate ensemble
 
-```{r}
+```{r brt_ensemble}
 
 #(1) Apply across 100 splits each
 # smax=101
@@ -1378,7 +1378,7 @@ save(pcr_brts,comp_brts,pm_brts,file="Output/HostData_results.RData")
 
 ### Load required packages and set system
 
-```{r}
+```{r perf_load}
 
 #(1) Libraries for BRT figures
 library(tidyr)
@@ -1405,7 +1405,7 @@ graphics.off()
 ### Evaluate performance measures: 
 How accurately did infection and competence BRT models distinguish OPV positive and negative species?
 
-```{r}
+```{r perf_auc}
 
 #### If needed, increase vector memory in R environment and reboot R before proceeding (https://stackoverflow.com/questions/51295402/r-on-macos-error-vector-memory-exhausted-limit-reached)
 
@@ -1452,7 +1452,7 @@ se(sapply(comp_brts,function(x) x$testAUC))
 
 ### Compare performance between BRTs trained on infection vs. competence:
 
-```{r}
+```{r perf_compare}
 
 #(1) Function for extracting data, performing unpaired t-test and determining effect size via Cohen's d
 tfun=function(measure){
@@ -1521,7 +1521,7 @@ round(p.adjust(ps,method="BH"),4)    #"BH" (aka "fdr") = Benjamini & Hochberg (1
 
 ###Generate boxplot of model performance: Figure S3 and Figure 2A
 
-```{r}
+```{r perf_boxplot}
 
 #(1) Aggregate dataset
 data1=sedata$adata
@@ -1582,7 +1582,7 @@ f2A=ggplot(adata$adata)+
 
 ### Identify relative feature importance
 
-```{r}
+```{r trait_important}
 
 #(1) Relative importance for PCR
 vinf=lapply(pcr_brts,function(x) x$rinf)
@@ -1621,7 +1621,7 @@ rm(pcr_vinf,comp_vinf,vinf)
 
 ### Rank features by relative importance: Table S5
 
-```{r}
+```{r trait_rank}
 
 #(1) Rank for pcr and competence
 vdata_pcr$pcr_rank=1:nrow(vdata_pcr)
@@ -1647,7 +1647,7 @@ write.csv(ts5,"Output/TableS5.csv")
 
 ### Identify consistently important/unimportant host traits: Figure 2B
 
-```{r}
+```{r trait_consistent}
 
 #(1) Correlate: Were the rankings of relative feature importance sig. correlated?
 cor.test(ranks$pcr_rank,ranks$comp_rank,method="spearman")
@@ -1731,7 +1731,7 @@ dev.off()
 
 ### Determine effect directions of each feature on the predicted outcome - Figure S4
 
-```{r}
+```{r trait_effect}
 
 #(1) Partial dependence plots w/ pdp package
 detach("package:purrr", unload=TRUE)
@@ -1951,7 +1951,7 @@ rm(pcr_pdp_plots,comp_pdp_plots,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,
 
 ### Model predictions: Extract and save predicted probabilities
 
-```{r}
+```{r pp_save}
 
 #(1) Average predictions: PCR
 pcr_apreds=lapply(pcr_brts,function(x) x$predict)
@@ -2039,7 +2039,7 @@ write.csv(preds,"Output/PoxHost_predictions.csv")
 
 ### Model predictions: Figures of predicted probabilities distribution - Figure 3
 
-```{r}
+```{r pp_figure}
 
 #(1) Figure 3a - Density plot of predicted probabilities
 remotes::install_github("awhstin/awtools")
@@ -2103,7 +2103,7 @@ dev.off()
 
 ### Model predictions: Explore model correlation and phylogenetic signal
 
-```{r}
+```{r pp_phylo}
 
 #(1) Test correlation between the predicted probabilities of infection vs. competence models
 cor(apreds2$pred_pcr,apreds2$pred_comp,method='spearman')
@@ -2145,7 +2145,7 @@ summary(comp_lmod)
 
 ### Model predictions: Identify taxonomic patterns
 
-```{r}
+```{r pp_taxo}
 
 #(1) Extract taxonomy
 cdata$data$taxonomy=paste(cdata$data$ord,cdata$data$fam,cdata$data$Species,sep='; ') #We refer to genus as "Species" as this is required in later functions
@@ -2310,7 +2310,7 @@ write.csv(predpfs,"Output/TableS6.csv")
 
 ### Model predictions: Re-plot predicted probabilities with phylogenetic tree - Figure 3(C)
 
-```{r}
+```{r pp_tree}
 
 #(1) Combine tree and data
 dtree=treeio::full_join(as.treedata(cdata$phy),cdata$data,by="label")
@@ -2396,7 +2396,7 @@ dev.off()
 
 ### Load required packages and set system
 
-```{r}
+```{r map_load}
 
 #(1) Libraries for generating maps
 library(classInt)
@@ -2422,7 +2422,7 @@ graphics.off()
 
 ### Threshold the results
 
-```{r}
+```{r map_threshold}
 
 #(1) load files
 set.seed(12345)
@@ -2499,7 +2499,7 @@ sort(pred.comp[!(pred.comp %in% known.comp)])
 
 ### Let's make some maps! - Figure 4
 
-```{r}
+```{r map_figure}
 
 ## Before proceeding, make sure you have downloaded "MAMMALS.shp" to your working directory. This shape file of mammal geographic range can be obtained from IUCN Red List Spatial Database: <https://www.iucnredlist.org/resources/spatial-data-download>. This file (>1GB) is only required for this section of the code ("5. Mapping host distribution").
 
