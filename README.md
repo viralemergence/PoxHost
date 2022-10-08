@@ -26,6 +26,7 @@ To run the analysis, you can fork and clone this repository or download the "Tse
 - Before proceeding to run the code, we recommend you create an "Output" sub-folder (e.g., ~/Tseng2022/#### Prediction Model/Output/) contained within each model folder. The code for both models will save all output (e.g., cleaned datasets, model output, figures and tables) to the corresponding "Output" folders. 
 
 ### Code organization
+For *HostPrediction_Code.Rmd*:
 1. Data Preparation
      - Input: *Data_raw.RData*
      - Output: *HostData_clean.RData*
@@ -42,5 +43,22 @@ To run the analysis, you can fork and clone this repository or download the "Tse
      - Input: *PoxHost_predictions.csv*, *MAMMALS.shp*
      - Output: Figure4
 
+For *LinkPrediction_Code.Rmd*:
+1. Dimensionality Reduction
+     - Input: *PresenceAbsence_OPV.xlsx*
+     - Output: *pc_genes.RData*
+2. Data Preparation
+     - Input: *Data_raw.RData* & *pc_genes.RData*
+     - Output: *LinkData_clean.RData*
+3. Boosted regression trees (BRT)
+     - Input: *LinkData_clean.RData*
+     - Output: FigureS1, TableS1, *par_tuning_data_summary.csv*, FigureS2, *LinkData_results.RData*
+4. BRT figures 
+     - Input: *LinkData_results.RData*, *LinkData_clean.RData*
+     - Output: FigureS3, Figure2, TableS5, FigureS4, *PoxHost_predictions.csv*, Figure3, TableS6.csv
+5. Mapping host distributions
+     - Input: *PoxHost_predictions.csv*, *MAMMALS.shp*
+     - Output: Figure4
+     
 ### Running the BRT models on an HPC cluster
 To run the BRT models on a high performance computing (HPC) cluster (highly recommended), sample scripts and examples are available in the folder ~/Tseng2022/[HPC Example](https://github.com/viralemergence/PoxHost/tree/main/Tseng2022/HPC%20Example).
