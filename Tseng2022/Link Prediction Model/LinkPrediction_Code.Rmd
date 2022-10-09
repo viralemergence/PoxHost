@@ -29,10 +29,11 @@ The following code reproduces the analyses from <...>, pertaining to the link pr
 
 To reproduce the analyses pertaining to the host prediction model, please see the markdown file HostPrediction_Code.Rmd located in the PoxHost repository on GitHub: https://github.com/viralemergence/PoxHost.
 
-To run the following script, three files are required in your working directory:
+To run the following script, four files are required in your working directory:
 (1) Data_raw.RData, the raw data file;
-(2) "Output" folder, where all output will be saved - e.g., cleaned datasets, model results, figures, and tables; 
-(3) MAMMALS.shp, the shape file of mammal geographical range obtained from IUCN Red List Spatial Database <https://www.iucnredlist.org/resources/spatial-data-download>. This file (>1GB) is only required in the last section of the code ("5. Mapping host distribution") and should be downloaded to your working directory before proceeding with part five.
+(2) PresenceAbsence_OPV.xlsx, the excel file of OPV genome annotations
+(3) "Output" folder, where all output will be saved - e.g., cleaned datasets, model results, figures, and tables; 
+(4) MAMMALS.shp, the shape file of mammal geographical range obtained from IUCN Red List Spatial Database <https://www.iucnredlist.org/resources/spatial-data-download>. This file (>1GB) is only required in the last section of the code ("5. Mapping host distribution") and should be downloaded to your working directory before proceeding with part five.
 
 ### Before proceeding, we recommend setting knit options and your working directory
 
