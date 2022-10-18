@@ -85,26 +85,47 @@ genes <- subset(genes, select=-c(Clade,HostSpecies))
 genes$sequence <- paste(genes$Accession,genes$VirusSpecies,genes$HostGenus,sep="_")
 genes <- genes %>% select(sequence, everything())
 
-#(4) To assess variation in the presence/absence of OPV genes, create mode function
+#(4) View frequency of various virus species
+table <- data.frame(table(genes$VirusSpecies))
+table$Perc <- table$Freq/sum(table$Freq)*100
+
+#(5) Drop accessory genes that are present in only one virus species (all 0's except for one)
+genes <- genes[c(1:4,4 + which(colSums(genes[-(1:4)])>1))]
+
+
+#(6) Identify observations of the same host-virus links with identical presence/absence of accessory genes 
+genes$dup <- duplicated(genes[,-c(1:2)])
+table(genes$dup)
+#45 dups
+
+#(7) Drop duplicate observations
+genes <- genes[genes$dup==FALSE,]
+genes$dup=NULL
+
+#(8) View frequency of various virus species
+table <- data.frame(table(genes$VirusSpecies))
+table$Perc <- table$Freq/sum(table$Freq)*100
+
+#(9) To assess variation in the presence/absence of OPV genes, create mode function
 mode.prop <- function(x) {                
   ux <- unique(x[is.na(x)==FALSE])        # creates array of unique values
   tab <- tabulate(match(na.omit(x), ux))  # creates array of the frequency a unique value appears in a column 
   max(tab)/length(x[is.na(x)==FALSE])     # max-frequency / number of elements in each column that are not NA
 }
 
-#(5) Assess variation across columns (2 indicates columns)
+#(10) Assess variation across columns (2 indicates columns)
 vars=data.frame(apply(genes,2,function(x) mode.prop(x)),
                 apply(genes,2,function(x) length(unique(x)))) # number of unique elements in each column
 vars$variables=rownames(vars)
 colnames(vars) <- c("var","uniq","column")
 
-#(6) trim
+#(11) trim
 vars <- vars[-c(1,2), ]
 
-#(7) Drop variables with no variation
+#(12) Drop variables with no variation
 vars <- subset(vars,vars$var<1)
 
-#(8) visualize distribution of variation
+#(13) Visualize distribution of variation
 #png("Output/gene_variation.png", width=4,height=4,units="in",res=600)
 ggplot(vars,
        aes(var))+
@@ -117,31 +138,23 @@ ggplot(vars,
   labs(y="frequency",
        x="variation in the presence/absence of genes across genome sequences")+
   scale_x_continuous(labels=scales::percent)
+
 #dev.off()
 
-# #(9) drop based on certain thresholds?
+# #(14) Drop based on certain thresholds?
 # vars$keep=ifelse(vars$var>=0.7,"keep","cut")
 # keeps=vars[-which(vars$keep=="cut"),]$column 
 # keeps <- append("Accession",keeps)
 # genes=genes[keeps]
 
-# #(10) reformat and drop dups
+# #(15) reformat and drop dups
 # genes$Accession <- genes$Accession_new
 # genes$Accession_new = NULL
 # genes <- subset(genes,!is.na(genes$virus))
 # genes <- genes[!duplicated(genes$virus),]
 
-#(11) identify rows with duplicate values (i.e., hosts with identical presence/absence of accessory genes)
-which(duplicated(genes[,-c(1:4)])| duplicated(genes[,-c(1:4)], fromLast = TRUE))
-length(which(duplicated(genes[,-c(1:4)])| duplicated(genes[,-c(1:4)], fromLast = TRUE)))
-genes$dup <- duplicated(genes[,-c(1:4)])
-genes <- genes %>%
-  select(dup, everything())
-##### 83 of 191 observations are duplicates! How do we select which duplicate observation to keep? #####
-##### Keeping all dups for now #####
-
-#(12) clean environment
-rm(vars, mode.prop)
+#(16) clean environment
+rm(table, vars, mode.prop)
 
 ```
 
