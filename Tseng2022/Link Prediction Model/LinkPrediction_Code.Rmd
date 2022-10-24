@@ -92,7 +92,6 @@ table$Perc <- table$Freq/sum(table$Freq)*100
 #(5) Drop accessory genes that are present in only one virus species (all 0's except for one)
 genes <- genes[c(1:4,4 + which(colSums(genes[-(1:4)])>1))]
 
-
 #(6) Identify observations of the same host-virus links with identical presence/absence of accessory genes 
 genes$dup <- duplicated(genes[,-c(1:2)])
 table(genes$dup)
@@ -122,8 +121,9 @@ colnames(vars) <- c("var","uniq","column")
 #(11) trim
 vars <- vars[-c(1,2), ]
 
-#(12) Drop variables with no variation
-vars <- subset(vars,vars$var<1)
+#(12) Any variables with no variation? If so drop
+which(vars$var==1)
+# vars <- subset(vars,vars$var<1)
 
 #(13) Visualize distribution of variation
 #png("Output/gene_variation.png", width=4,height=4,units="in",res=600)
@@ -140,18 +140,6 @@ ggplot(vars,
   scale_x_continuous(labels=scales::percent)
 
 #dev.off()
-
-# #(14) Drop based on certain thresholds?
-# vars$keep=ifelse(vars$var>=0.7,"keep","cut")
-# keeps=vars[-which(vars$keep=="cut"),]$column 
-# keeps <- append("Accession",keeps)
-# genes=genes[keeps]
-
-# #(15) reformat and drop dups
-# genes$Accession <- genes$Accession_new
-# genes$Accession_new = NULL
-# genes <- subset(genes,!is.na(genes$virus))
-# genes <- genes[!duplicated(genes$virus),]
 
 #(16) clean environment
 rm(table, vars, mode.prop)
@@ -172,7 +160,7 @@ library(reshape2)
 library(factoextra) #fviz_eig
 
 #(2) Subset data and reformat as numeric matrix
-genes_mat <- subset(genes,select=-c(Accession,VirusSpecies,HostGenus,dup))
+genes_mat <- subset(genes,select=-c(Accession,VirusSpecies,HostGenus))
 mat <- as.matrix(genes_mat[,-1])
 rownames(mat) <- genes_mat[,1] %>% pull()
 class(mat) <- "numeric"
@@ -187,23 +175,27 @@ summary(pca)
 View(pca$x) #sequence (individuals)
 View(pca$rotation) #genes (variables)
 
-#(5) Table of importance of components
+#(5) Table of importance of components: (a) Eigenvalue, (b) SD, (c) Prop of Variance, (d) Cumulative Prop
 pca_importance <- as.data.frame(t(summary(pca)$importance))
 pca_importance$Eigenvalue <- pca_importance$`Standard deviation`^2
 pca_importance <- pca_importance %>% dplyr::relocate(Eigenvalue) 
+### Eigenvalue: the variance explained by each PC
 
-#(6) Table of loadings
+#(6) Table of loadings ($rotation is the matrix of variable loadings where columns are eigenvectors)
 pca_loadings <- as.data.frame(pca$rotation)
 pca_loadings <- pca_loadings[,c(1:4)]
+### Why are some loadings > |1|? Loading is the covariances/correlations b/w original vars and unit-scaled components)
 
-#(7) Screeplot - Variance (Eigenvalues)
+#(7) Screeplot of Variance or Eigenvalues: shows the decreasing rate at which variance is explained by additional PCs
 screeplot(pca, type="lines", npcs=10, main="Scree plot of Eigenvalues for the first 10 PCs")  
-abline(h = 1, col="red", lty=5)
+abline(h=1, col="red", lty=5)
 legend("topright", legend=c("Eigenvalue = 1"),
        col=c("red"), lty=5, cex=1)
 
 #(8) Screeplot - Explained/cumulative variance (%)
-fviz_eig(pca, choice=c("variance"), main = "Scree plot of explained variances") # these values agree with pca_relvar (variance explained)
+screeplot <- barplot(pca_relvar_per[1:10], xlab='PC', ylab='Percentage of explained variances', main='Screeplot of explained variances', names.arg=1:10, las=1, ylim=c(0,max(pca_relvar_per)+10), col='gray')
+text(screeplot, 0, y=pca_relvar_per[1:10], label=pca_relvar_per[1:10],cex=0.8, pos=3, col="red")
+# fviz_eig(pca, choice=c("variance"), main = "Scree plot of explained variances") # these values agree with pca_relvar (variance explained)
 
 #(9) Cumulative variance plot
 cumpro <- cumsum(pca$sdev^2 / sum(pca$sdev^2))
@@ -226,8 +218,13 @@ fviz_pca_ind(pca, geom.ind = "point", pointshape = 21, pointsize = 2,
 fviz_pca_var(pca, 
              col.var = "contrib", # Color by contributions to the PC
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE     # Avoid text overlapping
+             repel = TRUE,     # Avoid text overlapping
+             label = c("ind", "ind.sup", "quali", "var", "quanti.sup")
              )
+### Here we see PC1 has large positive associations with a number of AGs like ADZ29556.1, SNB51281.1, and AGZ01283.1 that point in the same direction as PC1. PC2 has some moderately positive associations with AGs like BDQ10560.1
+### QKE61192.1 - hypothetical protein [Vaccinia virus]
+### QNP13375.1 - MPXV Viral membrane assembly proteins (VMAP) (Cop-A 30.5L)"
+
 
 #(12) Plot of PCA variables 3 and 4
 fviz_pca_var(pca, axes = c(3, 4),
@@ -235,6 +232,13 @@ fviz_pca_var(pca, axes = c(3, 4),
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE     
             )
+
+#() Biplot of individuals and variables
+fviz_pca_biplot(pca,
+                col.var = "contrib",
+                gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE    
+             )
 
 #(13) Extract PCA variables for link prediction model
 ### Assume cut-off @ PC6 (see cumulative variance plot)
@@ -269,7 +273,7 @@ library(factoextra) #fviz_eig
 
 #(2) Subset data and reformat gene variables as factor
 ###Note: Actual data for MCA is pending. For the purposes of this exercise, I am manipulating the presence/absence of OPV gene data from binary variables to factor variables
-genes_cat <- subset(genes,select=-c(Accession,VirusSpecies,HostGenus,dup))
+genes_cat <- subset(genes,select=-c(Accession,VirusSpecies,HostGenus))
 genes_cat[] <- lapply(genes_cat, as.character)
 genes_cat[,-1] <- lapply(genes_cat[,-1], factor)
 #str(genes_cat)
