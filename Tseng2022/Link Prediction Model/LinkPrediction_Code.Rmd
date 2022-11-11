@@ -571,6 +571,8 @@ rm(list=ls())
 load("Data_raw.RData")
 load("Output/opvgenes.RData")
 
+save(combine, dryad, vertlife, virion, file='/Users/katietseng/Downloads/Data_raw.RData')
+load("/Users/katietseng/Downloads/Data_raw.RData")
 
 #(2) Pox data:  host-OPV interactions detected via PCR/isolation from Virion database *note additional interactions from pc_genes below
 ##virion <- vroom('https://github.com/viralemergence/virion/blob/main/Virion/Virion.csv.gz')
