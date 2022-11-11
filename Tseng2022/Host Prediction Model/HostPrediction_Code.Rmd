@@ -1012,8 +1012,8 @@ if(hok!="ok"){
     best.iter=gbm.perf(gbmOut,method="cv")                       #estimates optimal number of boosting iterations and plots 'training.error' performance measure; cv method extracts this optimal number using cross-validation
     
     ## predict with test data
-    preds=predict(gbmOut,dataTest,n.trees=best.iter,type="response")  #number of trees based on the optimal number of boosting iterations as set above (5,352)
-    
+    preds=predict(gbmOut,dataTest,n.trees=best.iter,type="response")  #number of trees based on the optimal number of boosting iterations as set above (5,352) 
+
     ## known
     result=dataTest$response
     
