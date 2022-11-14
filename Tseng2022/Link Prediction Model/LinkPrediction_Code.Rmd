@@ -1172,6 +1172,9 @@ ts1 <- subset(ts1,select=c(feature,coverage))
 #(17) Check that binary variables are numeric and not factor (except for fam vars)
 str(set)
 
+#(18) Remove vars not needed for BRT analysis
+data$source=NULL
+data$sequence=NULL
 # save(data, file='Output/data_LinkBRT.RData')
 ```
 
