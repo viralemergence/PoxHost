@@ -1027,7 +1027,10 @@ library(PresenceAbsence)
 library(tidyr)
 library(viridis)
 library(caper)
-library(phylofactor)
+###to install ggtree, need to first install BiocManager:
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install("ggtree")
 library(ggtree)
 library(treeio)
 library(caret) 
@@ -1080,7 +1083,7 @@ data=merge(data,dums,by="fam",all.x=T)
 
 #(7) Drop unnecessary columns and clean environment
 data$traitname=NULL
-rm(dums, PC_)
+rm(dums, i, PC_columns)
 
 ```
 
@@ -1153,7 +1156,7 @@ data=data[keeps]
 rm(keeps,mval)
 
 #(14) Save list of covariates and their coverage as table S1
-set <- subset(data,select=-c(virus,gen,fam,ord,gtip,treename,type,studies,sampled))
+set <- subset(data,select=-c(source, sequence, link,virus,genus,fam,ord,gtip,treename))
 ts1=data.frame(apply(set,2,function(x) length(x[!is.na(x)])/nrow(set)))
 
 #(15) Rename and reorder columns
@@ -1164,11 +1167,12 @@ ts1=ts1[!ts1$feature%in%c("pcr","competence"),]
 ts1 <- subset(ts1,select=c(feature,coverage))
 # 
 # #(16) Save Table S1 to results
-# write.csv(ts1, "TableS1.csv")
+# write.csv(ts1, "Output/TableS1.csv")
 
-#(17) Check that binary variables are numeric and not factor
+#(17) Check that binary variables are numeric and not factor (except for fam vars)
 str(set)
 
+# save(data, file='Output/data_LinkBRT.RData')
 ```
 
 ### Model tuning to asses model performance for each combination of tuning parameters
