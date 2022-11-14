@@ -53,7 +53,7 @@ In this section, we draw from our dataset of annotated OPV genomes (n=197 unique
 
 ```{r prep_load, message=FALSE, warning=FALSE}
 
-# Libraries for preparing data for analysis
+#(1) Libraries for preparing data for analysis
 library(ape)
 library(dplyr)
 library(nlme)
@@ -62,21 +62,21 @@ library(vroom)
 library(readxl)
 library(ggplot2)
 
-# Libraries for PCA (principal components analysis)
+#(2) Libraries for PCA (principal components analysis)
 library(vegan)
 library(factoextra) #fviz_eig
 library(ggfortify)
 
-#libraries for MCA
+#(3) Libraries for MCA
 library(FactoMineR)
 library(dplyr)
 library(factoextra) #fviz_eig
 
-#Clean environment
+#(4) Clean environment
 rm(list=ls()) 
 graphics.off()
 
-#Set working directory
+#(5) Set working directory
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Link Prediction Model")
 
 ```
@@ -86,23 +86,23 @@ Let's clean our sequence data and explore the variability in the data!
 
 ```{r prep_genes}
 
-#Load genome annotations and trim
+#(1) Load genome annotations and trim
 genes <- read_xlsx("OPVnew_nowwithVirus.xlsx", sheet="PoxHost")
 
-#Rename variables and exclude unnecessary variables
+#(2) Rename variables and exclude unnecessary variables
 genes <- plyr::rename(genes, c("Virus"="VirusSpecies","Host Genus"="HostGenus","Host Species"="HostSpecies"))
 genes <- subset(genes, select=-c(HostSpecies))
 
-#Correct sequence MT903347_1 - 'HostGenus' var lists Family name instead of Genus
+#(3) Correct sequence MT903347_1 - 'HostGenus' var lists Family name instead of Genus
 genes$HostGenus <- ifelse(genes$HostGenus=="Gliridae","Graphiurus",genes$HostGenus)
 
-#Add unique identifier
+#(4) Add unique identifier
 genes$rownames <- rownames(genes)
 genes$Sequence <- paste(genes$Genome,genes$VirusSpecies,genes$HostGenus,sep="_",genes$rownames)
 genes$rownames=NULL
 genes <- genes %>% dplyr::select(Sequence, everything())
 
-#View frequency of various virus species
+#(5) View frequency of various virus species
 prop_table <- subset(genes, select=-c(Sequence,Genome))
 prop_table$Frequency = 1 
 prop_table <- aggregate(Frequency ~ VirusSpecies + HostGenus, data=prop_table, FUN=sum)
@@ -110,30 +110,30 @@ prop_table <- prop_table[order(prop_table[,c("VirusSpecies")],prop_table[,c("Hos
 prop_table$Perc <- prop_table$Frequency/sum(prop_table$Frequency)*100
 print(prop_table)
 
-#Save frequency table to Output folder
+#(6) Save frequency table to Output folder
 # write.csv(table, "Output/gene_freq_table.csv")
 
-#Create function (mode.prop) to assess variation in the presence/absence of OPV genes
+#(7) Create function (mode.prop) to assess variation in the presence/absence of OPV genes
 mode.prop <- function(x) {                
   ux <- unique(x[is.na(x)==FALSE])        # creates array of unique values
   tab <- tabulate(match(na.omit(x), ux))  # creates array of the frequency a unique value appears in a column 
   max(tab)/length(x[is.na(x)==FALSE])     # max-frequency / number of elements in each column that are not NA
 }
 
-#Assess variation across columns (2 indicates columns)
+#(8) Assess variation across columns (2 indicates columns)
 vars=data.frame(apply(genes,2,function(x) mode.prop(x)),
                 apply(genes,2,function(x) length(unique(x)))) # number of unique elements in each column
 vars$variables=rownames(vars)
 colnames(vars) <- c("var","uniq","column")
 
-#Trim
+#(9) Trim
 vars <- vars[-c(1,2), ]
 
-#Any variables with no variation? If so drop
+#(10) Any variables with no variation? If so drop
 which(vars$var==1)
 # vars <- subset(vars,vars$var<1)
 
-#Visualize distribution of variation
+#(11) Visualize distribution of variation
 #png("Output/gene_variation.png", width=4,height=4,units="in",res=600)
 gene_var <- ggplot(vars,
        aes(var))+
@@ -149,7 +149,7 @@ gene_var <- ggplot(vars,
 #dev.off()
 gene_var
 
-# Clean environment
+#(12) Clean environment
 rm(list=setdiff(ls(), c("genes")))
 
 ```
@@ -165,46 +165,46 @@ Using principal components analysis, can we distill the variables down to their 
 # rownames(mat) <- genes_mat[,1] %>% pull()
 # class(mat) <- "numeric"
 
-#Apply PCA using stats::prcomp 
+#(1) Apply PCA using stats::prcomp 
 pca1 <- prcomp(genes[,5:985])      #scaling/centering not appropriate
 relvar <- pca1$sdev^2 / sum(pca1$sdev^2)
 relvar_per <- round(relvar*100,1)
 
-#View summary results
+#(2) View summary results
 # summary(pca1)
 # View(pca1$x) #sequence (individuals)
 # View(pca1$rotation) #genes (variables)
 
-#Table of importance of components: Eigenvalue, SD, Proportion of Variance, Cumulative Prop
+#(3) Table of importance of components: Eigenvalue, SD, Proportion of Variance, Cumulative Prop
 importance <- as.data.frame(t(summary(pca1)$importance))
 importance$Eigenvalue <- importance$`Standard deviation`^2
 importance <- importance %>% dplyr::relocate(Eigenvalue) 
 importance <- importance[c(1:10),]
 ### Eigenvalue: the variance explained by each PC
 
-#Table of loadings: $rotation is the matrix of variable loadings where columns are eigenvectors
+#(4) Table of loadings: $rotation is the matrix of variable loadings where columns are eigenvectors
 loadings <- as.data.frame(pca1$rotation)
 loadings <- loadings[,c(1:10)]
 loadings <- abs(loadings) #get absolute values
 ### Why are some loadings > |1|? Loading is the covariances/correlations b/w original vars and unit-scaled components)
 
-#For each dimension, create df of accessory genes 
+#(5) For each dimension, create df of accessory genes 
 for(i in 1:ncol(loadings)){
   assign(colnames(loadings)[i], data.frame(loadings[,i]))
 }
 
-#Create list of dataframes of PC loadings
+#(6) Create list of dataframes of PC loadings
 list <- colnames(loadings)       
 list_df = lapply(list, get)
 
-#To each dataframe in that list, add corresponding gene name and sort in descending order (genes with highest load value to smallest load value)
+#(7) To each dataframe in that list, add corresponding gene name and sort in descending order (genes with highest load value to smallest load value)
 for (i in 1:length(list)) {
   colnames(list_df[[i]]) <- "Loadings"
   list_df[[i]]$Gene <- rownames(loadings)
   list_df[[i]]=list_df[[i]][order(-list_df[[i]]$Loadings),]
 }
 
-#Create df of just ranked genes (drop loadings)
+#(8) Create df of just ranked genes (drop loadings)
 genes_df <- list_df
 for(i in 1:length(list)) {
   genes_df[[i]]$Loadings=NULL
@@ -216,7 +216,7 @@ for(i in 1:length(list)) {
 }
 rank_genes <- setNames(rank_genes, paste0(names(loadings), '_', 'Gene'))
 
-#Create df of just ranked loadings
+#(9) Create df of just ranked loadings
 loadings_df <- list_df
 for(i in 1:length(list)) {
   loadings_df[[i]]$Gene=NULL
@@ -228,20 +228,20 @@ for(i in 1:length(list)) {
 }
 rank_loadings <- setNames(rank_loadings, paste0(names(loadings), '_', 'Loadings'))
 
-#Combine dfs of ranked genes and loadings and reorder columns
+#(10) Combine dfs of ranked genes and loadings and reorder columns
 rank_PC <- cbind(rank_genes, rank_loadings)
 rank_PC <- rank_PC[,order(colnames(rank_PC))] 
 rank_PC <- rank_PC %>% relocate(c("PC10_Gene","PC10_Loadings"), .after = last_col())
 
-#Save table of PC Loadings Ranked
+#(11) Save table of PC Loadings Ranked
 # write.csv(rank_PC, "Output/PCA_LoadingsRanked.csv")
 
-#Save datafile of PC scores for link prediction
+#(12) Save datafile of PC scores for link prediction
 wgs_PCs <- genes[,1:4]
 wgs_PCs <- cbind(wgs_PCs, pca1$x[,1:10])
 # save(wgs_PCs, file='Output/wgs_PCs.RData')
 
-#Clean environment
+#(13) Clean environment
 rm(list=setdiff(ls(), c("genes","pca1","relvar","relvar_per")))
 
 ```
@@ -257,25 +257,25 @@ Do all of the dimensions spark joy?
 #Vizualize centroid
 #Visualize scores by cluster via hierarchical cluster analysis (k-means)
 
-#Screeplot variance (eigenvalues) to show the decreasing rate at which variance is explained by additional PCs
+#(1) Screeplot variance (eigenvalues) to show the decreasing rate at which variance is explained by additional PCs
 screeplot(pca1, type="lines", npcs=15, main="Scree plot of Eigenvalues for the first 10 PCs")
 abline(h=1, col="red", lty=5)
 legend("topright", legend=c("Eigenvalue = 1"), col=c("red"), lty=5, cex=1)
 ### suggests cutoff at PC10
 
-#Screeplot cumulative variance to show the % variance explained by additional PCs
+#(2) Screeplot cumulative variance to show the % variance explained by additional PCs
 screeplot <- barplot(relvar_per[1:10], xlab='PC', ylab='Percentage of explained variances', main='Screeplot of explained variances', names.arg=1:10, las=1, ylim=c(0,max(relvar_per)+10), col='gray')
 text(screeplot, 0, y=relvar_per[1:10], label=relvar_per[1:10],cex=0.8, pos=3, col="red")
 # fviz_eig(pca, choice=c("variance"), main = "Scree plot of explained variances") # these values agree with pca_relvar (variance explained)
 
-#Plot cumulative variance to show the proportion of variance explained with each add'l PC
+#(3) Plot cumulative variance to show the proportion of variance explained with each add'l PC
 cumpro <- cumsum(pca1$sdev^2 / sum(pca1$sdev^2))
 plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance", main = "Cumulative variance plot")
 abline(v = 10, col="blue", lty=5)
 abline(h = 0.7, col="blue", lty=5)
 legend("topleft", legend=c("Cut-off @ PC10"), col=c("blue"), lty=5, cex=1)
 
-#Plot sequences 
+#(4) Plot sequences 
 fviz_pca_ind(pca1) + ggtitle("PCA Plot of Sequences")
 ### with ellipses
 fviz_pca_ind(pca1, geom.ind = "point", pointshape = 21, pointsize = 2, 
@@ -284,10 +284,10 @@ fviz_pca_ind(pca1, geom.ind = "point", pointshape = 21, pointsize = 2,
              alpha.ind = 0.7) +
              ggtitle("PCA Plot of Sequences") + theme(plot.title = element_text(hjust = 0.5))
 
-#Plot sequences by virus species for dim 1 and 2
+#(5) Plot sequences by virus species for dim 1 and 2
 autoplot(pca1, data = genes, colour = 'VirusSpecies') + ggtitle("Plot of Sequences by Virus Species")
 
-#Plot gene loadings for dim 1 and 2
+#(6) Plot gene loadings for dim 1 and 2
 fviz_pca_var(pca1, 
              col.var = "contrib", # Color by contributions to the PC
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
@@ -298,19 +298,19 @@ fviz_pca_var(pca1,
 ### QKE61192.1 - hypothetical protein [Vaccinia virus]
 ### QNP13375.1 - MPXV Viral membrane assembly proteins (VMAP) (Cop-A 30.5L)"
 
-#Plot gene loadings for dim 3 and 4
+#(7) Plot gene loadings for dim 3 and 4
 fviz_pca_var(pca1, axes = c(3, 4),
              col.var = "contrib", 
              gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE) +
              ggtitle("Plot of Gene Loadings for Dimensions 3 and 4")
 
-#Biplot sequences and gene loadings
+#(8) Biplot sequences and gene loadings
 fviz_pca_biplot(pca1, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
                 repel = TRUE) +
                 ggtitle("Biplot of Sequences and Gene Loadings")
 
-#Biplot top 20 influential scores and loadings
+#(9) Biplot top 20 influential scores and loadings
 fviz_pca_biplot(pca1, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE, select.ind=list(contrib=20), select.var=list(contrib=20), max.overlaps=Inf) +
              ggtitle("Biplot of Top 20 Contributing Sequences and Gene Loadings")
@@ -324,26 +324,26 @@ What happens when we exclude accessory genes present in only one virus species?
 
 ```{r pca2}
 
-#Drop accessory genes that are present in only one virus species (all 0's except for one)
+#(1) Drop accessory genes that are present in only one virus species (all 0's except for one)
 genes2 <- genes[c(1:4,4 + which(colSums(genes[-(1:4)])>1))]
 ### 985 variables to 686 variables
 
-#Apply PCA using stats::prcomp 
+#(2) Apply PCA using stats::prcomp 
 pca2 <- prcomp(genes2[,5:686])
 
-#Plot cumulative variance to show the proportion of variance explained with each add'l PC
+#(3) Plot cumulative variance to show the proportion of variance explained with each add'l PC
 cumpro <- cumsum(pca2$sdev^2 / sum(pca2$sdev^2))
 plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance", main = "Cumulative variance plot")
 abline(v = 10, col="blue", lty=5)
 abline(h = 0.7, col="blue", lty=5)
 legend("topleft", legend=c("Cut-off @ PC10"), col=c("blue"), lty=5, cex=1)
 
-#Biplot sequences and gene loadings
+#(4) Biplot sequences and gene loadings
 fviz_pca_biplot(pca2, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
                repel = TRUE) +
                ggtitle("Biplot of Sequences and Gene Loadings")
 
-#Biplot top 20 influential scores and loadings
+#(5) Biplot top 20 influential scores and loadings
 fviz_pca_biplot(pca2, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE, select.ind=list(contrib=20), select.var=list(contrib=20), max.overlaps=Inf) +
              ggtitle("Biplot of Top 20 Contributing Sequences and Gene Loadings")
@@ -357,33 +357,33 @@ What happens when we drop duplicate observations within the same host-virus link
 
 ```{r pca3}
 
-#Identify observations of the same host-virus links with identical presence/absence of accessory genes
+#(1) Identify observations of the same host-virus links with identical presence/absence of accessory genes
 genes3 <- genes
 genes3$dup <- duplicated(genes3[,-c(1:2)])
 table(genes3$dup)
 ### 42 dups
 
-#Drop duplicate observations
+#(2) Drop duplicate observations
 genes3 <- genes3[genes3$dup==FALSE,]
 genes3$dup=NULL
 ### 197 obs to 155 obs
 
-#Apply PCA using stats::prcomp 
+#(3) Apply PCA using stats::prcomp 
 pca3 <- prcomp(genes3[,5:985])
 
-#Plot cumulative variance to show the proportion of variance explained with each add'l PC
+#(4) Plot cumulative variance to show the proportion of variance explained with each add'l PC
 cumpro <- cumsum(pca3$sdev^2 / sum(pca3$sdev^2))
 plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance", main = "Cumulative variance plot")
 abline(v = 10, col="blue", lty=5)
 abline(h = 0.7, col="blue", lty=5)
 legend("topleft", legend=c("Cut-off @ PC10"), col=c("blue"), lty=5, cex=1)
 
-#Biplot sequences and gene loadings
+#(5) Biplot sequences and gene loadings
 fviz_pca_biplot(pca3, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
                repel = TRUE) +
                ggtitle("Biplot of Sequences and Gene Loadings")
 
-#Biplot top 20 influential scores and loadings
+#(6) Biplot top 20 influential scores and loadings
 fviz_pca_biplot(pca3, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE, select.ind=list(contrib=20), select.var=list(contrib=20), max.overlaps=Inf) +
              ggtitle("Biplot of Top 20 Contributing Sequences and Gene Loadings")
@@ -397,23 +397,23 @@ What happens if we exclude the potential outliers from PCA, and then predict the
 
 ```{r pca4}
 
-#Create df excluding outliers identified in PCA.3
+#(1) Create df excluding outliers identified in PCA.3
 genes4 <- genes[!grepl("MT724769_1|MN346703_1|MT724770_1|DQ011155_1", genes$Genome),]
 
-#Create df of outliers
+#(2) Create df of outliers
 outliers <- genes[grepl("MT724769_1|MN346703_1|MT724770_1|DQ011155_1", genes$Genome),]
 
-#Apply PCA using stats::prcomp
+#(3) Apply PCA using stats::prcomp
 pca4 <- prcomp(genes4[,5:985])
 relvar <- pca4$sdev^2 / sum(pca4$sdev^2)
 relvar_per <- round(relvar*100,1)
 
-#Prediction of PCs for outliers
+#(4) Prediction of PCs for outliers
 pred <- predict(pca4, newdata=outliers)
 pca4_pred <- pca4
 pca4_pred$x <- rbind(pca4_pred$x, pred)
 
-#Plot of individuals by virus species w/ outliers in shaded bullets
+#(5) Plot of individuals by virus species w/ outliers in shaded bullets
 COLOR <- c(1:length(unique(genes$VirusSpecies)))
 pc <- c(1,2)
 plot(pca4$x[,pc], cex=1, col=COLOR,
@@ -422,17 +422,17 @@ plot(pca4$x[,pc], cex=1, col=COLOR,
 points(pred[,pc], pch=16) + abline(h = 0, v=0, lty = 2) +
 title("Plot of Sequences and Outliers") + theme(plot.title = element_text(hjust = 0.5))
 
-#Biplot of individuals and variables
+#(6) Biplot of individuals and variables
 fviz_pca_biplot(pca4_pred, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE) +
              ggtitle("Biplot of Sequences and Gene Loadings")
 
-#Biplot of top 20 contributing individuals and variables
+#(7) Biplot of top 20 contributing individuals and variables
 fviz_pca_biplot(pca4_pred, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
              repel = TRUE, select.ind=list(contrib=20), select.var=list(contrib=20)) +
              ggtitle("Biplot of Sequences and Gene Loadings")
 
-#Clean environment
+#(8) Clean environment
 rm(list=setdiff(ls(), c("genes", "pca1","outliers")))
 
 ### Summary: Predicted scores of outliers cluster in the fourth quadrant with other sequences. As in previous PCAs, biplot of top 20 contributing sequences and gene loadings show the most influential sequences in the third quadrant.
@@ -443,22 +443,22 @@ rm(list=setdiff(ls(), c("genes", "pca1","outliers")))
 
 ```{r pca1_cluster}
 
-#Extract coordinates for individual sequences
+#(1) Extract coordinates for individual sequences
 ind.coord <- pca1$x
 rownames(ind.coord) <- 1:nrow(ind.coord)
 db <- cbind(genes$VirusSpecies, ind.coord)
 
-#HCA on a set of dissimilarities for objects being clustered, wherein each object is assigned its own cluster iteratively, at each stage joining the 2 most similar clusters (bottom-up dendogram until only one cluster left). 
+#(2) HCA on a set of dissimilarities for objects being clustered, wherein each object is assigned its own cluster iteratively, at each stage joining the 2 most similar clusters (bottom-up dendogram until only one cluster left). 
 clusters <- hclust(dist(db[,2:3]))
 plot(clusters)
 abline(h = 8, col="red", lty=5)
 abline(h = 4, col="blue", lty=5)
 
-#Cluster cut
+#(3) Cluster cut
 clusterCut <- cutree(clusters, 6)
 table(clusterCut)
 
-#Prop tables by virus species
+#(4) Prop tables by virus species
 mytable<-table(clusterCut, genes$VirusSpecies)
 mytable2 <- data.frame(prop.table(mytable,2))
 ggplot(mytable2, aes(x = Var2, y = Freq, fill = clusterCut)) +
@@ -467,16 +467,17 @@ ggplot(mytable2, aes(x = Var2, y = Freq, fill = clusterCut)) +
   theme(axis.title.x = element_blank(), axis.text.x = element_text(angle=45,hjust=1)) +
   ggtitle("Distribution by Virus Species")
 
-#Re-run PCA to color by cluster  
+#(5) Re-run PCA to color by cluster  
   #add cluster to original db
   genes1<-data.frame(cbind(genes,clusterCut))
   genes1$clusterCut <- as.factor(genes1$clusterCut)
 
-#Run PCA as before, but now grouping by cluster
+#(6) Run PCA as before, but now grouping by cluster
 pca1 <- prcomp(genes1[,5:985])      #scaling/centering not appropriate
 # pca_relvar <- pca$sdev^2 / sum(pca$sdev^2)
 # pca_relvar_per <- round(pca_relvar*100,1)
 
+#(7) Plot of sequences by cluster
 fviz_pca_ind(pca1, geom.ind = "point", pointshape = 21, 
              pointsize = 2, 
              fill.ind = genes1$clusterCut, 
@@ -490,6 +491,7 @@ fviz_pca_ind(pca1, geom.ind = "point", pointshape = 21,
   ggtitle("PCA Plot of Sequences by Cluster") +
   theme(plot.title = element_text(hjust = 0.5))
 
+#(8) Biplot of sequences and gene loadings by cluster
 fviz_pca_biplot(pca1, geom.ind = "point", pointshape = 21, 
              pointsize = 2, 
              fill.ind = genes1$clusterCut,
@@ -503,15 +505,15 @@ fviz_pca_biplot(pca1, geom.ind = "point", pointshape = 21,
              col.var = "grey40") +
     ggtitle("PCA Biplot of Sequences and Gene Loadings by Cluster")
 
-#Create a table of sequences by cluster
+#(9) Create a table of sequences by cluster
 db_cluster <- dplyr::select(genes1, Sequence, VirusSpecies, HostGenus,clusterCut)
 # write.csv(db.cluster,"clusters.csv", row.names = F)
 
-#Are the MPXV sequences in cluster 3 the same as the outliers in PCA4?
+#(10) Are the MPXV sequences in cluster 3 the same as the outliers in PCA4?
 print(db_cluster[(db_cluster$VirusSpecies=="Monkeypox virus" & db_cluster$clusterCut==3),])
 print(outliers[,1:4])
 
-#Clean environment
+#(11) Clean environment
 rm(list=setdiff(ls(), c("genes")))
 
 ```
@@ -521,7 +523,7 @@ Multiple Correspondence Analysis (MCA) for dimension reduction of categorical va
 
 ```{r mca}
 
-#Subset data and reformat gene variables as factor
+#(1) Subset data and reformat gene variables as factor
 genes_cat <- subset(genes,select=-c(Genome,VirusSpecies,HostGenus))
 genes_cat[] <- lapply(genes_cat, as.character)
 rownames <- genes$Sequence
@@ -530,32 +532,32 @@ genes_cat$Sequence=NULL
 rownames(genes_cat) <- rownames
 #str(genes_cat)
 
-#Apply MCA using FactoMineR::MCA
+#(2) Apply MCA using FactoMineR::MCA
 mca = MCA(genes_cat, graph = FALSE)
 # pca_relvar <- pca$sdev^2 / sum(pca$sdev^2)
 # pca_relvar_per <- round(pca_relvar*100,1)
 
-#List and summarize MCA results
+#(3) List and summarize MCA results
 print(mca)
 # summary(mca)
 head(mca$ind$coord) #sequence (individuals)
 head(mca$var$coord) #genes (variables)
 
-#Screeplot - Variance (Eigenvalues)
+#(4) Screeplot - Variance (Eigenvalues)
 #mca$eig
 fviz_eig(mca, addlabels = TRUE, ylim = c(0, 25))
 
-#Plots of individuals
+#(5) Plots of individuals
 fviz_mca_ind(mca, repel=TRUE)
 
-#Plots of MCA variables 1 and 2
+#(6) Plots of MCA variables 1 and 2
 fviz_mca_var(mca, repel = TRUE) ##
 
-#Biplot
+#(7) Biplot
 fviz_mca_biplot(mca, repel = TRUE)
 fviz_mca_biplot(mca, repel = FALSE, select.ind=list(contrib=20), select.var=list(contrib=20))
 
-#Clean environment
+#(8) Clean environment
 rm(list=ls())
 
 ```
@@ -566,43 +568,43 @@ rm(list=ls())
 
 ```{r prep_raw}
 
-#Load treespace
+#(1) Load treespace
 ## treespace dependencies include XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html) and 'rgl' (https://stackoverflow.com/a/66127391/2554330)
 ## recommend installing and loading rgl including 'options(rgl.useNULL=TRUE)' below before loading treespace
 library(rgl) # > install.packages("rgl"); > options(rgl.useNULL=TRUE)
 library(treespace) 
 
-#Clean environment
+#(2) Clean environment
 rm(list=ls()) 
 graphics.off()
 
-#Set working directory
+#(3) Set working directory
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Link Prediction Model")
 
-#Load raw data
+#(4) Load raw data
 load("Data_raw.RData")
 load("Output/wgs_PCs.RData")
 
-#Pox data: host-OPV interactions detected via PCR/isolation from Virion database *note additional interactions from pc_genes below
+#(5) Pox data: host-OPV interactions detected via PCR/isolation from Virion database *note additional interactions from pc_genes below
 ##virion <- vroom('https://github.com/viralemergence/virion/blob/main/Virion/Virion.csv.gz')
 poxdata <- virion %>% filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation"))) 
 
-#Viral traits data (& Host-pox links): host-OPV linked interactions & principal components of OPV genes (viral traits) extracted from genome sequence data 
+#(6) Viral traits data (& Host-pox links): host-OPV linked interactions & principal components of OPV genes (viral traits) extracted from genome sequence data 
 wgsdata <- wgs_PCs
 
-#Taxa: mammal species taxonomy from vertlife
+#(7) Taxa: mammal species taxonomy from vertlife
 ##vertlife <- read.csv(url('https://data.vertlife.org/mammaltree/taxonomy_mamPhy_5911species.csv'))
 taxa <- vertlife
 
-#Host traits: mammal traits from the COMBINE database <https://doi.org/10.1002/ecy.3344>
+#(8) Host traits: mammal traits from the COMBINE database <https://doi.org/10.1002/ecy.3344>
 ##path: ecy3344-sup-0001-datas1.zip > COMBINE_archives > trait_data_imputed.csv)
 hostTraits <- combine
 
-#Host tree: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03>
+#(9) Host tree: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03>
 ##path: Data_S8_finalFigureFiles > _DATA > MamPhy_fullPosterior_BDvr_Completed_5911sp_topoCons_NDexp_MCC_v2_target.tre)
 hostTree <- dryad
 
-#Clean environment
+#(10) Clean environment
 rm(virion, wgs_PCs, vertlife, dryad, combine)
 ```
 
@@ -612,60 +614,60 @@ rm(virion, wgs_PCs, vertlife, dryad, combine)
 
 ### Clean up Virion data ###
 
-#Exclude if host genus or virus is NA; exclude variola (smallpox) virus
+#(1) Exclude if host genus or virus is NA; exclude variola (smallpox) virus
 poxdata <- poxdata[!is.na(poxdata$HostGenus),]
 poxdata <- poxdata[!is.na(poxdata$Virus),]
 poxdata <- poxdata[!(poxdata$Virus=="variola virus"),]
 #In this model, we keep vaccinia virus!
 
-#Aggregate data at the host genus level
+#(2) Aggregate data at the host genus level
 poxdata$link <- 1
 poxdata <- aggregate(link~HostGenus+Virus, data=poxdata, mean)
 poxdata$link=NULL
 
-#Rename and reformat variables
+#(3) Rename and reformat variables
 poxdata <- plyr::rename(poxdata,c('HostGenus'='genus','Virus'='virus'))
 poxdata$genus <- str_to_title(poxdata$genus)
 
-#Add datasource variable
+#(4) Add datasource variable
 poxdata$virion <- 1
 
 ### Clean up genomic data ###
 
-#Rename and reformat variables
+#(5) Rename and reformat variables
 wgsdata <- plyr::rename(wgsdata,c('HostGenus'='genus','Sequence'='sequence'))
 wgsdata$virus <- tolower(wgsdata$VirusSpecies)
 wgsdata$VirusSpecies=NULL
 
-#Drop genome variable
+#(6) Drop genome variable
 wgsdata$Genome=NULL
 
-#Add datasource variable
+#(7) Add datasource variable
 wgsdata$wgs <- 1
 
 ### Merge ###
 
-#Are their virus in wgsdata that are not in poxdata and vice versa?
+#(8) Are their virus in wgsdata that are not in poxdata and vice versa?
 wgsdata$virus[!wgsdata$virus %in% poxdata$virus]
 poxdata$virus[!poxdata$virus %in% wgsdata$virus]
 
-#Correct 'cetaceanpox virus' to 'cetacean pox virus 1' in wgsdata
+#(9) Correct 'cetaceanpox virus' to 'cetacean pox virus 1' in wgsdata
 wgsdata$virus <- ifelse(wgsdata$virus=="cetaceanpox virus", "cetacean poxvirus 1", wgsdata$virus)
 
-#Are their genera in wgsdata that are not in poxdata and vice versa?
+#(10) Are their genera in wgsdata that are not in poxdata and vice versa?
 wgsdata$genus[!wgsdata$genus %in% poxdata$genus]
 poxdata$genus[!poxdata$genus %in% wgsdata$genus]
 
-#Merge poxdata w/ wgsdata
+#(11) Merge poxdata w/ wgsdata
 poxdata <- merge(poxdata,wgsdata,by=c('virus','genus'),all=TRUE)
 
-#Create data source variable
+#(12) Create data source variable
 poxdata$source <- ifelse(poxdata$wgs==1 & is.na(poxdata$virion),"wgs", ifelse(poxdata$virion==1 & is.na(poxdata$wgs),"virion","both"))
 
-#Replace sequence==NA with "NA", as this var will be our unique identifier for WGS links
+#(13) Replace sequence==NA with "NA", as this var will be our unique identifier for WGS links
 poxdata$sequence <- ifelse(is.na(poxdata$sequence),"NA",poxdata$sequence)
 
-#Remove virion and wgs vars; clean environment
+#(14) Remove virion and wgs vars; clean environment
 poxdata$virion=NULL
 poxdata$wgs=NULL
 rm(wgsdata)
@@ -676,35 +678,35 @@ rm(wgsdata)
 
 ```{r prep_pseudo}
 
-#Drop duplicate genera in taxa
+#(1) Drop duplicate genera in taxa
 gtaxa <- taxa[!duplicated(taxa$gen),]
 gtaxa <- gtaxa[c('gen','fam','ord')]
 gtaxa <- plyr::rename(gtaxa, c('gen'='genus'))
 
-#Check for mismatched genus names between poxdata and taxa before merging poxdata with taxa
+#(2) Check for mismatched genus names between poxdata and taxa before merging poxdata with taxa
 poxdata$genus[!poxdata$genus %in% gtaxa$genus]
 poxdata <- merge(gtaxa,poxdata,by='genus',all.x=TRUE)
 
-#To keep only genera from orders in which positive associations exist, first subset known host-virus associations
+#(3) To keep only genera from orders in which positive associations exist, first subset known host-virus associations
 keep <- subset(poxdata, !is.na(poxdata$source))
 
-#Next, create a new variable <keep> in poxdata denoting observations with the same host taxonomic order as that of known associations
+#(4) Next, create a new variable <keep> in poxdata denoting observations with the same host taxonomic order as that of known associations
 poxdata$keep <- ifelse(poxdata$ord %in% keep$ord,TRUE,FALSE)
 
-#View/evaluate which taxonomics orders will be kept and which orders will be discarded
+#(5) View/evaluate which taxonomics orders will be kept and which orders will be discarded
 uniq <- unique(poxdata[c("ord","keep")])
 
-#Keep only observations with the same host taxonomic order as that of known associations
+#(6) Keep only observations with the same host taxonomic order as that of known associations
 poxdata <- subset(poxdata,keep==TRUE)
 poxdata$keep=NULL
 
-#Create binary variable for known host-OPV associations/links
+#(7) Create binary variable for known host-OPV associations/links
 poxdata$link=ifelse(is.na(poxdata$source),0,1)
 
-#Reorder variables
+#(8) Reorder variables
 poxdata <- poxdata %>% select(link, virus, genus, fam, ord, source, everything())
 
-#Clean environment
+#(9) Clean environment
 rm(taxa,gtaxa,keep,uniq)
 
 ```
