@@ -47,7 +47,7 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 # Dimension Reduction
 
-In this section, we draw from our dataset of annotated OPV genomes (n=197 unique sequences; see genome annotation pipeline in methods section for more information), which compose our known host-OPV associations for incorporation in the link prediction model. Each sequence is classified by its source or virus species and its host, as well as the presence (1) or absence (0) of a suite of OPV accessory genes. Because our data consists of over 981 OPV accessory genes, the goal of this section is to reduce the number of viral predictors for incorporation in the link prediction model, while maintaining maximal variance. Using principal components analysis (PCA), a method of dimension reduction, we distill the variables down to their most important features. We also explore which sequences have the most similar values (aka, how do they group?) in the principal components using k-means clustering. Because we are analyzing presence/absence data (binary variables), we use multiple correspondence analysis (MCA) to further validate our results. MCA is a dimension reduction method similar to PCA but is used to analyze datasets with multiple categorical variables. 
+In this section, we draw from our dataset of annotated OPV genomes (n=197 unique sequences; see genome annotation pipeline in methods section for more information), which compose our known host-OPV associations for incorporation in the link prediction model. Each sequence is classified by its source or virus species and its host, as well as the presence (1) or absence (0) of a suite of OPV accessory genes. Because our data consists of over 981 OPV accessory genes, the goal of this section is to reduce the number of viral predictors for incorporation in the link prediction model, while maintaining maximal variance. Using principal components analysis (PCA), a method of dimension reduction, we distill the variables down to their most important features. We also explore which sequences have the most similar values (aka, how do they group?) in the principal components using k-means clustering. Because we are analyzing presence/absence data (binary variables), we use multiple correspondence analysis (MCA) to further validate our results. Though similar to PCA, MCA is used to analyze datasets with multiple categorical variables. 
 
 ### Load packages, clean environment, and set working directory
 
@@ -65,6 +65,7 @@ library(ggplot2)
 # Libraries for PCA (principal components analysis)
 library(vegan)
 library(factoextra) #fviz_eig
+library(ggfortify)
 
 #libraries for MCA
 library(FactoMineR)
@@ -236,9 +237,9 @@ rank_PC <- rank_PC %>% relocate(c("PC10_Gene","PC10_Loadings"), .after = last_co
 # write.csv(rank_PC, "Output/PCA_LoadingsRanked.csv")
 
 #Save datafile of PC scores for link prediction
-pc_genes <- genes[,1:4]
-pc_genes <- cbind(pc_genes, pca1$x[,1:10])
-#save(opvgenes, file='Output/opvgenes.RData')
+wgs_PCs <- genes[,1:4]
+wgs_PCs <- cbind(wgs_PCs, pca1$x[,1:10])
+# save(wgs_PCs, file='Output/wgs_PCs.RData')
 
 #Clean environment
 rm(list=setdiff(ls(), c("genes","pca1","relvar","relvar_per")))
@@ -284,7 +285,6 @@ fviz_pca_ind(pca1, geom.ind = "point", pointshape = 21, pointsize = 2,
              ggtitle("PCA Plot of Sequences") + theme(plot.title = element_text(hjust = 0.5))
 
 #Plot sequences by virus species for dim 1 and 2
-library(ggfortify)
 autoplot(pca1, data = genes, colour = 'VirusSpecies') + ggtitle("Plot of Sequences by Virus Species")
 
 #Plot gene loadings for dim 1 and 2
@@ -319,7 +319,7 @@ rm(list=setdiff(ls(), c("genes","pca1")))
 
 ```
 
-## (2) PCA Alternative Analysis 
+## PCA(2) Alternative Analysis 
 What happens when we exclude accessory genes present in only one virus species?
 
 ```{r pca2}
@@ -352,7 +352,7 @@ fviz_pca_biplot(pca2, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800
 
 ```
 
-## (3) PCA Alternative Analysis 
+## PCA(3) Alternative Analysis 
 What happens when we drop duplicate observations within the same host-virus links (sequences with the same identical presence/absence of accessory genes as another sequence of the same host-virus link)?
 
 ```{r pca3}
@@ -392,7 +392,7 @@ fviz_pca_biplot(pca3, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800
 
 ```
 
-## (4) PCA Alternative Analysis 
+## PCA(4) Alternative Analysis 
 What happens if we exclude the potential outliers from PCA, and then predict their scores and loadings?
 
 ```{r pca4}
@@ -439,7 +439,7 @@ rm(list=setdiff(ls(), c("genes", "pca1","outliers")))
 
 ```
 
-## PCA Hierarchical Cluster Analysis
+### PCA(1) Hierarchical Cluster Analysis
 
 ```{r pca1_cluster}
 
@@ -516,7 +516,6 @@ rm(list=setdiff(ls(), c("genes")))
 
 ```
 
-
 ### MCA of viral accessory genes
 Multiple Correspondence Analysis (MCA) for dimension reduction of categorical variables.
 
@@ -563,38 +562,48 @@ rm(list=ls())
 
 # 2. Data Preparation
 
-### Load data for merging: i.e., Host-pox/viral traits (PC), taxonomy data, host traits, and host tree
+### Load packages and data for merging: i.e., Host-pox/viral traits (PC), taxonomy data, host traits, and host tree
 
 ```{r prep_raw}
 
-#(1) Load raw data
+#Load treespace
+## treespace dependencies include XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html) and 'rgl' (https://stackoverflow.com/a/66127391/2554330)
+## recommend installing and loading rgl including 'options(rgl.useNULL=TRUE)' below before loading treespace
+library(rgl) # > install.packages("rgl"); > options(rgl.useNULL=TRUE)
+library(treespace) 
+
+#Clean environment
+rm(list=ls()) 
+graphics.off()
+
+#Set working directory
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Link Prediction Model")
+
+#Load raw data
 load("Data_raw.RData")
-load("Output/opvgenes.RData")
+load("Output/wgs_PCs.RData")
 
-save(combine, dryad, vertlife, virion, file='/Users/katietseng/Downloads/Data_raw.RData')
-load("/Users/katietseng/Downloads/Data_raw.RData")
-
-#(2) Pox data:  host-OPV interactions detected via PCR/isolation from Virion database *note additional interactions from pc_genes below
+#Pox data: host-OPV interactions detected via PCR/isolation from Virion database *note additional interactions from pc_genes below
 ##virion <- vroom('https://github.com/viralemergence/virion/blob/main/Virion/Virion.csv.gz')
 poxdata <- virion %>% filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation"))) 
 
-#(3) Viral traits data (& Host-pox links): host-OPV linked interactions & principal components of OPV genes (viral traits) extracted from genome sequence data 
-wgsdata <- pc_genes
+#Viral traits data (& Host-pox links): host-OPV linked interactions & principal components of OPV genes (viral traits) extracted from genome sequence data 
+wgsdata <- wgs_PCs
 
-#(3) Taxa: mammal species taxonomy from vertlife
+#Taxa: mammal species taxonomy from vertlife
 ##vertlife <- read.csv(url('https://data.vertlife.org/mammaltree/taxonomy_mamPhy_5911species.csv'))
 taxa <- vertlife
 
-#(4) Host traits: mammal traits from the COMBINE database <https://doi.org/10.1002/ecy.3344>
+#Host traits: mammal traits from the COMBINE database <https://doi.org/10.1002/ecy.3344>
 ##path: ecy3344-sup-0001-datas1.zip > COMBINE_archives > trait_data_imputed.csv)
 hostTraits <- combine
 
-#(5) Host tree: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03>
+#Host tree: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03>
 ##path: Data_S8_finalFigureFiles > _DATA > MamPhy_fullPosterior_BDvr_Completed_5911sp_topoCons_NDexp_MCC_v2_target.tre)
 hostTree <- dryad
 
-#(6) Clean environment
-rm(virion, vertlife, dryad, combine, opvgenes, pc_genes)
+#Clean environment
+rm(virion, wgs_PCs, vertlife, dryad, combine)
 ```
 
 ### Merge host-OPV interactions from Virion with host-OPV intx from genome annotations (Stephanie)
@@ -603,67 +612,63 @@ rm(virion, vertlife, dryad, combine, opvgenes, pc_genes)
 
 ### Clean up Virion data ###
 
-#(1) Exclude if host genus or virus is NA; exclude variola (smallpox) virus
+#Exclude if host genus or virus is NA; exclude variola (smallpox) virus
 poxdata <- poxdata[!is.na(poxdata$HostGenus),]
 poxdata <- poxdata[!is.na(poxdata$Virus),]
 poxdata <- poxdata[!(poxdata$Virus=="variola virus"),]
 #In this model, we keep vaccinia virus!
 
-#(2) Aggregate data at the host genus level
+#Aggregate data at the host genus level
 poxdata$link <- 1
 poxdata <- aggregate(link~HostGenus+Virus, data=poxdata, mean)
 poxdata$link=NULL
 
-#(3) Rename/reformat variables
+#Rename and reformat variables
 poxdata <- plyr::rename(poxdata,c('HostGenus'='genus','Virus'='virus'))
 poxdata$genus <- str_to_title(poxdata$genus)
 
-#(4) Add datasource variable
+#Add datasource variable
 poxdata$virion <- 1
 
 ### Clean up genomic data ###
 
-#(5) For WGS data, extract host genus name
-wgsdata$genus <- sapply(strsplit(wgsdata$HostGenus,' '),function(x) paste(x[1],sep=' '))
-
-#(6) Reformat virus variable
+#Rename and reformat variables
+wgsdata <- plyr::rename(wgsdata,c('HostGenus'='genus','Sequence'='sequence'))
 wgsdata$virus <- tolower(wgsdata$VirusSpecies)
-
-#(7) Drop unnecessary variables
-wgsdata$dup=NULL
-wgsdata$Accession=NULL
-wgsdata$HostGenus=NULL
 wgsdata$VirusSpecies=NULL
 
-#(8) Add datasource variable
+#Drop genome variable
+wgsdata$Genome=NULL
+
+#Add datasource variable
 wgsdata$wgs <- 1
 
 ### Merge ###
 
-#(10) Check for mismatched virus names between poxdata and wgsdata
+#Are their virus in wgsdata that are not in poxdata and vice versa?
 wgsdata$virus[!wgsdata$virus %in% poxdata$virus]
-# @Steph: Is cetacean pox virus entry 1 or 2?
+poxdata$virus[!poxdata$virus %in% wgsdata$virus]
 
-#(11) Check for mismatched genus names between poxdata and wgsdata
+#Correct 'cetaceanpox virus' to 'cetacean pox virus 1' in wgsdata
+wgsdata$virus <- ifelse(wgsdata$virus=="cetaceanpox virus", "cetacean poxvirus 1", wgsdata$virus)
+
+#Are their genera in wgsdata that are not in poxdata and vice versa?
 wgsdata$genus[!wgsdata$genus %in% poxdata$genus]
-# @Steph: Is cetacean pox virus entry 1 or 2?
+poxdata$genus[!poxdata$genus %in% wgsdata$genus]
 
-#(12) Change "Gliridae" to "Graphiurus"
-wgsdata$genus <- ifelse(wgsdata$genus=="Gliridae", "Graphiurus", wgsdata$genus)
-
-#(13) Merge poxdata w/ wgsdata
+#Merge poxdata w/ wgsdata
 poxdata <- merge(poxdata,wgsdata,by=c('virus','genus'),all=TRUE)
 
-#(14) Create data source variable
+#Create data source variable
 poxdata$source <- ifelse(poxdata$wgs==1 & is.na(poxdata$virion),"wgs", ifelse(poxdata$virion==1 & is.na(poxdata$wgs),"virion","both"))
 
-#(15) Remove virion and wgs vars; clean environment
+#Replace sequence==NA with "NA", as this var will be our unique identifier for WGS links
+poxdata$sequence <- ifelse(is.na(poxdata$sequence),"NA",poxdata$sequence)
+
+#Remove virion and wgs vars; clean environment
 poxdata$virion=NULL
 poxdata$wgs=NULL
 rm(wgsdata)
-
-#(15) Replace sequence==NA with "NA", as this var will be our unique identifier for WGS links
-poxdata$sequence <- ifelse(is.na(poxdata$sequence),"NA",poxdata$sequence)
 
 ```
 
@@ -671,35 +676,35 @@ poxdata$sequence <- ifelse(is.na(poxdata$sequence),"NA",poxdata$sequence)
 
 ```{r prep_pseudo}
 
-#(1) Drop duplicate genera in taxa
+#Drop duplicate genera in taxa
 gtaxa <- taxa[!duplicated(taxa$gen),]
 gtaxa <- gtaxa[c('gen','fam','ord')]
 gtaxa <- plyr::rename(gtaxa, c('gen'='genus'))
 
-#(2) Check for mismatched genus names between poxdata and taxa before merging poxdata with taxa
+#Check for mismatched genus names between poxdata and taxa before merging poxdata with taxa
 poxdata$genus[!poxdata$genus %in% gtaxa$genus]
 poxdata <- merge(gtaxa,poxdata,by='genus',all.x=TRUE)
 
-#(3) To keep only genera from orders in which positive associations exist, first subset known host-virus associations
+#To keep only genera from orders in which positive associations exist, first subset known host-virus associations
 keep <- subset(poxdata, !is.na(poxdata$source))
 
-#(4) Next, create a new variable <keep> in poxdata denoting observations with the same host taxonomic order as that of known associations
+#Next, create a new variable <keep> in poxdata denoting observations with the same host taxonomic order as that of known associations
 poxdata$keep <- ifelse(poxdata$ord %in% keep$ord,TRUE,FALSE)
 
-#(5) View/evaluate which taxonomics orders will be kept and which orders will be discarded
+#View/evaluate which taxonomics orders will be kept and which orders will be discarded
 uniq <- unique(poxdata[c("ord","keep")])
 
-#(6) Keep only observations with the same host taxonomic order as that of known associations
+#Keep only observations with the same host taxonomic order as that of known associations
 poxdata <- subset(poxdata,keep==TRUE)
 poxdata$keep=NULL
 
-#(7) Create binary variable for known host-OPV associations/links
+#Create binary variable for known host-OPV associations/links
 poxdata$link=ifelse(is.na(poxdata$source),0,1)
 
-#(8) Reorder variables
+#Reorder variables
 poxdata <- poxdata %>% select(link, virus, genus, fam, ord, source, everything())
 
-#(9) Clean environment
+#Clean environment
 rm(taxa,gtaxa,keep,uniq)
 
 ```
@@ -947,7 +952,7 @@ linkdata <- linkdata[!is.na(linkdata$virus),]
 linkdata <- merge(linkdata, hostTraits, by=c("genus"))
 
 #(5) Reorder variables
-linkdata <- linkdata %>% select(source, sequence, link, virus, genus, fam, ord, gtip, traitname, treename, PC1, PC2, PC3, PC4, PC5, PC6, everything())
+linkdata <- linkdata %>% select(source, sequence, link, virus, genus, fam, ord, gtip, traitname, treename, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10, everything())
 
 #(6) Reclassify NAs as pseudo-absences for viral detection
 linkdata$link=ifelse(is.na(linkdata$link),0,linkdata$link)
@@ -980,7 +985,11 @@ for(i in pc_med_names) {
   linkdata[,i]=NULL
 }
 
-#(13) Clean environment
+#(13) Replace NA values for 'source' and 'sequence' with "NA"
+linkdata$source <- ifelse(is.na(linkdata$source),"NA",linkdata$source)
+linkdata$sequence <- ifelse(is.na(linkdata$sequence),"NA",linkdata$sequence)
+
+#(14) Clean environment
 rm(combinations, hostTraits, uniq_virus, uniq_genus, pc, pc_median, pc_names, pc_med_names, i, poxdata)
 
 ```
