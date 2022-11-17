@@ -1041,6 +1041,9 @@ library(mgcv)
 rm(list=ls()) 
 graphics.off()
 
+#(3) Set working directory
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Link Prediction Model")
+
 ```
 
 ### Create taxonomic variables as predictors for the model
@@ -1156,7 +1159,9 @@ data=data[keeps]
 rm(keeps,mval)
 
 #(14) Save list of covariates and their coverage as table S1
-set <- subset(data,select=-c(source, sequence, link,virus,genus,fam,ord,gtip,treename))
+# set <- subset(data,select=-c(gen,fam,ord,gtip,treename,type,studies,sampled))
+
+set <- subset(data,select=-c(fam, source, sequence, virus, genus, ord, gtip, treename))
 ts1=data.frame(apply(set,2,function(x) length(x[!is.na(x)])/nrow(set)))
 
 #(15) Rename and reorder columns
@@ -1177,6 +1182,12 @@ data$source=NULL
 data$sequence=NULL
 # save(data, file='Output/data_LinkBRT.RData')
 ```
+
+### KATIE: temp start here ###
+rm(list=ls()) 
+load('Output/data_LinkBRT.RData')
+
+##############################
 
 ### Model tuning to asses model performance for each combination of tuning parameters
 
@@ -1295,8 +1306,8 @@ if(hok!="ok"){
                 wrow=row))
   }
   
-  ## run the function for PCR
-  hpars=lapply(1:nrow(hgrid),function(x) hfit(x,response="pcr"))
+  ## run the function for link
+  hpars=lapply(1:nrow(hgrid),function(x) hfit(x,response="link"))
   
   ## get results
   hresults=data.frame(sapply(hpars,function(x) x$trainAUC),
@@ -1311,38 +1322,40 @@ if(hok!="ok"){
   ## combine and save
   hsearch=merge(hresults,hgrid,by="row")
   
-  ## save
-  hsearch$type="PCR"
+  # ## save
+  # hsearch$type="PCR"
   
-  ## rerun the function for competence
-  hpars=lapply(1:nrow(hgrid),function(x) hfit(x,response="competence"))
-  
-  ## get results
-  hresults=data.frame(sapply(hpars,function(x) x$trainAUC),
-                      sapply(hpars,function(x) x$testAUC),
-                      sapply(hpars,function(x) x$spec),
-                      sapply(hpars,function(x) x$sen),
-                      sapply(hpars,function(x) x$wrow),
-                      sapply(hpars,function(x) x$best))
-  names(hresults)=c("trainAUC","testAUC",
-                    "spec","sen","row","best")
-  
-  ## combine and save
-  csearch=merge(hresults,hgrid,by="row")
-  
-  ## assign data type
-  csearch$type="competence"
-  
-  ## combine
-  search=rbind.data.frame(csearch,hsearch)
-  search$type=factor(search$type,levels=c("PCR","competence"))
+  # ## rerun the function for competence
+  # hpars=lapply(1:nrow(hgrid),function(x) hfit(x,response="competence"))
+  # 
+  # ## get results
+  # hresults=data.frame(sapply(hpars,function(x) x$trainAUC),
+  #                     sapply(hpars,function(x) x$testAUC),
+  #                     sapply(hpars,function(x) x$spec),
+  #                     sapply(hpars,function(x) x$sen),
+  #                     sapply(hpars,function(x) x$wrow),
+  #                     sapply(hpars,function(x) x$best))
+  # names(hresults)=c("trainAUC","testAUC",
+  #                   "spec","sen","row","best")
+  # 
+  # ## combine and save
+  # csearch=merge(hresults,hgrid,by="row")
+  # 
+  # ## assign data type
+  # csearch$type="competence"
+  # 
+  # ## combine
+  # search=rbind.data.frame(csearch,hsearch)
+  # search$type=factor(search$type,levels=c("PCR","competence"))
+
+  search=hsearch
   
   ## export
   write.csv(search,"Output/par tuning data summary.csv")
   
 }else{
   
-  ## load
+  ## 
   search=read.csv("Output/par tuning data summary.csv")
   
 }
@@ -1358,40 +1371,42 @@ search$shrinkage=factor(search$shrinkage)
 lvl=rev(sort(unique(search$shrinkage)))  #sorts unique shrinkage par from large to small
 search$shrinkage=factor(search$shrinkage,levels=lvl); rm(lvl)  #applies as factor
 search$interaction.depth=factor(search$interaction.depth)
-search$type=plyr::revalue(search$type,    #replace specified values w/ new values
-                          c("PCR"="RT-PCR",
-                            "competence"="virus isolation"))
+# search$type=plyr::revalue(search$type,    #replace specified values w/ new values
+#                           c("PCR"="RT-PCR",
+#                             "competence"="virus isolation"))
 
-#(2) PCR beta regression for AUC
+#(2) Beta regression for AUC
 mod=gam(testAUC~interaction.depth*shrinkage,   #gen additive models (gam) w/ integrated smoothness estimation
-        data=search[search$type=="RT-PCR",],method="REML",family=betar)
+        # data=search[search$type=="RT-PCR",],method="REML",family=betar)
+        data=search,method="REML",family=betar)
 anova(mod)
 
-#(3) Competence beta regression for AUC
-mod=gam(testAUC~interaction.depth*shrinkage,
-        data=search[search$type=="virus isolation",],method="REML",family=betar)
-anova(mod)
+# #(3) Competence beta regression for AUC
+# mod=gam(testAUC~interaction.depth*shrinkage,
+#         data=search[search$type=="virus isolation",],method="REML",family=betar)
+# anova(mod)
 
-#(4) PCR beta regression for sensitivity
+#(4) Beta regression for sensitivity
 mod=gam(sen~interaction.depth*shrinkage,
-        data=search[search$type=="RT-PCR",],method="REML",family=betar)
+        # data=search[search$type=="RT-PCR",],method="REML",family=betar)
+        data=search,method="REML",family=betar)
 anova(mod)
 
-#(5) Competence beta regression for sensitivity
-mod=gam(sen~interaction.depth*shrinkage,
-        data=search[search$type=="virus isolation",],method="REML",family=betar)
-anova(mod)
+# #(5) Competence beta regression for sensitivity
+# mod=gam(sen~interaction.depth*shrinkage,
+#         data=search[search$type=="virus isolation",],method="REML",family=betar)
+# anova(mod)
 
-
-#(6) PCR beta regression for specificity
+#(6) Beta regression for specificity
 mod=gam(spec~interaction.depth*shrinkage,
-        data=search[search$type=="RT-PCR",],method="REML",family=betar)
+        # data=search[search$type=="RT-PCR",],method="REML",family=betar)
+        data=search,method="REML",family=betar)
 anova(mod)
 
-#(7) Competence beta regression for specificity
-mod=gam(spec~interaction.depth*shrinkage,
-        data=search[search$type=="virus isolation",],method="REML",family=betar)
-anova(mod)
+# #(7) Competence beta regression for specificity
+# mod=gam(spec~interaction.depth*shrinkage,
+#         data=search[search$type=="virus isolation",],method="REML",family=betar)
+# anova(mod)
 
 #(8) Recast from wide to long
 search2=gather(search,measure,value,testAUC:sen)
@@ -1416,7 +1431,8 @@ ggplot(search2,aes(shrinkage,value,
   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
-  facet_grid(measure~type,scales="free_y",switch="y")+
+  # facet_grid(measure~type,scales="free_y",switch="y")+
+  facet_grid(measure,scales="free_y",switch="y")+
   theme(strip.placement="outside",
         strip.background=element_blank())+
   theme(axis.text=element_text(size=10),
@@ -1439,15 +1455,18 @@ search_nt5000_sh0.01 <- search_nt5000[search_nt5000$shrinkage==0.010,]  #subset 
 
 #(12) Plot best.iter by type (pcr/competence) to see max number of trees to include
 search_nt5000 %>%
-  ggplot( aes(x=best, fill=type)) +
+  # ggplot( aes(x=best, fill=type)) +
+  ggplot( aes(x=best)) +
   geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
   scale_fill_manual(values=c("#69b3a2", "#404080")) 
 search_nt15000 %>%
-  ggplot( aes(x=best, fill=type)) +
+  # ggplot( aes(x=best, fill=type)) +
+  ggplot( aes(x=best)) +  
   geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
   scale_fill_manual(values=c("#69b3a2", "#404080")) 
 search_nt5000_sh0.01 %>%
-  ggplot( aes(x=best, fill=type)) +
+  # ggplot( aes(x=best, fill=type)) +
+  ggplot( aes(x=best)) +
   geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
   scale_fill_manual(values=c("#69b3a2", "#404080")) 
 
@@ -1470,9 +1489,10 @@ brt_part=function(seed,response){
   ndata$response=ndata[response][,1]
   
   ## remove raw
-  ndata$pcr=NULL
-  ndata$competence=NULL
-  
+  # ndata$pcr=NULL
+  # ndata$competence=NULL
+    ndata$link=NULL
+
   ## fix cites if response
   if(response=="cites"){
     
@@ -1502,7 +1522,7 @@ brt_part=function(seed,response){
   
   ## n.trees
   nt=ifelse(response=="cites",10000,
-     ifelse(response=="pcr",4500,5000)) #see plots of best.iter 
+     ifelse(response=="link",4500,5000)) #see plots of best.iter 
   
   ## BRT
   set.seed(1)
@@ -1570,7 +1590,7 @@ brt_part=function(seed,response){
   ## predict with cites
   preds=predict(gbmOut,data,n.trees=best.iter,type="response")
   #pred_data=data[c("gtip",'treename',"fam","ord","pcr","competence")]
-  pred_data=data[c("virus","gtip",'treename',"fam","ord","pcr","competence")]
+  pred_data=data[c("virus","gtip",'treename',"fam","ord","link")]
   pred_data$pred=preds
   pred_data$type=response
   
@@ -1609,14 +1629,15 @@ brt_part=function(seed,response){
 #(1) apply across 100 splits each
 # smax=101
 smax=100
-pcr_brts=lapply(1:smax,function(x) brt_part(seed=x,response="pcr"))
-comp_brts=lapply(1:smax,function(x) brt_part(seed=x,response="competence"))
+# pcr_brts=lapply(1:smax,function(x) brt_part(seed=x,response="pcr"))
+# comp_brts=lapply(1:smax,function(x) brt_part(seed=x,response="competence"))
+brts=lapply(1:smax,function(x) brt_part(seed=x,response="link"))
 
 #(2) run wos brts
 pm_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="cites"))
 
 #(3) save results to wd
-save(pcr_brts,comp_brts,pm_brts,file="Output/LinkData_results.RData")
+save(brts,pm_brts,file="Output/LinkData_results.RData")
 
 ```
 

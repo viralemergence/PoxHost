@@ -72,6 +72,7 @@ $ scp -r /~/HPC Example/Kamiak_BRT_07Sep2022.sh [username]@kamiak.wsu.edu:~	#log
 $ scp -r /~/HPC Example/HostData_clean.RData [username]@kamiak.wsu.edu:~	#login password will be requested
 $ scp -r /~/HPC Example/Output/ [username]@kamiak.wsu.edu:~			#login password will be requested
 $ scp -r /~/HPC Example/KatieJob_07Sep2022.sh [username]@kamiak.wsu.edu:~	#login password will be requested
+$ ssh [username]@kamiak.wsu.edu     #log back into Kamiak
 $ ls										#check that contents were saved to home directory
 ```
 
@@ -86,7 +87,6 @@ $ data <- poxdata				#after testing, to exit vim w/o saving: press Esc key, type
 
 8. Submit job script to job queue/scheduler
 ```R
-$ ssh [username]@kamiak.wsu.edu	    		#log back into Kamiak
 $ sbatch KatieJob_07Sep2022.sh			#you will get an email from SLURM notifying you the job is running and a 2nd email when it’s finished
 $ squeue -u [username]				 
 $ squeue -j [job number]									
@@ -95,9 +95,9 @@ $ exit
 
 9. To check job progress, read contents of the output file; to check for errors, read contents of the error file
 ```R
-$ cat [job name]_43310144.out			#read the contents of the file
-$ cat [job name]_43310144.err			
-$ tail -4 [job name]_43310144.out		#read the last four lines of the file (default is 10)
+$ cat [job name_number].out			#read the contents of the file
+$ cat [job name_number].err			#e.g., [job name]_43310144.err
+$ tail -4 [job name_number].out		#read the last four lines of the file (default is 10)
 ```
 
 10. Once the job is complete:
