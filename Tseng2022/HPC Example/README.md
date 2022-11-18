@@ -104,6 +104,7 @@ $ tail -4 [job name_number].out		#read the last four lines of the file (default 
 ```R
 $ ssh [username]@kamiak.wsu.edu	    			#log back into Kamiak
 $ ls							#check that data files were saved
+$ for f in *\ *; do mv "$f" "${f// /_}"; done     #rename files replacing whitespaces with underscore
 $ logout						#log out to proceed with file transfer
 $ cd Downloads/Results/Kamiak				#cd [filepath] of where you want to save file
 $ scp -r [username]@kamiak.wsu.edu:~/pcr_brts.RData .	#Copy from Kamiak – DO NOT FORGET “ .” at the end
