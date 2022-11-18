@@ -1239,8 +1239,9 @@ if(hok!="ok"){
     ndata$response=ndata[response][,1]                           #creates var 'response'
     
     ## remove raw
-    ndata$pcr=NULL
-    ndata$competence=NULL
+    # ndata$pcr=NULL
+    # ndata$competence=NULL
+    ndata$link=NULL
     
     ## use rsample to split
     set.seed(hgrid$seed[row])                                    #sets seed value of 1-10
