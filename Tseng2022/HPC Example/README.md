@@ -121,6 +121,7 @@ $ q:							#quit with saving changes
 12. Other helpful commands
 ```R
 $ export R_LIBS_USER=~/lib/R_lbs
+$ scancel [job number]    #to kill a job
 ```
 
 13. Additional resources:
