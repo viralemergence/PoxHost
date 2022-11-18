@@ -1183,11 +1183,15 @@ data$sequence=NULL
 # save(data, file='Output/data_LinkBRT.RData')
 ```
 
-### KATIE: temp start here ###
-rm(list=ls()) 
-load('Output/data_LinkBRT.RData')
+### Alternative dataset excluding vaccinia virus sequences ###
 
-##############################
+```{r}
+
+# #(1) Subset data to exclude host-vaccinia virus links
+# data <- data[data$virus!="vaccinia virus",]
+# set <- subset(data,select=-c(fam, virus, genus, ord, gtip, treename))
+
+```
 
 ### Model tuning to asses model performance for each combination of tuning parameters
 
