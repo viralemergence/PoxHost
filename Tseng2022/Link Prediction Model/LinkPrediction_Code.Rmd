@@ -1424,34 +1424,34 @@ search2$measure=plyr::revalue(search2$measure,
 search2$measure=factor(search2$measure,
                        levels=c("test AUC","sensitivity","specificity"))
 
-#(10) Visualize - Figure S2
-png("Output/Figure_S2.png",width=5,height=8,units="in",res=600)
-set.seed(1)
-ggplot(search2,aes(shrinkage,value,
-                   colour=interaction.depth,fill=interaction.depth))+
-  geom_boxplot(alpha=0.25)+
-  geom_point(alpha=0.75,
-             position = position_jitterdodge(dodge.width=0.75))+
-  theme_bw()+
-  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
-  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
-  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
-  # facet_grid(measure~type,scales="free_y",switch="y")+
-  facet_grid(measure,scales="free_y",switch="y")+
-  theme(strip.placement="outside",
-        strip.background=element_blank())+
-  theme(axis.text=element_text(size=10),
-        axis.title=element_text(size=12),
-        strip.text=element_text(size=12))+
-  theme(legend.position="top")+
-  scale_color_brewer(palette="Pastel2")+
-  scale_fill_brewer(palette="Pastel2")+
-  guides(colour=guide_legend(title="interaction depth"),
-         fill=guide_legend(title="interaction depth"))+
-  labs(y=NULL,
-       x="learning rate")+
-  scale_y_continuous(n.breaks=4)
-dev.off()
+# #(10) Visualize - Figure S2
+# png("Output/Figure_S2.png",width=5,height=8,units="in",res=600)
+# set.seed(1)
+# ggplot(search2,aes(shrinkage,value,
+#                    colour=interaction.depth,fill=interaction.depth))+
+#   geom_boxplot(alpha=0.25)+
+#   geom_point(alpha=0.75,
+#              position = position_jitterdodge(dodge.width=0.75))+
+#   theme_bw()+
+#   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+#   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+#   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+#   # facet_grid(measure~type,scales="free_y",switch="y")+
+#   facet_grid(measure,scales="free_y",switch="y")+
+#   theme(strip.placement="outside",
+#         strip.background=element_blank())+
+#   theme(axis.text=element_text(size=10),
+#         axis.title=element_text(size=12),
+#         strip.text=element_text(size=12))+
+#   theme(legend.position="top")+
+#   scale_color_brewer(palette="Pastel2")+
+#   scale_fill_brewer(palette="Pastel2")+
+#   guides(colour=guide_legend(title="interaction depth"),
+#          fill=guide_legend(title="interaction depth"))+
+#   labs(y=NULL,
+#        x="learning rate")+
+#   scale_y_continuous(n.breaks=4)
+# dev.off()
 
 #(11) To determine optimal parameters for model training, subset tuning results by number of trees
 search_nt5000 <- search[search$n.trees==5000,]
