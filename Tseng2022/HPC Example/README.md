@@ -64,6 +64,11 @@ module load r/4.1.0						#load specified R version (newest is default)
 Rscript --vanilla [R script title].R  				#’vanilla’ runs R script from clean environment
 echo "Completed job $SLURM_JOBID on nodes $SLURM_JOB_NODELIST" 
 ```
+Note, if you are using a node on an alternate partition (not your default), it must be specified as such:
+```R
+#SBATCH --partition=lofgren
+#SBATCH --account=lofgren
+```
 
 6. Transfer files to Kamiak - EXAMPLE: R script (.R), data file (.RData), Output folder, shell script (.sh), etc.
 ```R
@@ -118,7 +123,7 @@ $ q:!							#quit without saving changes
 $ q:							#quit with saving changes
 ```
 
-12. FAQ
+12. FAQ <br />
 How do I cancel a job?
 ```R
 $ scancel [job number]    #to kill a job
@@ -128,8 +133,9 @@ How do I find more information about a specific partition and its allocated node
 sinfo -p fernandez       #view summary information about the fernandez partition (e.g., nodelist/id)
 scontrol show node cn128  #view node information (e.g., total CPUs and memory, allocated CPUs, etc.)  
 ```
+How do I set the filepath where R packages will be installed locally in your home directory?
 ```R
-$ R_LIBS_USER=~/lib/R_lbs
+$ export R_LIBS_USER=~/lib/R_lbs
 ``` 
 
 13. Additional resources:
