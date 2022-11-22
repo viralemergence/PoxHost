@@ -118,11 +118,19 @@ $ q:!							#quit without saving changes
 $ q:							#quit with saving changes
 ```
 
-12. Other helpful commands
+12. FAQ
+How do I cancel a job?
 ```R
-$ export R_LIBS_USER=~/lib/R_lbs
 $ scancel [job number]    #to kill a job
 ```
+How do I find more information about a specific partition and its allocated node(s)?
+```R
+sinfo -p fernandez       #view summary information about the fernandez partition (e.g., nodelist/id)
+scontrol show node cn128  #view node information (e.g., total CPUs and memory, allocated CPUs, etc.)  
+```
+```R
+$ R_LIBS_USER=~/lib/R_lbs
+``` 
 
 13. Additional resources:
 - https://www.hpc-carpentry.org/hpc-shell/00-hpc-intro/index.html
