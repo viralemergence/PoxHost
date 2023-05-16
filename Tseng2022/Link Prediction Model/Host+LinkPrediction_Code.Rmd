@@ -1,0 +1,330 @@
+---
+title: "Host+LinkPrediction_Code"
+output: html_document
+date: "2023-04-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+```
+
+# FIGURE 3: MAP
+
+```{r}
+
+#Threshold the results
+library(PresenceAbsence)
+
+set.seed(12345)
+
+#### Host only model ####
+
+#load file
+pred <- read.csv("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model/Output/PoxHost_predictions.csv")
+
+#(3) Optimal thresholds for PCR
+t.pcr <- optimal.thresholds(data.frame(pred[,c('treename','PCR','pred_pcr')]),
+                            threshold = 10001,
+                            opt.methods = 10,
+                            req.sens = 0.90,
+                            na.rm = TRUE)
+
+#(4) Optimal threshold for competence
+t.comp <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
+                             threshold = 10001,
+                             opt.methods = 10,
+                             req.sens = 0.90,
+                             na.rm = TRUE)
+
+#(5) Threshold the results to binary outputs
+pred %>%
+  mutate(bin_comp = (pred_comp > t.comp$pred_comp),
+         bin_pcr = (pred_pcr > t.pcr$pred_pcr)) -> pred
+
+####Let's get the relevant lists of known and predicted hosts for all OPVs keeping pcr and competence predictions separate 
+pred %>% filter(PCR==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known_pcr
+pred %>% filter(competence==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known_comp
+pred %>% filter(bin_pcr==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr
+pred %>% filter(bin_comp==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp
+
+#Pull out the relevant lists of predicted unknown hosts for all OPVs keeping pcr and competence predictions separate
+unk_pcr <- pred_pcr[!(pred_pcr %in% known_pcr)] #n=197
+unk_comp <- pred_comp[!(pred_comp %in% known_comp)] #n=118
+
+####Let's get the relevant lists of known and predicted hosts for all OPVs combining comp and pcr predictions for manuscript
+pred %>% filter(competence==1|PCR==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known #71
+pred %>% filter(bin_comp==1|bin_pcr==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred.pcrcomp #n=299
+sort(pred.pcrcomp[!(pred.pcrcomp %in% known)]) -> unknown #235
+
+#### Link prediction model ####
+
+#load link prediction file
+pred1 <- read.csv("Output/PoxHost_predictions_Model1.csv")
+pred1$virus_treename=paste0(pred1$virus, "%",pred1$treename)
+
+#drop out 'feline poxvirus ita2_bc'
+pred1 <- pred1[!(pred1$virus=="feline poxvirus ita2_bc"),]
+
+#() Add method applying 90% required sensitivity
+ts1_rs0.9 <- optimal.thresholds(data.frame(pred1[,c('virus_treename','link1','pred_Model1')]),
+                           threshold = 10001,
+                           opt.methods = c(10), 
+                           req.sens = 0.9,
+                           na.rm = TRUE)
+
+pred1$virus_treename=paste0(pred1$virus, "%",pred1$treename)
+  
+#(2) Threshold the results to binary outputs
+pred1 %>%
+  mutate(bin_rs0.9 = ifelse(pred_Model1 > ts1_rs0.9$pred_Model1, 1, 0)) -> pred1
+  
+#(7) Pull out the relevant lists of known hosts and predicted hosts for all OPVs
+pred1 %>% filter(link1==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known.1 #n=102
+pred1 %>% filter(bin_rs0.9==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred.1_rs0.9 #n=2266
+
+#() Pull out the relevant lists of predicted unknown hosts for all OPVs
+pred.1_unk_rs0.9 <- pred.1_rs0.9[!(pred.1_rs0.9 %in% known.1)] #n=1844
+
+
+#### CREATE MAP ####
+
+#(1) Load shape file of mammal geographic range
+iucn <- sf::st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/MAMMALS/MAMMALS.shp", layer='MAMMALS')
+
+#(2) Make a blank raster (must be connected to wifi for the disaggregate function)
+r <- raster::disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
+
+#(3) Create four layers
+iucn$treename=sapply(strsplit(iucn$binomial,' '),function(x) paste(x[1],sep=' '))
+
+iucn_known <- iucn[iucn$treename %in% known,] #n=1676
+iucn_pcrcomp <- iucn[iucn$treename %in% pred.pcrcomp,] #n=1908
+iucn_link <- iucn[iucn$treename %in% pred.1_rs0.9,] #n=1699
+
+map_known <- (fasterize(iucn_known, r, fun="sum"))
+map_pcrcomp <- (fasterize(iucn_pcrcomp, r, fun="sum"))
+map_link <- (fasterize(iucn_link, r, fun="sum"))
+
+#(4) Add zeros for the continental area 
+fix <- function(x) {sum(x,r,na.rm=TRUE)+r}
+
+map_known <- fix(map_known)
+map_pcrcomp <- fix(map_pcrcomp)
+map_link <- fix(map_link)
+
+raster::stack(map_known, map_pcrcomp, map_link) %>% raster::trim() -> maps_hostlink #alternatively, can use tera package
+
+names(maps_hostlink) <- c('Host traits model - known', 'Host traits model - pred', 'Link prediction model - pred')
+
+#(5) Generate the actual visualization
+library(rasterVis)
+library(RColorBrewer)
+
+mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
+mycolors[1] <- "#C0C0C0"
+
+png("Output/Map_HostLink.png",width=10,height=12,units="in",res=300)
+rasterVis::levelplot(maps_hostlink,  
+                     col.regions = mycolors,
+                     #at = seq(0, 15, 1),
+                     alpha = 0.5, 
+                     scales=list(alternating=FALSE),
+                     par.strip.text=list(cex=0),
+                     xlab = NULL, ylab = NULL,
+                     labels = labels,
+                     maxpixels = 5e6)
+dev.off()
+
+##### CREATE SEPARATE Map for host-only model @ rs0.9
+raster::stack(map_known, map_unknown) %>% raster::trim() -> maps_host_rs0.9 #alternatively, can use tera package
+names(maps_host_rs0.9) <- c('HostModel_Known', 'HostModel_PredUnknown')
+library(rasterVis)
+library(RColorBrewer)
+mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
+mycolors[1] <- "#C0C0C0"
+png("Output/Map_host_rs0.9.png",width=10,height=10,units="in",res=300)
+rasterVis::levelplot(maps_host_rs0.9,  
+                     col.regions = mycolors,
+                     #at = seq(0, 15, 1),
+                     alpha = 0.5, 
+                     scales=list(alternating=FALSE),
+                     par.strip.text=list(cex=0),
+                     xlab = NULL, ylab = NULL,
+                     #labels = labels,
+                     maxpixels = 5e6)
+dev.off()
+
+```
+
+```{r}
+#Alternatively, let's generate maps where host-trait model and link prediction model predict close to equal numbers of hosts:
+#rs0.95 (otv=0.2437; n=326) for host-trait model
+#rs0.80 (otv=0.1368; n=389) for link prediction model
+
+#Threshold the results
+library(PresenceAbsence)
+
+set.seed(12345)
+
+#### Host trait model ####
+
+#load file
+pred <- read.csv("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model/Output/PoxHost_predictions.csv")
+
+#(3) Optimal thresholds for PCR
+t.pcr0.95 <- optimal.thresholds(data.frame(pred[,c('treename','PCR','pred_pcr')]),
+                            threshold = 10001,
+                            opt.methods = 10,
+                            req.sens = 0.95,
+                            na.rm = TRUE)
+
+#(4) Optimal threshold for competence
+t.comp0.95 <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
+                             threshold = 10001,
+                             opt.methods = 10,
+                             req.sens = 0.95,
+                             na.rm = TRUE)
+
+
+#(5) Threshold the results to binary outputs
+pred %>%
+  mutate(bin_comp = (pred_comp > t.comp$pred_comp),
+         bin_pcr = (pred_pcr > t.pcr$pred_pcr)) -> pred
+
+####Let's get the relevant lists of known and predicted hosts for all OPVs combining comp and pcr predictions for manuscript
+pred %>% filter(competence==1|PCR==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known #71
+pred %>% filter(bin_comp==1|bin_pcr==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred.pcrcomp #n=299
+
+
+#### Link prediction model ####
+
+#load link prediction file
+pred1 <- read.csv("Output/PoxHost_predictions_Model1.csv")
+pred1$virus_treename=paste0(pred1$virus, "%",pred1$treename)
+
+#drop out 'feline poxvirus ita2_bc'
+pred1 <- pred1[!(pred1$virus=="feline poxvirus ita2_bc"),]
+
+#() Add method applying 80% required sensitivity
+ts1_rs0.8 <- optimal.thresholds(data.frame(pred1[,c('virus_treename','link1','pred_Model1')]),
+                           threshold = 10001,
+                           opt.methods = c(10), 
+                           req.sens = 0.8,
+                           na.rm = TRUE)
+
+#(2) Threshold the results to binary outputs
+pred1 %>%
+  mutate(bin_rs0.8 = ifelse(pred_Model1 > ts1_rs0.8$pred_Model1, 1, 0)) -> pred1
+  
+#(7) Pull out the relevant lists of known hosts and predicted hosts for all OPVs
+pred1 %>% filter(link1==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known.1 #n=102
+pred1 %>% filter(bin_rs0.8==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred.1_rs0.8 #n=470
+unknown1 <- sort(pred.1_rs0.8[!(pred.1_rs0.8 %in% known.1)])#n=292
+
+#(8) Filter unique values at the host genera level
+known.1_uniq <- unique(known.1) #n=75
+pred.1_rs0.8_uniq <- unique(pred.1_rs0.8) #n=294
+
+#### CREATE MAP ####
+
+#(1) Load shape file of mammal geographic range
+iucn <- sf::st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/MAMMALS/MAMMALS.shp", layer='MAMMALS')
+
+#(2) Make a blank raster (must be connected to wifi for the disaggregate function)
+r <- raster::disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
+
+#(3) Create four layers
+iucn$treename=sapply(strsplit(iucn$binomial,' '),function(x) paste(x[1],sep=' '))
+
+iucn_known <- iucn[iucn$treename %in% known.1,] #n=1676
+iucn_pcrcomp <- iucn[iucn$treename %in% pred.pcrcomp,] #n=299
+iucn_link <- iucn[iucn$treename %in% pred.1_rs0.8,] #n=1699
+
+map_known <- (fasterize(iucn_known, r, fun="sum"))
+map_pcrcomp <- (fasterize(iucn_pcrcomp, r, fun="sum"))
+map_link <- (fasterize(iucn_link, r, fun="sum"))
+
+#(4) Add zeros for the continental area 
+fix <- function(x) {sum(x,r,na.rm=TRUE)+r}
+
+map_known <- fix(map_known)
+map_pcrcomp <- fix(map_pcrcomp)
+map_link <- fix(map_link)
+
+raster::stack(map_known, map_pcrcomp, map_link) %>% raster::trim() -> maps_hostlink #alternatively, can use tera package
+
+names(maps_hostlink) <- c('Host traits model - known', 'Host traits model - pred', 'Link prediction model - pred')
+
+#(5) Generate the actual visualization
+library(rasterVis)
+library(RColorBrewer)
+
+mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
+mycolors[1] <- "#C0C0C0"
+
+png("Output/Map_Host0.95_Link0.8.png",width=10,height=12,units="in",res=300)
+rasterVis::levelplot(maps_hostlink,  
+                     col.regions = mycolors,
+                     #at = seq(0, 15, 1),
+                     alpha = 0.5, 
+                     scales=list(alternating=FALSE),
+                     par.strip.text=list(cex=0),
+                     xlab = NULL, ylab = NULL,
+                     labels = labels,
+                     maxpixels = 5e6)
+dev.off()
+
+
+#### CREATE MAP - unique predicted ####
+
+#(1) Load shape file of mammal geographic range
+iucn <- sf::st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/MAMMALS/MAMMALS.shp", layer='MAMMALS')
+
+#(2) Make a blank raster (must be connected to wifi for the disaggregate function)
+r <- raster::disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
+
+#(3) Create four layers
+iucn$treename=sapply(strsplit(iucn$binomial,' '),function(x) paste(x[1],sep=' '))
+
+iucn_known <- iucn[iucn$treename %in% known.1_uniq,] #n=1676
+iucn_pcrcomp <- iucn[iucn$treename %in% pred.pcrcomp,] #n=299
+iucn_link <- iucn[iucn$treename %in% pred.1_rs0.8_uniq,] #n=1699
+
+map_known <- (fasterize(iucn_known, r, fun="sum"))
+map_pcrcomp <- (fasterize(iucn_pcrcomp, r, fun="sum"))
+map_link <- (fasterize(iucn_link, r, fun="sum"))
+
+#(4) Add zeros for the continental area 
+fix <- function(x) {sum(x,r,na.rm=TRUE)+r}
+
+map_known <- fix(map_known)
+map_pcrcomp <- fix(map_pcrcomp)
+map_link <- fix(map_link)
+
+raster::stack(map_known, map_pcrcomp, map_link) %>% raster::trim() -> maps_hostlink #alternatively, can use tera package
+
+names(maps_hostlink) <- c('Host traits model - known', 'Host traits model - pred', 'Link prediction model - pred')
+
+#(5) Generate the actual visualization
+library(rasterVis)
+library(RColorBrewer)
+
+mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
+mycolors[1] <- "#C0C0C0"
+
+png("Output/Map_Host0.95_Link0.8uniq.png",width=10,height=12,units="in",res=300)
+rasterVis::levelplot(maps_hostlink,  
+                     col.regions = mycolors,
+                     #at = seq(0, 15, 1),
+                     alpha = 0.5, 
+                     scales=list(alternating=FALSE),
+                     par.strip.text=list(cex=0),
+                     xlab = NULL, ylab = NULL,
+                     labels = labels,
+                     maxpixels = 5e6)
+dev.off()
+```

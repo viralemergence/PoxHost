@@ -1,0 +1,504 @@
+
+### Model predictions: Explore model correlation and phylogenetic signal
+
+```{r pp_phylo}
+
+load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Link Prediction Model/apreds2_temp.RData")
+
+#Load library
+library(ape) 
+
+#Load phylogeny
+load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/HPC Example/HostData_clean.RData")
+mtree=hostTree
+
+#Setdiff
+apreds2$tree=ifelse(apreds2$treename%in%setdiff(apreds2$treename,mtree$tip.label),'cut','keep')
+table(apreds2$tree)    
+## keep: 945
+
+#Trim 
+bdata=subset(apreds2,tree=='keep')
+
+#Save new vars
+bdata$label=bdata$treename
+bdata$Species=bdata$treename
+
+#Drop 'feline poxvirus ita2_bc': this species has a single known link to the genus 'homo' and can be reclassified as CPXV; however, CPXV already has a known link to 'homo', so we drop it instead
+bdata <- bdata[!(bdata$virus=="feline poxvirus ita2_bc"),]
+
+#Generate variable of whether a link was predicted based on threshold value of __
+bdata$link1_rs0.8 <- ifelse(bdata$pred_Model1 > ts1_rs0.8$pred_Model1, 1, 0)
+bdata$link1_rs0.85 <- ifelse(bdata$pred_Model1 > ts1_rs0.85$pred_Model1, 1, 0)
+bdata$link1_rs0.9 <- ifelse(bdata$pred_Model1 > ts1_rs0.9$pred_Model1, 1, 0)
+bdata$link1_mss3 <- ifelse(bdata$pred_Model1 > ts1_mss3$pred_Model1, 1, 0)
+
+#Aggregate at the host genera level assuming the mean b/c pgls() takes only one value per tip
+bdata_mean <- aggregate(cbind(pred_Model1,pred_Model2) ~ treename + ord + fam + genus + label + Species, data=bdata, mean)
+
+# For visualizing binary classification of links on a phylogenetic tree (where only one tip value is allowed), we regroup as 'unclassified orthopoxvirus' the following virus species:
+  # 'cetacean poxvirus 1'
+  # 'cetacean poxvirus 2'
+  # 'orthopoxvirus gcp2010'
+  # 'orthopoxvirus gcp2013'
+  # 'orthopoxvirus sp.'
+  # 'orthopoxvirus tena dona'
+  # 'steller sea lion poxvirus'
+
+#Combine all rows of data for unclassified virus species into a single dataset
+bdata_unclassified <- bdata[bdata$virus=="cetacean poxvirus 1",]
+bdata_unclassified <- rbind(bdata_unclassified, bdata[bdata$virus=="cetacean poxvirus 2",])
+bdata_unclassified <- rbind(bdata_unclassified, bdata[bdata$virus=="orthopoxvirus gcp2010",])
+bdata_unclassified <- rbind(bdata_unclassified, bdata[bdata$virus=="orthopoxvirus gcp2013",])
+bdata_unclassified <- rbind(bdata_unclassified, bdata[bdata$virus=="orthopoxvirus sp.",])
+bdata_unclassified <- rbind(bdata_unclassified, bdata[bdata$virus=="orthopoxvirus tena dona",])
+bdata_unclassified <- rbind(bdata_unclassified, bdata[bdata$virus=="steller sea lion poxvirus",])
+
+#Aggregate unclassified virus species at host genera level and take max value of link
+bdata_unclassified <- aggregate(cbind(link1,link2,link1_rs0.8,link1_rs0.85,link1_rs0.9,link1_mss3) ~ treename + ord + fam + genus + label + Species, data=bdata, max)
+
+#Add virus column for "unclassified orthopoxvirus"
+bdata_unclassified$virus <- "unclassified orthopoxvirus"
+
+#Create new df bdata_sum from bdata to which we will append bdata_unclassified: match column names to those of bdata_unclassified, and drop virus species that were regrouped in unclassified
+bdata_sum <- subset(bdata, select=c(colnames(bdata_unclassified)))
+bdata_sum <- bdata_sum[!(bdata_sum$virus=="cetacean poxvirus 1"),]
+bdata_sum <- bdata_sum[!(bdata_sum$virus=="cetacean poxvirus 2"),]
+bdata_sum <- bdata_sum[!(bdata_sum$virus=="orthopoxvirus gcp2010"),]
+bdata_sum <- bdata_sum[!(bdata_sum$virus=="orthopoxvirus gcp2013"),]
+bdata_sum <- bdata_sum[!(bdata_sum$virus=="orthopoxvirus sp."),]
+bdata_sum <- bdata_sum[!(bdata_sum$virus=="orthopoxvirus tena dona"),]
+bdata_sum <- bdata_sum[!(bdata_sum$virus=="steller sea lion poxvirus"),]
+
+#Append to bdata_sum new virus group of unclassified
+bdata_sum <- rbind(bdata_sum, bdata_unclassified)
+
+#() Aggregate at the host genera level assuming the sum
+bdata_sum <- aggregate(cbind(link1,link2,link1_rs0.8,link1_rs0.85,link1_rs0.9,link1_mss3) ~ treename + ord + fam + genus + label + Species, data=bdata_sum, sum)
+
+#() Combine bdata_mean and bdata_sum
+bdata_agg <- merge(bdata_mean, bdata_sum, by=c("treename", "ord", "fam", "genus", "label", "Species"))
+
+### We take the mean of the predictions for visualizing the phylotree later b/c if the mean is >1 that means at least one host-virus link was positive within that host genera
+### link1 and link2 represent known hosts; unknown_link1_ and unknown_link2_ represent unknown predicted hosts
+
+#(6) Merge tree data with prediction data
+cdata=comparative.data(phy=mtree,data=bdata_agg,names.col=treename,vcv=T,na.omit=F,warn.dropped=T) 
+  #cdata=comparative.data(phy=mtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T) 
+  #combines phylogenies w/ datasets ensuring consistent structure (needed for the next step -> caper::pgls)
+  #vcv=T indicates to include variance covariance array representing phylogeny w/in the comparative dataset
+
+#(7) Fix
+cdata$data$tree=NULL
+
+#(8) Measure phylogenetic signal (Pagel's lambda) of model predictions using caper::pgls
+Model1_lmod=pgls(pred_Model1~1,data=cdata,lambda="ML")   #pgls fits a linear model while taking into account phylogenetic non-independence between data points
+Model2_lmod=pgls(pred_Model2~1,data=cdata,lambda="ML")   #lambda = value for lambda transformation; 'ML' uses maximum likelihood to optimize branch length transformations
+###for more info: https://static1.squarespace.com/static/5459da8ae4b042d9849b7a7b/t/57ea64eae58c62718aa34769/1474979059782/Nesin_Winternitz_Practical_1and2.pdf
+
+#(9) Get Pagel's lambda (phylogenetic signal) 
+summary(Model1_lmod)
+summary(Model2_lmod)
+
+```
+
+### Model predictions: Identify taxonomic patterns
+
+```{r pp_taxo}
+
+#load library
+library(phylofactor)
+
+#(1) Extract taxonomy
+cdata$data$taxonomy=paste(cdata$data$ord,cdata$data$fam,cdata$data$Species,sep='; ') #We refer to genus as "Species" as this is required in later functions
+
+#(2) Set taxonomy
+taxonomy=data.frame(cdata$data$taxonomy)
+names(taxonomy)="taxonomy"
+taxonomy$Species=rownames(cdata$data)
+taxonomy=taxonomy[c("Species","taxonomy")]
+taxonomy$taxonomy=as.character(taxonomy$taxonomy)
+
+#(3) Holm rejection procedure (counteract the problem of multiple comparisons and controls FWER)
+HolmProcedure <- function(pf,FWER=0.05){
+  
+  ## get split variable
+  cs=names(coef(pf$models[[1]]))[-1]
+  split=ifelse(length(cs)>1,cs[3],cs[1])
+  
+  ## obtain p values
+  if (pf$models[[1]]$family$family%in%c('gaussian',"Gamma","quasipoisson")){
+    pvals <- sapply(pf$models,FUN=function(fit) summary(fit)$coefficients[split,'Pr(>|t|)'])
+  } else {
+    pvals <- sapply(pf$models,FUN=function(fit) summary(fit)$coefficients[split,'Pr(>|z|)'])
+  }
+  D <- length(pf$tree$tip.label)
+  
+  ## this is the line for Holm's sequentially rejective cutoff
+  keepers <- pvals<=(FWER/(2*D-3 - 2*(0:(pf$nfactors-1))))
+  
+  
+  if (!all(keepers)){
+    nfactors <- min(which(!keepers))-1
+  } else {
+    nfactors <- pf$nfactors
+  }
+  return(nfactors)
+}
+
+#(13) Get species in a clade
+cladeget=function(pf,factor){
+  spp=pf$tree$tip.label[pf$groups[[factor]][[1]]]
+  return(spp)
+}
+
+#(4) Summarize pf object 
+pfsum=function(pf){
+  
+  ## get formula
+  chars=as.character(pf$frmla.phylo)[-1]
+  
+  ## response
+  resp=chars[1]
+  
+  ## fix
+  resp=ifelse(resp=='cbind(pos, neg)','prevalence',resp)
+  
+  ## holm
+  hp=HolmProcedure(pf)
+  
+  ## save model
+  model=chars[2]
+  
+  ## set key
+  setkey(pf$Data,'Species')
+  
+  ## make data
+  dat=data.frame(pf$Data)
+  
+  ## make clade columns in data
+  for(i in 1:hp){
+    
+    dat[,paste0(resp,'_pf',i)]=ifelse(dat$Species%in%cladeget(pf,i),'factor','other')
+    
+  }
+  
+  ## make data frame to store taxa name, response, mean, and other
+  results=data.frame(matrix(ncol=6, nrow = hp))
+  colnames(results)=c('factor','taxa','tips','node',"clade",'other')
+  
+  ## set taxonomy
+  taxonomy=dat[c('Species','taxonomy')]
+  taxonomy$taxonomy=as.character(taxonomy$taxonomy)
+  
+  ## loop
+  for(i in 1:hp){
+    
+    ## get taxa
+    tx=pf.taxa(pf,taxonomy,factor=i)$group1
+    
+    ## get tail
+    tx=sapply(strsplit(tx,'; '),function(x) tail(x,1))
+    
+    ## combine
+    tx=paste(tx,collapse=', ')
+    
+    # save
+    results[i,'factor']=i
+    results[i,'taxa']=tx
+    
+    ## get node
+    tips=cladeget(pf,i)
+    node=ggtree::MRCA(pf$tree,tips)
+    results[i,'tips']=length(tips)
+    results[i,'node']=ifelse(is.null(node) & length(tips)==1,'species',
+                             ifelse(is.null(node) & length(tips)!=1,NA,node))
+    
+    ## get means
+    ms=(tapply(dat[,resp],dat[,paste0(resp,'_pf',i)],mean))
+    
+    ## add in
+    results[i,'clade']=ms['factor']
+    results[i,'other']=ms['other']
+    
+  }
+  
+  ## return
+  return(list(set=dat,results=results))
+}
+
+#(5) Fix palette
+AlberPalettes <- c("YlGnBu","Reds","BuPu", "PiYG")
+AlberColours <- sapply(AlberPalettes, function(a) RColorBrewer::brewer.pal(5, a)[4])
+afun=function(x){
+  a=AlberColours[1:x]
+  return(a)
+}
+
+#(6) Make low and high
+pcols=afun(2)
+
+#(7) Phylofactorization of Model 1 predictions
+set.seed(1)
+Model1pred_pf=gpf(Data=cdata$data,tree=cdata$phy,
+               frmla.phylo=pred_Model1~phylo,
+               family=gaussian,algorithm='phylo',nfactors=20,min.group.size=5)
+
+#(8) Phylofactorization of Model 2 predictions
+set.seed(1)
+Model2pred_pf=gpf(Data=cdata$data,tree=cdata$phy,
+                frmla.phylo=pred_Model2~phylo,
+                family=gaussian,algorithm='phylo',nfactors=10,min.group.size=5)
+
+#(9) Summarize
+Model1pred_pf_results=pfsum(Model1pred_pf)$results
+Model2pred_pf_results=pfsum(Model2pred_pf)$results
+
+#(10) Add model
+Model1pred_pf_results$model="Model 1 (Full)"
+Model2pred_pf_results$model="Model 2 (Partial)"
+
+#(11) Bind
+predpfs=rbind.data.frame(Model1pred_pf_results,Model2pred_pf_results)
+
+#(12) Round
+predpfs$clade=round(predpfs$clade,2)
+predpfs$other=round(predpfs$other,2)
+
+#(13) Write
+write.csv(predpfs,"Output/pp_taxo_t1.csv")
+
+```
+
+### Model predictions: Re-plot predicted probabilities with phylogenetic tree and binary classification - Figure 3(C)
+
+```{r pp_tree}
+
+#load library
+library(treeio)
+library(ggtree)
+
+#(1) Combine tree and data
+dtree=treeio::full_join(as.treedata(cdata$phy),cdata$data,by="label")
+
+#(2) Plot base tree
+pbase=ggtree(dtree,layout="fan",branch.length="none",size=0.25)
+
+#(3) Get tree data
+tdata=pbase$data
+
+#(4) Get tips only
+tdata=tdata[which(tdata$isTip==T),]
+
+#(5) Set x max
+xmax=max(tdata$x)+10
+
+#() Let's look at the distribution of predicted probabilities and (1) cap those that are outliers at 0.15, 0.1, and 95% percentile; or (2) log-transform the values
+hist(cdata$data$pred_Model1)
+cdata$data$cap0.15_pred_Model1 = ifelse(cdata$data$pred_Model1 > 0.15, 0.15, cdata$data$pred_Model1)
+cdata$data$cap0.1_pred_Model1 = ifelse(cdata$data$pred_Model1 > 0.1, 0.1, cdata$data$pred_Model1)
+cdata$data$quant0.95_pred_Model1 = ifelse(cdata$data$pred_Model1 > quantile(cdata$data$pred_Model1,0.95), quantile(cdata$data$pred_Model1,0.95),cdata$data$pred_Model1)
+# cdata$data$circle0.1 = 0.1
+
+#(6) Make data frame for Model 1
+samp=data.frame(x=tdata$x,
+                y=tdata$y,
+                yend=tdata$y,
+                # xend_Model1=rescale(cdata$data$pred_Model1,c(max(tdata$x),xmax)),
+                xend_Model1=rescale(cdata$data$cap0.15_pred_Model1,c(max(tdata$x),xmax)), #rescale(x, newrange) where x is numeric object and newrange is the new min and max
+                # xend_Model1=rescale(cdata$data$quant0.95_pred_Model1,c(max(tdata$x),xmax)),
+                # xend_Model1_circle=rescale(cdata$data$circle0.1,c(max(tdata$x),xmax)),
+                link1_rs0.8=cdata$data$link1_rs0.8,
+                link1_rs0.85=cdata$data$link1_rs0.85,
+                link1_rs0.9=cdata$data$link1_rs0.9,
+                link1_mss3=cdata$data$link1_mss3,
+                factor_link1_rs0.8=as.factor((cdata$data$link1_rs0.8)),
+                factor_link1_rs0.85=as.factor((cdata$data$link1_rs0.85)),
+                factor_link1_rs0.9=as.factor((cdata$data$link1_rs0.9)),
+                factor_link1_mss3=as.factor((cdata$data$link1_mss3)),
+                treename=tdata$label)
+
+#() For plotting, separate df into predicted host genera and non-predicted host genera for different thresholds
+samp_nopred_rs0.8 <- samp[samp$link1_rs0.8==0,]
+samp_pred_rs0.8 <- samp[samp$link1_rs0.8>0,]
+samp_nopred_rs0.85 <- samp[samp$link1_rs0.85==0,]
+samp_pred_rs0.85 <- samp[samp$link1_rs0.85>0,]
+samp_nopred_rs0.9 <- samp[samp$link1_rs0.9==0,]
+samp_pred_rs0.9 <- samp[samp$link1_rs0.9>0,]
+samp_nopred_mss3 <- samp[samp$link1_mss3==0,]
+samp_pred_mss3 <- samp[samp$link1_mss3>0,]
+
+#() load library for color palette
+library(viridis)
+
+#(8) Plot base tree and highlight significant clades for Model 1
+gg=pbase
+for(i in 1:nrow(Model1pred_pf_results)){
+  gg=gg+
+    geom_hilight(node=Model1pred_pf_results$node[i],
+                 alpha=ifelse(Model1pred_pf_results$tips[i]/Ntip(cdata$phy)<0.5,0.5,0.25), #alpha=0.5 is less transparent opacity); 0.25 is more transparent opacity
+                 fill="black")
+}
+
+# #(9) Add pred-probs and assign color based on whether host genera had any predicted host-virus links (binary)
+p1_rs0.8=gg+
+  geom_segment(
+    data=samp_nopred_rs0.8,
+    mapping=aes(x=x,y=y,xend=xend_Model1,yend=yend,
+                alpha=factor_link1_rs0.8),
+    color="gray",linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(data=samp_pred_rs0.8,aes(x=x,y=y,xend=xend_Model1,yend=yend,
+                                  colour=factor(link1_rs0.8)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+                      guide=guide_legend(reverse=TRUE),
+                      limits=seq(from=1,to=12),
+                      name="Number of predicted links\nwith OPV species") +
+ theme(legend.position=c(1.1,.5))
+
+####KATIE YOU STOPPED AT THE LINE ABOVE 'LIMITS'. LOOKS LIKE WE COULD USE SEQ_ALONG TO GET VALUES
+
+p1_rs0.85=gg+
+  geom_segment(
+    data=samp_nopred_rs0.85,
+    mapping=aes(x=x,y=y,xend=xend_Model1,yend=yend,
+                alpha=factor_link1_rs0.85),
+    color="gray",linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(data=samp_pred_rs0.85,aes(x=x,y=y,xend=xend_Model1,yend=yend,
+                                  colour=factor(link1_rs0.85)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1, 
+                      guide=guide_legend(reverse=TRUE), 
+                      limits=seq(from=1,to=12),
+                      name="Number of predicted links\nwith OPV species") +
+ theme(legend.position=c(1.1,.5))
+
+p1_rs0.9=gg+
+  geom_segment(
+    data=samp_nopred_rs0.9,
+    mapping=aes(x=x,y=y,xend=xend_Model1,yend=yend,
+                alpha=factor_link1_rs0.9),
+    color="gray",linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(data=samp_pred_rs0.9,aes(x=x,y=y,xend=xend_Model1,yend=yend,
+                                  colour=factor(link1_rs0.9)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1, 
+                      guide=guide_legend(reverse=TRUE), 
+                      limits=seq(from=1,to=12),
+                      name="Number of predicted links\nwith OPV species") +
+ theme(legend.position=c(1.1,.5))
+
+p1_mss3=gg+
+  geom_segment(
+    data=samp_nopred_mss3,
+    mapping=aes(x=x,y=y,xend=xend_Model1,yend=yend,
+                alpha=factor_link1_mss3),
+    color="gray",
+    linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(data=samp_pred_mss3,aes(x=x,y=y,xend=xend_Model1,yend=yend,
+                                  colour=factor(link1_mss3)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1, 
+                      guide=guide_legend(reverse=TRUE),
+                      limits=seq(from=1,to=12),
+                      name="Number of predicted links\nwith OPV species") +
+ theme(legend.position=c(1.1,.5))
+
+#(12) Figure F3C - Combine figures for different threshold values
+f3C_model1=ggarrange(p1_rs0.8,p1_rs0.85, p1_rs0.9,p1_mss3,
+              labels=c("(a) ReqSens0.8; Th=0.14","(b) ReqSens0.85; Th=0.08","(c) ReqSens0.9; Th=0.05","(d) MaxSensSpec; Th=0.06"),
+              label.x=c(-0.25,-0.25,-0.25,-0.25),
+              label.y=0.2,
+              font.label=list(face="plain",size=13),
+              ncol=2,nrow=2,
+              common.legend = TRUE, legend="right")
+
+#(13) Visualize
+
+#(14) Let's use ReqSens0.8 and MaxSensSpec to demonstrate the impact of threshold moving on binary classification
+f3C_model1=ggarrange(p1_rs0.8,p1_mss3,
+              labels=c("(a) ReqSens0.8; Th=0.14","(b) MaxSensSpec; Th=0.06"),
+              label.x=c(0,0),
+              label.y=0.2,
+              font.label=list(face="plain",size=13),
+              ncol=1,nrow=2,
+              common.legend = TRUE, legend="right")
+
+#(13) Revise Figure 3
+png("Output/pp_tree_f1.png",width=10,height=8,units="in",res=300)
+f3C_model1
+dev.off()
+
+######## BEGIN INTERMISSION, TRYING TO ADD SCALE/CONCENTRIC CIRCLES ########
+
+#() Install package ggtreeExtra
+#https://github.com/YuLab-SMU/plotting-tree-with-data-using-ggtreeExtra
+BiocManager::install("ggtreeExtra")
+library(ggrteeExtra)
+
+#() Add concentric circles
+#https://yulab-smu.top/treedata-book/chapter10.html
+BiocManager::install("phyloseq")
+data("GlobalPatterns")
+
+plot <- p1_rs0.8 + 
+  geom_segment(data=samp,aes(x=x,y=y,xend=xend_Model1_circle,yend=yend,
+                                  colour=factor(link1_rs0.8)),linewidth=0.75,)
+gg +
+     geom_fruit(
+         data=samp,
+         geom=geom_segment,
+         mapping = aes(
+                     y=0.5,
+                     x=x,
+                     xend=xend_Model1,
+                     yend=yend,
+                     colour=factor(samp$link1_rs0.8)),
+         # axis.params=list(
+         #                 axis       = "x",
+         #                 text.size  = 1.8,
+         #                 hjust      = 1,
+         #                 vjust      = 0.5,
+         #                 nbreak     = 3,
+         #             ),
+         grid.params=list()
+     ) 
+
+### SAMPLE SILHOUETTE IMAGE CODE
+# Silhouettes image in the outermost ring
+install.packages("ggtreeExtra")
+library(ggtreeExtra)
+library(ggimage)
+phylopicda <- read.csv("https://raw.githubusercontent.com/YuLab-SMU/plotting-tree-with-data-using-ggtreeExtra/master/data/VertebrateGutMicrobiomes/data_phylopic_uid.csv")
+
+p1_rs0.8+geom_nodelab(aes(image=phylopicda), geom="phylopic", alpha=.5, color='steelblue')
+
+fig4 <- fig3 +
+      new_scale_colour() +
+      geom_fruit(
+          data=phylopicda,
+          geom=geom_phylopic,
+          mapping=aes(y=taxa, image=uid, color=class),
+          size=0.035,
+          offset=0.16,
+          alpha=0.8,
+          position=position_identityx()
+      ) +
+      scale_colour_manual(
+          values=c("#b2df8a","#33a02c","#fb9a99",
+                   "#EACB47","#6a3d9a"),
+          guide="none"
+      ) +
+      theme(
+          legend.background=element_rect(fill=NA),
+          legend.title=element_text(size=7),
+          legend.text=element_text(size=5),
+          legend.spacing.y = unit(0.02, "cm")
+      )  
+
+### ANNOTATE TREE WITH PHYLOPIC: https://yulab-smu.top/treedata-book/chapter8.html
+
+######## END INTERMISSION, TRYING TO ADD SCALE/CONCENTRIC CIRCLES ########
+
+
+```
