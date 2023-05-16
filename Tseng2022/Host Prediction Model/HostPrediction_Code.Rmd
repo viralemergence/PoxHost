@@ -46,6 +46,7 @@ library(ape)
 library(dplyr)
 library(nlme)
 library(tidyverse)
+library(stringr)
 library(vroom) 
 ## treespace dependencies include XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html) and 'rgl' (https://stackoverflow.com/a/66127391/2554330)
 library(rgl) # >install.packages("rgl"); >options(rgl.useNULL=TRUE)
@@ -155,6 +156,9 @@ poxdata$keep=NULL
 
 #(6) Create binary variable for sampled host-OPV pairs
 poxdata$sampled=ifelse(is.na(poxdata$pcr) & is.na(poxdata$competence),0,1)
+
+#(6) Calculate number of pseudoabsences
+length(which(is.na(poxdata$virus)))
 
 #(7) Reclassify NAs as pseudo-absences for viral detection
 poxdata$pcr=ifelse(is.na(poxdata$pcr),0,poxdata$pcr)
@@ -345,6 +349,7 @@ hostTree=makeLabel(hostTree)
 #(5) Clean environment
 rm(hostTraits)
 
+
 ```
 
 ### Add PubMed citations and evolutionary distinctiveness measure
@@ -448,7 +453,7 @@ rm(list=ls())
 graphics.off()
 
 # #(3) Set working directory
-# setwd("~/Tseng2022")
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model")
 
 ```
 
@@ -458,6 +463,7 @@ graphics.off()
 
 #(1) Load data and trim unnecessary columns
 load("Output/HostData_clean.RData")
+# load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/HPC Example/HostData_clean.RData")
 data <- poxdata
 
 #(2) Check that genus name in poxdata is also in hostTree
@@ -850,6 +856,7 @@ rm(dums,set,ag_columns)
 ```
 
 ### Assess variation and availability of data
+Are there zero or near-zero variance predictors?
 
 ```{r brt_var}
 
@@ -1399,6 +1406,9 @@ library(plyr)
 rm(list=ls()) 
 graphics.off()
 
+#(3) Set working directory
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model")
+
 ```
 
 ### Evaluate performance measures: 
@@ -1410,6 +1420,9 @@ How accurately did infection and competence BRT models distinguish OPV positive 
 
 #(1) Load data
 load("Output/HostData_results.RData")
+# pcr_brts <- readRDS("/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/cleaned/pcr brts.rds")
+# comp_brts <- readRDS("/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/cleaned/comp brts.rds")
+# pm_brts <- readRDS("/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/cleaned/pm brts.rds")
 
 #(2) Index non-missing
 pcr_keep=which(!is.na(sapply(pcr_brts,function(x) x$testAUC)))
@@ -1441,11 +1454,23 @@ se(sapply(pm_brts,function(x) x$testAUC))
 #(9) Clean environment
 rm(pm_brts)
 
-#(10) Get independent AUC for PCR and comp
+#(10) Get independent AUC for PCR and Comp models
 mean(sapply(pcr_brts,function(x) x$testAUC))
 se(sapply(pcr_brts,function(x) x$testAUC))
 mean(sapply(comp_brts,function(x) x$testAUC))
 se(sapply(comp_brts,function(x) x$testAUC))
+
+#(11) Get independent sensitivity for PCR and Comp models
+mean(sapply(pcr_brts,function(x) x$sen))
+se(sapply(pcr_brts,function(x) x$sen))
+mean(sapply(comp_brts,function(x) x$sen))
+se(sapply(comp_brts,function(x) x$sen))
+
+#(11) Get independent specificity for PCR and Comp models
+mean(sapply(pcr_brts,function(x) x$spec))
+se(sapply(pcr_brts,function(x) x$spec))
+mean(sapply(comp_brts,function(x) x$spec))
+se(sapply(comp_brts,function(x) x$spec))
 
 ```
 
@@ -1474,7 +1499,7 @@ tfun=function(measure){
   adata$xj=jitter(adata$x,0.5)
   
   ## fix response
-  adata$response2=revalue(adata$response,c("infection"="RT-PCR",
+  adata$response2=plyr::revalue(adata$response,c("infection"="RT-PCR",
                                            "competence"="virus isolation"))
   
   ## t-test
@@ -1489,28 +1514,22 @@ tfun=function(measure){
   return(list(adata=adata,tsum=tsum,csum=csum))
 }
 
-#(2) Run for AUC
+#(2) Compare AUC w/ tfun function; extract t-stat & Cohen's d
 adata=tfun("testAUC")
+adata$tsum$statistic
+adata$csum$effsize
 
-#(3) Run for sensitivity
-mean(sapply(pcr_brts,function(x) x$sen))
-se(sapply(pcr_brts,function(x) x$sen))
-mean(sapply(comp_brts,function(x) x$sen))
-se(sapply(comp_brts,function(x) x$sen))
-
-#(4) Compare w/ tfun function
+#(4) Compare sensitivity w/ tfun function; extract t-stat & Cohen's d
 sedata=tfun("sen")
+sedata$tsum$statistic
+sedata$csum$effsize
 
-#(5) Run for specificity
-mean(sapply(pcr_brts,function(x) x$spec))
-se(sapply(pcr_brts,function(x) x$spec))
-mean(sapply(comp_brts,function(x) x$spec))
-se(sapply(comp_brts,function(x) x$spec))
-
-#(6) Compare w/ tfun function
+#(6) Compare specificity w/ tfun function; extract t-stat & Cohen's d
 spdata=tfun("spec")
+spdata$tsum$statistic
+spdata$csum$effsize
 
-#(7) Adjust p values
+#(7) Adjust p-values with Benjamini Hochberg correction method
 ps=c(adata$tsum$p.value,
      sedata$tsum$p.value,
      spdata$tsum$p.value)
@@ -1634,13 +1653,61 @@ vdata_comp$comp_imp=vdata_comp$rel.inf/100
 ranks=merge(vdata_pcr[c("var","pcr_rank","pcr_imp")],
             vdata_comp[c("var","comp_rank","comp_imp")],
             by="var")
-rm(vdata_comp,vdata_pcr)
 
 #(4) Table S5 - Ranks
 ts5=ranks
 ts5$feature=ts5$var
 ts5=ts5[c("feature","pcr_imp","comp_imp","pcr_rank","comp_rank")]
 write.csv(ts5,"Output/TableS5.csv")
+
+
+#(6) Extract list of top 10 variables
+keep_pcr <- ranks$var[which(ranks$pcr_rank<=10)]
+keep_comp <- ranks$var[which(ranks$comp_rank<=10)]
+
+#(7) Subset df of relative importance values associated with top 10 vars for pcr
+vinf=lapply(pcr_brts,function(x) x$rinf)
+pcr_vinf=do.call(rbind,vinf)
+pcr_vinf <- pcr_vinf[which(pcr_vinf$var%in%keep_pcr),]
+pcr_vinf$rel.inf <- pcr_vinf$rel.inf/100
+
+#() Boxplot of Relative Feature Importance - Infection
+f1A <- ggplot(pcr_vinf) + ggtitle("(A) Host-only infection model") +
+        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
+        theme_bw() +
+        labs(x="Relative influence",
+             y="Features") + 
+        theme(axis.text.y=element_text(size=10),
+              axis.text.x=element_text(size=12),
+              axis.title.x=element_text(size=12, margin=margin(t=10,r=0,b=0,l=0)),
+              axis.title.y=element_text(size=12, margin=margin(t=0,r=10,b=0,l=0)),
+              strip.text=element_text(size=12))
+
+#(7) Subset df of relative importance values associated with top 10 vars for competence
+vinf=lapply(comp_brts,function(x) x$rinf)
+comp_vinf=do.call(rbind,vinf)
+comp_vinf <- comp_vinf[which(comp_vinf$var%in%keep_pcr),]
+comp_vinf$rel.inf <- comp_vinf$rel.inf/100
+
+#() Boxplot of Relative Feature Importance - Competence
+f1B <- ggplot(comp_vinf) + ggtitle("(B) Host-only competence model") +
+        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
+        theme_bw() +
+        labs(x="Relative influence",
+             y="Features") + 
+        theme(axis.text.y=element_text(size=10),
+              axis.text.x=element_text(size=12),
+              axis.title.x=element_text(size=12, margin=margin(t=10,r=0,b=0,l=0)),
+              axis.title.y=element_text(size=12, margin=margin(t=0,r=10,b=0,l=0)),
+              strip.text=element_text(size=12))
+
+#(9) Figure S2 - Combine Boxplots of Relative Feature Importance
+png("Output/trait_rank_f1.png",width=10,height=10,units="in",res=300)
+ggarrange(f1A,f1B,ncol=2,nrow=1,
+          font.label=list(face="plain",size=12))
+dev.off()
+
+rm(f1A, f1B, vdata_comp,vdata_pcr)
 
 ```
 
@@ -1733,7 +1800,7 @@ dev.off()
 ```{r trait_effect}
 
 #(1) Partial dependence plots w/ pdp package
-detach("package:purrr", unload=TRUE)
+# detach("package:purrr", unload=TRUE)
 library(pdp)  #partial dependence plots help visualize the relationship b/w a subset of features and the response while accounting for the avg effect of the other predictors in the model
 library(gbm)
 
@@ -1805,10 +1872,10 @@ pdp_plot=function(bmods,feature){
                    size=1,colour="grey",alpha=0.25)+
       
       ## add lines
-      geom_line(size=1,alpha=0.25,colour="grey")+
+      geom_line(linewidth=1,alpha=0.25,colour="grey")+
       
       ## add mean
-      geom_line(data=pmean,size=2,inherit.aes=F,
+      geom_line(data=pmean,linewidth=2,inherit.aes=F,
                 aes(predictor,yhat))+
       
       ## theme
@@ -1884,10 +1951,12 @@ pdp_plot=function(bmods,feature){
 
 #(4) Load cleaned data file
 load("Output/HostData_clean.RData")
+# load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/HPC Example/HostData_clean.RData")
+
 data <- poxdata
 
 #(5) Make binary columns for family
-dums=dummy_cols(data["fam"])
+dums=fastDummies::dummy_cols(data["fam"])
 
 #(6) Unique
 dums=dums[!duplicated(dums$fam),]
@@ -1982,14 +2051,14 @@ comp_apreds$type='competence'
 apreds=rbind.data.frame(pcr_apreds,comp_apreds)
 
 #(8) Add study
-apreds=merge(apreds,data[c("treename","studied")],by="treename")
+apreds=merge(apreds,data[c("treename","studies")],by="treename")
 
 #(9) Generate positivity variable
 apreds$positivity=ifelse(apreds$pcr==1 & apreds$type=="PCR",1,
                          ifelse(apreds$competence==1 & apreds$type=='competence',1,0))
 
 #(10) Generate cat variable from studied
-apreds$cat=ifelse(apreds$studied==0,"unsampled",
+apreds$cat=ifelse(apreds$studies==0,"unsampled",
                   ifelse(apreds$positivity==1,"positive","negative"))
 
 #(11) Generate type variable
@@ -1998,7 +2067,7 @@ apreds$type=factor(apreds$type,levels=c("PCR","competence"))
 apreds$type2=revalue(apreds$type,c("PCR"="infection"))
 
 #(12) Transform apreds long to wide
-apreds2=spread(apreds[c('treename','type','cpred')],type,cpred)
+apreds2=tidyr::spread(apreds[c('treename','type','cpred')],type,cpred)
 comp_apreds$comp=comp_apreds$competence
 
 #(13) Merge with comp_apreds
@@ -2008,13 +2077,13 @@ apreds2=merge(apreds2,comp_apreds[c("treename","pcr","comp")],by="treename")
 names(apreds2)=c("treename","pred_pcr","pred_comp","PCR","competence")
 
 #(15) Classify true negatives
-data$type=ifelse(data$studied>0 & data$pcr==0 & data$competence==0,"true negative","other")
+data$type=ifelse(data$studies>0 & data$pcr==0 & data$competence==0,"true negative","other")
 
 #(16) Merge with data
-apreds2=merge(apreds2,data[c("treename","type","studied","ord","fam","gen")],by='treename')
+apreds2=merge(apreds2,data[c("treename","type","studies","ord","fam","gen")],by='treename')
 
 #(17) Fix type
-apreds2$cat=ifelse(apreds2$studied==0,"unsampled",
+apreds2$cat=ifelse(apreds2$studies==0,"unsampled",
                    ifelse(apreds2$PCR==0 & apreds2$competence==0,"negative","positive"))
 
 #(18) Fix cat
@@ -2100,16 +2169,209 @@ dev.off()
 
 ```
 
+
+### Threshold the results
+
+```{r pp_threshold}
+
+#(1) load libraries
+library(PresenceAbsence)
+library(openxlsx)
+
+#(2) load files
+set.seed(12345)
+pred <- read.csv("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model/Output/PoxHost_predictions.csv")
+
+### Calculate threshold values for PCR Model ###
+ts_pcr <- optimal.thresholds(data.frame(pred[,c('treename','PCR','pred_pcr')]),
+                           threshold = 10001,
+                           opt.methods = c(2,3,4,5,10),
+                           req.sens = 0.80,
+                           na.rm = TRUE)
+
+ts_pcr[nrow(ts_pcr) + 1,] <- optimal.thresholds(data.frame(pred[,c('treename','PCR','pred_pcr')]),
+                           threshold = 10001,
+                           opt.methods = c(10),
+                           req.sens = 0.85,
+                           na.rm = TRUE)
+
+ts_pcr[nrow(ts_pcr) + 1,] <- optimal.thresholds(data.frame(pred[,c('treename','PCR','pred_pcr')]),
+                           threshold = 10001,
+                           opt.methods = c(10),
+                           req.sens = 0.9,
+                           na.rm = TRUE)
+
+ts_pcr[nrow(ts_pcr) + 1,] <- optimal.thresholds(data.frame(pred[,c('treename','PCR','pred_pcr')]),
+                           threshold = 10001,
+                           opt.methods = c(10),
+                           req.sens = 0.95,
+                           na.rm = TRUE)
+
+cut_pcr1 <- function(x) {sum(pred$pred_pcr > x)}
+cut_pcr2 <- function(x) {sum(pred$pred_pcr[pred$PCR==0] > x)}
+
+sapply(unlist(ts_pcr[2]), cut_pcr1)
+sapply(unlist(ts_pcr[2]), cut_pcr2)
+sum(pred$PCR)
+#save threshold values
+# write.csv(ts_pcr, file='Output/ts_pcr.csv')
+
+### Calculate threshold values for COMPETENCE MODEL ###
+
+ts_comp <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
+                           threshold = 10001,
+                           opt.methods = c(2,3,4,5,10),
+                           req.sens = 0.80,
+                           na.rm = TRUE)
+
+ts_comp[nrow(ts_comp) + 1,] <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
+                           threshold = 10001,
+                           opt.methods = c(10),
+                           req.sens = 0.85,
+                           na.rm = TRUE)
+
+ts_comp[nrow(ts_comp) + 1,] <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
+                           threshold = 10001,
+                           opt.methods = c(10),
+                           req.sens = 0.9,
+                           na.rm = TRUE)
+
+ts_comp[nrow(ts_comp) + 1,] <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
+                           threshold = 10001,
+                           opt.methods = c(10),
+                           req.sens = 0.95,
+                           na.rm = TRUE)
+
+cut_comp1 <- function(x) {sum(pred$pred_comp > x)}
+cut_comp2 <- function(x) {sum(pred$pred_comp[pred$competence==0] > x)}
+
+sapply(unlist(ts_comp[2]), cut_comp1)
+sapply(unlist(ts_comp[2]), cut_comp2)
+sum(pred$competence)
+#save threshold values
+# write.csv(ts_comp, file='Output/ts_comp.csv')
+
+### APPLY THRESHOLDS TO PREDICTIONS ###
+
+# Extract selected optimum threshold values from ts_pcr
+ts_pcr_rs0.8 <- as.data.frame(ts_pcr[5,])
+ts_pcr_rs0.9 <- as.data.frame(ts_pcr[7,])
+ts_pcr_rs0.95 <- as.data.frame(ts_pcr[8,])
+ts_pcr_mss3 <- as.data.frame(ts_pcr[2,])
+
+ts_comp_rs0.8 <- as.data.frame(ts_comp[5,])
+ts_comp_rs0.9 <- as.data.frame(ts_comp[7,])
+ts_comp_rs0.95 <- as.data.frame(ts_comp[8,])
+ts_comp_mss3 <- as.data.frame(ts_comp[2,])
+
+#(5) Threshold the results to binary outputs
+pred %>%
+  mutate(bin_pcr_rs0.8 = ifelse(pred_pcr > ts_pcr_rs0.8$pred_pcr, 1, 0),
+         bin_pcr_rs0.9 = ifelse(pred_pcr > ts_pcr_rs0.9$pred_pcr, 1, 0),
+         bin_pcr_rs0.95 = ifelse(pred_pcr > ts_pcr_rs0.95$pred_pcr, 1, 0),
+         bin_pcr_mss3 = ifelse(pred_pcr > ts_pcr_mss3$pred_pcr, 1, 0),
+         bin_comp_rs0.8 = ifelse(pred_comp > ts_comp_rs0.8$pred_comp, 1, 0),
+         bin_comp_rs0.9 = ifelse(pred_comp > ts_comp_rs0.9$pred_comp, 1, 0),
+         bin_comp_rs0.95 = ifelse(pred_comp > ts_comp_rs0.95$pred_comp, 1, 0),
+         bin_comp_mss3 = ifelse(pred_comp > ts_comp_mss3$pred_comp, 1, 0)) -> pred
+
+#(9) Pull out the relevant lists 
+pred %>% filter(PCR==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known_pcr #n=71
+pred %>% filter(bin_pcr_rs0.8==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr_rs0.8 #n=250
+pred %>% filter(bin_pcr_rs0.9==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr_rs0.9 #n=250
+pred %>% filter(bin_pcr_rs0.95==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr_rs0.95
+pred %>% filter(bin_pcr_mss3==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr_mss3 #n=250
+pred %>% filter(competence==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known_comp #n=58
+pred %>% filter(bin_comp_rs0.8==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp_rs0.8 #n=155
+pred %>% filter(bin_comp_rs0.9==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp_rs0.9 #n=155
+pred %>% filter(bin_comp_rs0.95==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp_rs0.95
+pred %>% filter(bin_comp_mss3==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp_mss3 #n=155
+
+#(5) Sort and create table of known and unknown hosts (hosts that do not overlap)
+pred_kpcr <- as.data.frame(sort(known_pcr)) #n=58
+pred_upcr_rs0.8 <- as.data.frame(sort(pred_pcr_rs0.8[!(pred_pcr_rs0.8 %in% known_pcr)])) #n=74
+pred_upcr_rs0.9 <- as.data.frame(sort(pred_pcr_rs0.9[!(pred_pcr_rs0.9 %in% known_pcr)])) #n=74
+pred_upcr_rs0.95 <- as.data.frame(sort(pred_pcr_rs0.95[!(pred_pcr_rs0.95 %in% known_pcr)]))
+pred_upcr_mss3 <- as.data.frame(sort(pred_pcr_mss3[!(pred_pcr_mss3 %in% known_pcr)])) #n=88
+pred_kcomp <- as.data.frame(sort(known_comp)) #n=41
+pred_ucomp_rs0.8 <- as.data.frame(sort(pred_comp_rs0.8[!(pred_comp_rs0.8 %in% known_comp)])) #n=67
+pred_ucomp_rs0.9 <- as.data.frame(sort(pred_comp_rs0.9[!(pred_comp_rs0.9 %in% known_comp)])) #n=67
+pred_ucomp_rs0.95 <- as.data.frame(sort(pred_comp_rs0.95[!(pred_comp_rs0.95 %in% known_comp)]))
+pred_ucomp_mss3 <- as.data.frame(sort(pred_comp_mss3[!(pred_comp_mss3 %in% known_comp)])) #n=152
+
+#(6) How many predicted hosts are undiscovered by PCR?
+nrow(pred_upcr_rs0.8)
+nrow(pred_upcr_rs0.9)
+nrow(pred_upcr_rs0.95)
+nrow(pred_upcr_mss3)
+
+#(7) How many predicted undiscovered hosts by competence
+nrow(pred_ucomp_rs0.8)
+nrow(pred_ucomp_rs0.9)
+nrow(pred_ucomp_rs0.95)
+nrow(pred_ucomp_mss3)
+
+#(7) Create list of dataframes/tables
+list_df <- list(pred_kpcr, pred_upcr_rs0.8, pred_upcr_rs0.9, pred_upcr_rs0.95, pred_upcr_mss3, pred_kcomp, pred_ucomp_rs0.8, pred_ucomp_rs0.9, pred_ucomp_rs0.95, pred_ucomp_mss3)
+
+#(6) Rename variables
+list_df <- lapply(list_df, function(x) {colnames(x) <- c("gen"); x})
+
+#(11) Incorporate taxonomic family & order for each model
+taxa <- apreds2[,c("gen","fam","ord")] 
+taxa <- unique(taxa)
+list_df <- lapply(list_df, function(x) {x <- merge(x, taxa, by = "gen", all=FALSE); x})
+
+#(12) Sort by virus, order, family, and genus
+list_df <- lapply(list_df, function(x) {x <- x[order(x$ord, x$fam, x$gen),]; x})
+
+#(13) Reorder columns
+list_df <- lapply(list_df, function(x) {x <- x[,c("ord","fam","gen")]; x})
+
+#(14) Reformat to proper
+library(stringr)
+list_df <- lapply(list_df, function(x) {x$fam <- str_to_title(x$fam); x})
+list_df <- lapply(list_df, function(x) {x$ord <- str_to_title(x$ord); x})
+
+#(15) Unlist
+pred_kpcr <- as.data.frame(list_df[[1]])
+pred_upcr_rs0.8 <- as.data.frame(list_df[[2]])
+pred_upcr_rs0.9 <- as.data.frame(list_df[[3]])
+pred_upcr_rs0.95 <- as.data.frame(list_df[[4]])
+pred_upcr_mss3 <- as.data.frame(list_df[[5]])
+pred_kcomp <- as.data.frame(list_df[[6]])
+pred_ucomp_rs0.8 <- as.data.frame(list_df[[7]])
+pred_ucomp_rs0.9 <- as.data.frame(list_df[[8]])
+pred_ucomp_rs0.95 <- as.data.frame(list_df[[9]])
+pred_ucomp_mss3 <- as.data.frame(list_df[[10]])
+
+#(16) Save for known hosts and unknown hosts where req.sens=0.8, req.sens=0.85, req.sens=0.9, req.sens=0.95, and opt.methods=3 (MaxSensSpec)
+pred_pcr <- list('pcr_known'=pred_kpcr, 
+                    'pcr_unknown_rs0.8'=pred_upcr_rs0.8, 
+                    'pcr_unknown_rs0.9'=pred_upcr_rs0.9, 
+                    'pcr_unknown_rs0.95'=pred_upcr_rs0.95, 
+                    'pcr_unknown_mss3'=pred_upcr_mss3)
+pred_comp <- list('comp_known'=pred_kcomp, 
+                    'comp_unknown_rs0.8'=pred_ucomp_rs0.8,
+                    'comp_unknown_rs0.9'=pred_ucomp_rs0.9,
+                    'comp_unknown_rs0.95'=pred_ucomp_rs0.95, 
+                    'comp_unknown_mss3'=pred_ucomp_mss3)
+write.xlsx(pred_pcr, file='Output/Predicted_Hosts_PCR.xlsx')
+write.xlsx(pred_comp, file='Output/Predicted_Hosts_Competence.xlsx')
+
+```
+
 ### Model predictions: Explore model correlation and phylogenetic signal
 
 ```{r pp_phylo}
 
 #(1) Test correlation between the predicted probabilities of infection vs. competence models
-cor(apreds2$pred_pcr,apreds2$pred_comp,method='spearman')
-cor.test(apreds2$pred_pcr,apreds2$pred_comp,method='spearman')
+cor(apreds2$pred_pcr,apreds2$pred_comp,method='spearman') #computes Spearment correlation coefficient
+cor.test(apreds2$pred_pcr,apreds2$pred_comp,method='spearman') #tests for correlation b/w paires samples based on Spearman corr test
 
 #(2) Load phylogeny
 load("Output/HostData_clean.RData")
+# load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/HPC Example/HostData_clean.RData")
 mtree=hostTree
 
 #(3) Setdiff
@@ -2125,14 +2387,43 @@ bdata=bdata[match(mtree$tip.label,bdata$treename),]
 bdata$label=bdata$treename
 bdata$Species=bdata$treename
 
+#()Generate mean of pcr and comp predicted probabilities
+bdata <- bdata %>% mutate(pred_mean = rowMeans(across(pred_pcr:pred_comp), na.rm = TRUE))
+
+#()Generate variable of whether a link was predicted based on threshold value
+bdata$pcr_rs0.8 <- ifelse(bdata$pred_pcr > ts_pcr_rs0.8$pred_pcr, 1, 0)
+bdata$comp_rs0.8 <- ifelse(bdata$pred_comp > ts_comp_rs0.8$pred_comp, 1, 0)
+bdata$pcrcomp_rs0.8 <- ifelse(bdata$pcr_rs0.8==1 & bdata$comp_rs0.8==1, "Both",
+                              ifelse(bdata$pcr_rs0.8==1 & bdata$comp_rs0.8==0, "PCR",
+                                     ifelse(bdata$pcr_rs0.8==0 & bdata$comp_rs0.8==1, "Virus isolation", "Not predicted")))
+bdata$pcr_mss3 <- ifelse(bdata$pred_pcr > ts_pcr_mss3$pred_pcr, 1, 0)
+bdata$comp_mss3 <- ifelse(bdata$pred_comp > ts_comp_mss3$pred_comp, 1, 0)
+bdata$pcrcomp_mss3 <- ifelse(bdata$pcr_mss3==1 & bdata$comp_mss3==1, "Both",
+                              ifelse(bdata$pcr_mss3==1 & bdata$comp_mss3==0, "PCR",
+                                     ifelse(bdata$pcr_mss3==0 & bdata$comp_mss3==1, "Virus isolation", "Not predicted")))
+
+#Make factor
+bdata$pcrcomp_rs0.8 <- factor(bdata$pcrcomp_rs0.8,levels=c("PCR","Virus isolation","Both","Not predicted"))
+bdata$pcrcomp_mss3 <- factor(bdata$pcrcomp_mss3,levels=c("PCR","Virus isolation","Both","Not predicted"))
+
 #(6) Merge
 cdata=comparative.data(phy=mtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)    #vcv=T indicates to include variance covariance array representing phylogeny within the comparative dataset
+### Returned error indicating missing values: Error in '.rowNamesDF<- '(x, value = value) : missing values in 'row.names' are not allowed
+
+#Identify which rows are NA
+which(is.na(bdata))
+
+#Subsetting only non-missing data
+bdata_nonNA = bdata[-which(is.na(bdata)),]
+
+#Try merging again 
+cdata=comparative.data(phy=mtree,data=bdata_nonNA,names.col=treename,vcv=T,na.omit=T,warn.dropped=T)
 
 #(7) Fix
 cdata$data$tree=NULL
 
 #(8) Measure phylogenetic signal (Pagel's lambda) of model predictions
-pcr_lmod=pgls(pred_pcr~1,data=cdata,lambda="ML")     #pgls fits a linear model while taking into account phylogenetic non-independence between data ponits
+pcr_lmod=pgls(pred_pcr~1,data=cdata,lambda="ML")     #pgls fits a linear model while taking into account phylogenetic non-independence between data points
 comp_lmod=pgls(pred_comp~1,data=cdata,lambda="ML")   #lambda = value for lambda transformation; 'ML' uses maximum likelihood to optimize branch length transformations
 ###for more info: https://static1.squarespace.com/static/5459da8ae4b042d9849b7a7b/t/57ea64eae58c62718aa34769/1474979059782/Nesin_Winternitz_Practical_1and2.pdf
 
@@ -2156,7 +2447,7 @@ taxonomy$Species=rownames(cdata$data)
 taxonomy=taxonomy[c("Species","taxonomy")]
 taxonomy$taxonomy=as.character(taxonomy$taxonomy)
 
-#(3) Holm rejection procedure
+#(3) Holm rejection procedure (counteract the problem of multiple comparisons and controls FWER)
 HolmProcedure <- function(pf,FWER=0.05){
   
   ## get split variable
@@ -2288,7 +2579,7 @@ comppred_pf=gpf(Data=cdata$data,tree=cdata$phy,
                 family=gaussian,algorithm='phylo',nfactors=10,min.group.size=5)
 
 #(9) Summarize
-pcrpred_pf_results=pfsum(pcrpred_pf)$results
+pcrpred_pf_results=pfsum(pcrpred_pf)$results  # runs pfsum fxn on PCR predictions (pcrpred_pf); HolmProcedure is nested in pfsum
 comppred_pf_results=pfsum(comppred_pf)$results
 
 #(10) Add model
@@ -2309,7 +2600,7 @@ write.csv(predpfs,"Output/TableS6.csv")
 
 ### Model predictions: Re-plot predicted probabilities with phylogenetic tree - Figure 3(C)
 
-```{r pp_tree}
+```{r pp_tree1}
 
 #(1) Combine tree and data
 dtree=treeio::full_join(as.treedata(cdata$phy),cdata$data,by="label")
@@ -2351,7 +2642,7 @@ for(i in 1:nrow(pcrpred_pf_results)){
 
 #(9) Add preds
 p1=gg+
-  geom_segment(data=samp,aes(x=x,y=y,xend=xend_pcr,yend=yend,colour=cat),size=0.75)+
+  geom_segment(data=samp,aes(x=x,y=y,xend=xend_pcr,yend=yend,colour=cat),linewidth=0.75)+
   scale_colour_manual(values=cc)+
   scale_fill_manual(values=cc)+
   guides(colour="none")
@@ -2368,7 +2659,7 @@ for(i in 1:nrow(comppred_pf_results)){
 
 #(11) Add preds
 p2=gg+
-  geom_segment(data=samp,aes(x=x,y=y,xend=xend_comp,yend=yend,colour=cat),size=0.75)+
+  geom_segment(data=samp,aes(x=x,y=y,xend=xend_comp,yend=yend,colour=cat),linewidth=0.75)+
   scale_colour_manual(values=cc)+
   scale_fill_manual(values=cc)+
   guides(colour="none")
@@ -2391,6 +2682,301 @@ dev.off()
 
 ```
 
+
+### Model predictions V2: Re-plot predicted probabilities with phylogenetic tree for MANUSCRIPT 
+
+```{r pp_tree2}
+
+####For manuscript, create phylotree of hosts and non-hosts
+
+#view distribution of predicted probabilities
+# hist(cdata$data$pred_pcr)
+# hist(cdata$data$pred_comp)
+
+#(1) Combine tree and data
+dtree=treeio::full_join(as.treedata(cdata$phy),cdata$data,by="label")
+
+#(2) Plot base tree
+pbase=ggtree(dtree,layout="fan",branch.length="none",size=0.25)
+
+#(3) Get tree data
+tdata=pbase$data
+
+#(4) Get tips only
+tdata=tdata[which(tdata$isTip==T),]
+
+#(5) Set x max
+xmax=max(tdata$x)+10
+
+#make dataframe
+samp=data.frame(x=tdata$x,
+                y=tdata$y,
+                yend=tdata$y,
+                xend_pcr=rescale(cdata$data$pred_pcr,c(max(tdata$x),xmax)),
+                xend_comp=rescale(cdata$data$pred_comp,c(max(tdata$x),xmax)),
+                xend_mean=rescale(cdata$data$pred_mean,c(max(tdata$x),xmax)),
+                pcr_rs0.8=(cdata$data$pcr_rs0.8),
+                pcr_mss3=(cdata$data$pcr_mss3),
+                comp_rs0.8=(cdata$data$comp_rs0.8),
+                comp_mss3=(cdata$data$comp_mss3),
+                factor_pcr_rs0.8=as.factor((cdata$data$pcr_rs0.8)),
+                factor_pcr_mss3=as.factor((cdata$data$pcr_mss3)),
+                factor_comp_rs0.8=as.factor((cdata$data$comp_rs0.8)),
+                factor_comp_mss3=as.factor((cdata$data$comp_mss3)),
+                treename=tdata$label)
+
+#separate df into predicted host genera and non-predicted host genera for different thresholds
+samp_nopcr_rs0.8 <- samp[samp$pcr_rs0.8==0,]
+samp_pcr_rs0.8 <- samp[samp$pcr_rs0.8>0,] #121
+samp_nopcr_mss3 <- samp[samp$pcr_mss3==0,]
+samp_pcr_mss3 <- samp[samp$pcr_mss3>0,] #n=136
+
+samp_nocomp_rs0.8 <- samp[samp$comp_rs0.8==0,]
+samp_comp_rs0.8 <- samp[samp$comp_rs0.8>0,] #100
+samp_nocomp_mss3 <- samp[samp$comp_mss3==0,]
+samp_comp_mss3 <- samp[samp$comp_mss3>0,] #191
+
+#() load library for color palette
+library(viridis)
+
+#(8) Plot base tree and highlight significant clades for PCR model
+gg=pbase
+for(i in 1:nrow(pcrpred_pf_results)){
+  gg=gg+
+    geom_hilight(node=pcrpred_pf_results$node[i],
+                 alpha=ifelse(pcrpred_pf_results$tips[i]/Ntip(cdata$phy)<0.5,0.5,0.25), 
+                 fill="black")
+}
+
+#(9) Add PCR pred-probs and assign color based on binary classification assuming rs0.8
+p1=gg+
+  geom_segment(
+    data=samp_nopcr_rs0.8,
+    mapping=aes(x=x,y=y,xend=xend_pcr,yend=yend,
+                alpha=factor_pcr_rs0.8),
+    color="gray", linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(
+    data=samp_pcr_rs0.8, 
+    mapping=aes(x=x,y=y,xend=xend_pcr,yend=yend,
+                colour=factor(factor_pcr_rs0.8)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+                      guide=guide_legend(reverse=TRUE),
+                      name="Evidence type")
+
+#(9) Add PCR pred-probs and assign color based on binary classification assuming mss3
+p2=gg+
+  geom_segment(
+    data=samp_nopcr_mss3,
+    mapping=aes(x=x,y=y,xend=xend_pcr,yend=yend,
+                alpha=factor_pcr_mss3),
+    color="gray", linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(
+    data=samp_pcr_mss3, 
+    mapping=aes(x=x,y=y,xend=xend_pcr,yend=yend,
+                colour=factor(factor_pcr_mss3)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+                      guide=guide_legend(reverse=TRUE),
+                      name="Evidence type")
+
+#(10) Competence
+gg=pbase
+for(i in 1:nrow(comppred_pf_results)){
+  gg=gg+
+    geom_hilight(node=comppred_pf_results$node[i],
+                 alpha=ifelse(comppred_pf_results$tips[i]/Ntip(cdata$phy)<0.5,0.5,0.25),
+                 fill="black")
+}
+
+#(11) Add preds to comp results based on rs0.8
+p3=gg+
+  geom_segment(
+    data=samp_nocomp_rs0.8,
+    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+                alpha=factor_comp_rs0.8),
+    color="gray", linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(
+    data=samp_comp_rs0.8, 
+    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+                colour=factor(factor_comp_rs0.8)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+                      guide=guide_legend(reverse=TRUE),
+                      name="Evidence type")
+
+#(11) Add preds to comp results based on mss3
+p4=gg+
+  geom_segment(
+    data=samp_nocomp_mss3,
+    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+                alpha=factor_comp_mss3),
+    color="gray", linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(
+    data=samp_comp_mss3, 
+    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+                colour=factor(factor_comp_mss3)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+                      guide=guide_legend(reverse=TRUE),
+                      name="Evidence type")
+
+pp_tree2=ggarrange(p1,p2,p3,p4,
+              labels=c("(A) PCR ReqSens0.8: Th=0.38","(B) PCR MaxSensSpec: Th=0.36", "(C) Comp ReqSens0.8: Th=0.26", "(D) Comp MaxSensSpec: Th=0.22"),
+              # font.label(size=10),
+              hjust=-0.6,
+              label.x=c(0.1,0.1,0.1,0.1),
+              label.y=c(1,1,1,1),
+              font.label=list(face="plain",size=13),
+              ncol=2,nrow=2,
+              common.legend = TRUE, legend="left")
+
+#Save
+png("Output/pp_tree2_f1.png",width=12,height=8,units="in",res=300)
+pp_tree2
+dev.off()
+
+```
+
+
+### Model predictions V3: Re-plot predicted probabilities with phylogenetic tree for MANUSCRIPT 
+
+```{r pp_tree3}
+
+####For manuscript, create phylotree of hosts and non-hosts
+
+#view distribution of predicted probabilities
+# hist(cdata$data$pred_pcr)
+# hist(cdata$data$pred_comp)
+
+#(1) Combine tree and data
+dtree=treeio::full_join(as.treedata(cdata$phy),cdata$data,by="label")
+
+#(2) Plot base tree
+pbase=ggtree(dtree,layout="fan",branch.length="none",size=0.25)
+
+#(3) Get tree data
+tdata=pbase$data
+
+#(4) Get tips only
+tdata=tdata[which(tdata$isTip==T),]
+
+#(5) Set x max
+xmax=max(tdata$x)+10
+
+#make dataframe
+samp=data.frame(x=tdata$x,
+                y=tdata$y,
+                yend=tdata$y,
+                xend_pcr=rescale(cdata$data$pred_pcr,c(max(tdata$x),xmax)),
+                xend_comp=rescale(cdata$data$pred_comp,c(max(tdata$x),xmax)),
+                xend_mean=rescale(cdata$data$pred_mean,c(max(tdata$x),xmax)),
+
+                pcrcomp_rs0.8=(cdata$data$pcrcomp_rs0.8),
+                pcrcomp_mss3=(cdata$data$pcrcomp_mss3),
+                factor_pcr_rs0.8=as.factor((cdata$data$pcr_rs0.8)),
+                factor_pcr_mss3=as.factor((cdata$data$pcr_mss3)),
+                factor_comp_rs0.8=as.factor((cdata$data$comp_rs0.8)),
+                factor_comp_mss3=as.factor((cdata$data$comp_mss3)),
+                treename=tdata$label)
+
+#separate df into predicted host genera and non-predicted host genera for different thresholds
+samp_no_rs0.8 <- samp[samp$pcrcomp_rs0.8=="Not predicted",]
+samp_pcr_rs0.8 <- samp[samp$pcrcomp_rs0.8=="PCR",]
+samp_comp_rs0.8 <- samp[samp$pcrcomp_rs0.8=="Virus isolation",]
+samp_both_rs0.8 <- samp[samp$pcrcomp_rs0.8=="Both",]
+samp_no_mss3 <- samp[samp$pcrcomp_mss3=="Not predicted",]
+samp_pcr_mss3 <- samp[samp$pcrcomp_mss3=="PCR",]
+samp_comp_mss3 <- samp[samp$pcrcomp_mss3=="Virus isolation",]
+samp_both_mss3 <- samp[samp$pcrcomp_mss3=="Both",]
+
+#() load library for color palette
+library(viridis)
+
+#(8) Plot base tree and highlight significant clades for PCR model
+gg=pbase
+for(i in 1:nrow(pcrpred_pf_results)){
+  gg=gg+
+    geom_hilight(node=pcrpred_pf_results$node[i],
+                 alpha=ifelse(pcrpred_pf_results$tips[i]/Ntip(cdata$phy)<0.5,0.5,0.25), 
+                 fill="black")
+}
+
+#(9) Add PCR pred-probs and assign color based on whether host genera had any predicted host-virus links (binary)
+p1=gg+
+  geom_segment(
+    data=samp_no_rs0.8,
+    mapping=aes(x=x,y=y,xend=xend_mean,yend=yend,
+                alpha=factor_pcr_rs0.8),
+    color="gray", linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(
+    data=samp_pcr_rs0.8, 
+    mapping=aes(x=x,y=y,xend=xend_pcr,yend=yend,
+                colour=factor(pcrcomp_rs0.8)),linewidth=0.75,)+
+  geom_segment(
+    data=samp_comp_rs0.8, 
+    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+                colour=factor(pcrcomp_rs0.8)),linewidth=0.75,)+
+  geom_segment(
+    data=samp_both_rs0.8, 
+    mapping=aes(x=x,y=y,xend=xend_mean,yend=yend,
+                colour=factor(pcrcomp_rs0.8)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+                      guide=guide_legend(reverse=TRUE),
+                      name="Evidence type")
+  # geom_text2(aes(subset = !is.na(label)), label = cdata$phy$tip.label, size = 3, color = "black")
+
+#(10) Competence
+gg=pbase
+for(i in 1:nrow(comppred_pf_results)){
+  gg=gg+
+    geom_hilight(node=comppred_pf_results$node[i],
+                 alpha=ifelse(comppred_pf_results$tips[i]/Ntip(cdata$phy)<0.5,0.5,0.25),
+                 fill="black")
+}
+
+#(11) Add preds
+p2=gg+
+  geom_segment(
+    data=samp_no_mss3,
+    mapping=aes(x=x,y=y,xend=xend_mean,yend=yend,
+                alpha=factor_pcr_mss3),
+    color="gray", linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(
+    data=samp_pcr_mss3, 
+    mapping=aes(x=x,y=y,xend=xend_pcr,yend=yend,
+                colour=factor(pcrcomp_mss3)),linewidth=0.75,)+
+  geom_segment(
+    data=samp_comp_mss3, 
+    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+                colour=factor(pcrcomp_mss3)),linewidth=0.75,)+
+  geom_segment(
+    data=samp_both_mss3, 
+    mapping=aes(x=x,y=y,xend=xend_mean,yend=yend,
+                colour=factor(pcrcomp_mss3)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+                      guide=guide_legend(reverse=TRUE),
+                      name="Evidence type")
+
+pp_tree3=ggarrange(p1,p2,
+              labels=c("(A) ReqSens0.8; Th_inf=0.38 & Th_comp=0.26","(B) MaxSensSpec; Th_inf=0.36 & Th_comp=0.22"),
+              # font.label(size=10),
+              hjust=-0.6,
+              label.x=c(0.1,0.1),
+              label.y=c(1,1),
+              font.label=list(face="plain",size=13),
+              ncol=1,nrow=2,
+              common.l egend = TRUE, legend="left")
+
+#Save
+png("Output/pp_tree3_f1.png",width=12,height=8,units="in",res=300)
+pp_tree3
+dev.off()
+
+```
+
 # 5. Mapping Host Distributions
 
 ### Load required packages and set system
@@ -2408,7 +2994,7 @@ library(maps)
 library(sp)
 library(dplyr)
 library(devtools)
-#install_github("hunzikp/velox")
+install_github("hunzikp/velox", force=TRUE)
 library(velox)
 library(fasterize)
 library(sf)
@@ -2417,82 +3003,8 @@ library(sf)
 rm(list=ls()) 
 graphics.off()
 
-```
-
-### Threshold the results
-
-```{r map_threshold}
-
-#(1) load files
-set.seed(12345)
-pred <- read.csv("Output/PoxHost_predictions.csv")
-
-#(2) Threshold the results
-library(PresenceAbsence)
-
-###################### INTERMISSION START: THRESHOLD IMPACTS ###################### 
-
-ts.p <- optimal.thresholds(data.frame(pred[,c('treename','PCR','pred_pcr')]),
-                           threshold = 10001,
-                           opt.methods = c(2,4,5,10),
-                           req.sens = 0.90,
-                           na.rm = TRUE)
-
-cut.p <- function(x) {sum(pred$pred_pcr[pred$PCR==0] > x)}
-
-sapply(unlist(ts.p[2]), cut.p)
-
-
-ts.c <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
-                           threshold = 10001,
-                           opt.methods = c(2,4,5,10),
-                           req.sens = 0.90,
-                           na.rm = TRUE)
-
-cut.c <- function(x) {sum(pred$pred_comp[pred$competence==0] > x)}
-
-sapply(unlist(ts.c[2]), cut.c)
-
-
-###################### INTERMISSION ENDS ###################### 
-
-#(3) Optimal thresholds for PCR
-t.pcr <- optimal.thresholds(data.frame(pred[,c('treename','PCR','pred_pcr')]),
-                            threshold = 10001,
-                            opt.methods = 10,
-                            req.sens = 0.95,
-                            na.rm = TRUE)
-
-#(4) Optimal threshold for competence
-t.comp <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
-                             threshold = 10001,
-                             opt.methods = 10,
-                             req.sens = 0.95,
-                             na.rm = TRUE)
-
-#(5) Threshold the results to binary outputs
-pred %>%
-  mutate(bin_comp = (pred_comp > t.comp$pred_comp),
-         bin_pcr = (pred_pcr) > t.pcr$pred_pcr) -> pred
-
-#(6) How many predicted undiscovered hosts by PCR?
-table(pred$pred_pcr[pred$PCR==0] > t.pcr$pred_pcr)
-
-#(7) How many predicted undiscovered hosts by competence
-table(pred$pred_comp[pred$competence==0] > t.comp$pred_comp)
-
-#(8) Do the predicted competence hosts overlap with PCR
-pred %>% filter(competence==0, pred_comp > t.comp$pred_comp)
-
-#(9) Pull out the relevant lists 
-pred %>% filter(competence==1) %>% pull(treename) %>% gsub("_"," ",.) -> known.comp
-pred %>% filter(PCR==1) %>% pull(treename) %>% gsub("_"," ",.) -> known.pcr
-pred %>% filter(bin_comp==1) %>% pull(treename) %>% gsub("_"," ",.) -> pred.comp
-pred %>% filter(bin_pcr==1) %>% pull(treename) %>% gsub("_"," ",.) -> pred.pcr
-
-#(10) Sort
-sort(pred.pcr[!(pred.pcr %in% known.pcr)])
-sort(pred.comp[!(pred.comp %in% known.comp)])
+# Set working directory
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model")
 
 ```
 
@@ -2502,11 +3014,16 @@ sort(pred.comp[!(pred.comp %in% known.comp)])
 
 ## Before proceeding, make sure you have downloaded "MAMMALS.shp" to your working directory. This shape file of mammal geographic range can be obtained from IUCN Red List Spatial Database: <https://www.iucnredlist.org/resources/spatial-data-download>. This file (>1GB) is only required for this section of the code ("5. Mapping host distribution").
 
-#(1) Load shape file of mammal geographic range
-iucn <- st_read(dsn = "MAMMALS.shp", layer='MAMMALS')
+####Let's combine comp and pcr for manuscript
+pred %>% filter(competence==1|PCR==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known
+pred %>% filter(bin_comp==1|bin_pcr==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred.pcrcomp #n=299
+sort(pred.pcrcomp[!(pred.pcrcomp %in% known)]) -> unknown #235
 
-#(2) Make a blank raster
-r <- disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
+#(1) Load shape file of mammal geographic range
+iucn <- sf::st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/MAMMALS/MAMMALS.shp", layer='MAMMALS')
+
+#(2) Make a blank raster (must be connected to wifi for the disaggregate function)
+r <- raster::disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
 
 #(3) Create four layers
 iucn$treename=sapply(strsplit(iucn$binomial,' '),function(x) paste(x[1],sep=' '))
@@ -2541,7 +3058,37 @@ library(RColorBrewer)
 mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
 mycolors[1] <- "#C0C0C0"
 
-png("Output/Figure4.png",width=10,height=10,units="in",res=300)
+png("Output/map_figure_f1.png",width=10,height=10,units="in",res=300)
+rasterVis::levelplot(maps,  
+                     col.regions = mycolors,
+                     #at = seq(0, 15, 1),
+                     alpha = 0.5, 
+                     scales=list(alternating=FALSE),
+                     par.strip.text=list(cex=0),
+                     xlab = NULL, ylab = NULL,
+                     #labels = labels,
+                     maxpixels = 5e6)
+dev.off()
+
+
+### Generate map for manuscript combining predictions from infection and competence models ###
+
+#create layers
+iucn_known <- iucn[iucn$treename %in% known,] 
+iucn_unknown <- iucn[iucn$treename %in% unknown,] 
+map_known <- (fasterize(iucn_known, r, fun="sum"))
+map_unknown <- (fasterize(iucn_unknown, r, fun="sum"))
+
+#add zeros for the continental area
+map_known <- fix(map_known)
+map_unknown <- fix(map_unknown)
+
+raster::stack(map_known, map_unknown) %>%    #alternatively, can use tera package
+raster::trim() -> maps
+
+names(maps) <- c('KnownPCR+Comp', 'PredUnknownPCR+Comp')
+
+png("Output/map_figure_f1.png",width=10,height=10,units="in",res=300)
 rasterVis::levelplot(maps,  
                      col.regions = mycolors,
                      #at = seq(0, 15, 1),
