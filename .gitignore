@@ -1,4 +1,14 @@
+# Ignore hidden directory where project-specfic temporary files are stored
 .Rproj.user
+
+# Ignore file of temporary tests, variables, etc.
 .Rhistory
-.RData
+
+# Ignore user-specific configurations
 .Ruserdata
+
+# Ignore RData files: Cleaned data are too large to be committed to Github. 
+### Therefore we save them as RData files and tell RStudio to ignore all files
+### with the .Rdata extension, except for our raw data files.
+.RData
+!HostTraitModel_RawData.RData
