@@ -1,5 +1,5 @@
 ---
-title: "Orthopoxvirus Host Prediction Model Code"
+title: "Orthopoxvirus Host-Trait Model Code"
 author: "Katie Tseng, Dan Becker, Colin Carlson, Pilar Fernandez, and Stephanie Seifer"
 output:
   pdf_document:
@@ -14,9 +14,31 @@ editor_options:
   chunk_output_type: console
 ---
 
-# Introduction
 
-The following code reproduces the analyses from <...>, pertaining to the host prediction model. The code is subdivided into five parts: "1. Data Preparation", "2. Phylogenetic Analysis", "3. Boosted Regression Trees", "4. BRT Figures", "5. Mapping Host Distributions".
+Table of Contents
+=================
+
+X. Introduction 
+
+1. Data Preparation
+
+2. Phylogenetic Analysis
+
+3. BRT Model
+
+4. BRT Performance
+
+5. BRT Predictions
+
+6. Mapping Host Distribution
+
+7. Feature Importance
+
+
+Introduction
+============
+
+The following code reproduces the analyses from <...>, pertaining to the Host-Trait Model. The code is subdivided into seven parts: "1. Data Preparation", "2. Phylogenetic Analysis", "3. BRT Model", "4. BRT Performance", "5. BRT Predictions", "6. Mapping Host Distribution", and "7. Feature Importance".
 
 To reproduce the analyses pertaining to the link prediction model, please see the markdown file LinkPrediction_Code.Rmd located in the PoxHost repository on GitHub: https://github.com/viralemergence/PoxHost.
 
@@ -29,13 +51,10 @@ To run the following script, three files are required in your working directory:
 
 ```{r, echo=F, message=F}
 knitr::opts_chunk$set(eval=F)
-
-# Set working directory
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model")
-
 ```
 
-# 1. Data Preparation
+1. Data Preparation
+===================
 
 ### Load required packages and set system
 
@@ -52,9 +71,12 @@ library(vroom)
 library(rgl) # >install.packages("rgl"); >options(rgl.useNULL=TRUE)
 library(treespace) 
 
-#(2) Clean environment
+# Clean environment
 rm(list=ls()) 
 graphics.off()
+
+# Set working directory
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model")
 
 ```
 
@@ -63,8 +85,7 @@ graphics.off()
 ```{r prep_raw}
 
 #(1) Load raw data
-load("Data_raw.RData")
-# load(url('https://github.com/viralemergence/PoxHost/blob/fbc89ca541c580e8eb7f521d4e0cd5f1198a3d9f/Tseng2022/Data_raw.RData'))
+load("RawData.RData")
 
 #(2) Pox data: host-OPV interactions detected via PCR/isolation from Virion database
 ##virion <- vroom('https://github.com/viralemergence/virion/blob/main/Virion/Virion.csv.gz')
