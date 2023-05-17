@@ -36,18 +36,22 @@ X. Introduction
 
 
 Introduction
-============
+============  
 
-The following code reproduces the analyses from <...>, pertaining to the Host-Trait Model. The code is subdivided into seven parts: "1. Data Preparation", "2. Phylogenetic Analysis", "3. BRT Model", "4. BRT Performance", "5. BRT Predictions", "6. Mapping Host Distribution", and "7. Feature Importance".
+The following code reproduces the analyses from <...>, pertaining to the Host-Trait Model. The code is subdivided into seven parts (see Table of Contents above).
 
-To reproduce the analyses pertaining to the link prediction model, please see the markdown file LinkPrediction_Code.Rmd located in the PoxHost repository on GitHub: https://github.com/viralemergence/PoxHost.
+To reproduce the analyses pertaining to the link prediction model, please see the markdown file *LinkPrediction_Code.Rmd* located in the PoxHost repository on GitHub: https://github.com/viralemergence/PoxHost.  
 
-To run the following script, three files are required in your working directory:
-(1) Data_raw.RData, the raw data file;
-(2) "Output" folder, where all output will be saved - e.g., cleaned datasets, model results, figures, and tables; 
-(3) MAMMALS.shp, the shape file of mammal geographical range obtained from IUCN Red List Spatial Database <https://www.iucnredlist.org/resources/spatial-data-download>. This file (>1GB) is only required in the last section of the code ("5. Mapping host distribution") and should be downloaded to your working directory before proceeding with part five.
+To run the following script, three files are required in your working directory:  
 
-### Before proceeding, we recommend setting knit options and your working directory
+- *Data_raw.RData*: the raw data file 
+- "Output" folder: where all output will be saved
+    - E.g., Cleaned datasets, model results, figures, and tables  
+- *MAMMALS.shp*: the shape file of mammal geographical range 
+    - Obtained from IUCN Red List Spatial Database: https://www.iucnredlist.org/resources/spatial-data-download. 
+    - This file (>1GB) is only required in part six (*Mapping Host Distribution*)
+
+### *Before proceeding, we recommend setting knit options and your working directory*
 
 ```{r, echo=F, message=F}
 knitr::opts_chunk$set(eval=F)
@@ -56,11 +60,11 @@ knitr::opts_chunk$set(eval=F)
 1. Data Preparation
 ===================
 
-### Load required packages and set system
+### *Load required packages and set system*
 
 ```{r prep_load}
 
-#(1) Libraries for preparing data for analysis
+# Libraries for preparing data for analysis
 library(ape)
 library(dplyr)
 library(nlme)
