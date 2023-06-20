@@ -17,7 +17,7 @@ editor_options:
 Introduction
 ============  
 
-The following code reproduces the analyses from <...>, pertaining to the Host-Trait Model. The code is subdivided into seven parts (see Table of Contents below). To reproduce the analyses pertaining to the link prediction model, please see the markdown file *LinkPrediction_Code.Rmd* located in the [PoxHost repository][1].
+The following code reproduces the analyses from <...>, pertaining to the host-trait model - the model trained on host traits alone. The code is subdivided into seven parts (see Table of Contents below). To reproduce the analyses pertaining to the link prediction model, please see the markdown file *LinkPrediction_Code.Rmd* located in the [PoxHost repository][1].
 
 To run the following script, three files are required in your working directory:
 
@@ -47,7 +47,7 @@ Table of Contents
 
 7. Feature Importance {r feat}
 
-### *Before proceeding, we recommend setting knit options and your working directory*
+### *Before proceeding, we recommend setting knit options* and your working directory**
 
 ```{r knitr}
 
@@ -1722,7 +1722,8 @@ dev.off()
 
 5. Model Predictions
 ====================
-In this chapter, we examine predictions from our BRT model identifying and ranking the importance of model features and assessing the predicted probabilities of OPV positivity.
+
+In this chapter, we examine predictions from our BRT model, assessing the predicted probabilities of OPV positivity.
 
 ### *Load required packages and set system*
 
@@ -1731,16 +1732,16 @@ In this chapter, we examine predictions from our BRT model identifying and ranki
 #(1) Libraries for BRT figures
 library(tidyr)
 library(ggplot2)
-# library(sciplot)
-# library(fastDummies)
+library(sciplot)
+library(fastDummies)
 library(caper)
-# library(ape)
+library(ape)
 library(phylofactor)
-# library(plotrix)
-library(rstatix) #std.error
+library(plotrix) #std.error
+library(rstatix)
 library(ggrepel)
 library(ggpubr) #ggarrange
-# library(plyr)
+library(plyr)
 library(dplyr)
 
 #(2) Clean environment
@@ -1752,334 +1753,14 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```
 
-### *Feature importance: Identify and rank relative feature importance*
-We compare and contrast the relative feature importance of the predictors in our PCR vs. competence models, determining the mean, variance, and standard error for each model. We then rank features by their relative importance, focusing on the top 10 predictive features. 
-Figure: *boxplot_trait_ranking.png*
-Table: *table_ranks.csv*
+### *Extract and save predicted probabilities*
+Table: *table_HostTraitModel_predictions.csv*
 
-```{r trait_rank}
+```{r pred_save}
 
 # Load model predictions
 pcr_brts <- readRDS("Output/pcr brts.rds")
 comp_brts <- readRDS("Output/comp brts.rds")
-pm_brts <- readRDS("Output/pm brts.rds")
-
-# What was the relative importance/influence of each feature in the infection model? Get values.
-vinf=lapply(pcr_brts,function(x) x$rinf)
-pcr_vinf=do.call(rbind,vinf)
-
-# What was the relative influence of each feature in the competence model? Get values.
-vinf=lapply(comp_brts,function(x) x$rinf)
-comp_vinf=do.call(rbind,vinf)
-
-# What was the mean, standard error, and variance of feature relative influence in the infection model?
-vdata_pcr=data.frame(aggregate(rel.inf~var,data=pcr_vinf,mean),
-                     aggregate(rel.inf~var,data=pcr_vinf,std.error)["rel.inf"],
-                     aggregate(rel.inf~var,data=pcr_vinf,var)["rel.inf"])
-names(vdata_pcr)=c("var","rel.inf","rse","rvar")
-vdata_pcr=vdata_pcr[order(vdata_pcr$rel.inf,decreasing=T),]
-
-# What was the mean, standard error, and variance of feature relative influence in the competence model?
-vdata_comp=data.frame(aggregate(rel.inf~var,data=comp_vinf,mean),
-                      aggregate(rel.inf~var,data=comp_vinf,std.error)["rel.inf"],
-                      aggregate(rel.inf~var,data=comp_vinf,var)["rel.inf"])
-names(vdata_comp)=c("var","rel.inf","rse","rvar")
-vdata_comp=vdata_comp[order(vdata_comp$rel.inf,decreasing=T),]
-
-# How does the average variance compare between the infection and competence model?
-mean(vdata_pcr$rvar)
-mean(vdata_comp$rvar)
-
-# How does the variance of relative influence compare between the infection and competence model?
-var(vdata_pcr$rel.inf)
-var(vdata_comp$rel.inf)
-
-# Can we rank features by their relative influence?
-vdata_pcr$pcr_rank=1:nrow(vdata_pcr)
-vdata_comp$comp_rank=1:nrow(vdata_comp)
-
-# What is their relative influence/importance as a proportion?
-vdata_pcr$pcr_imp=vdata_pcr$rel.inf/100
-vdata_comp$comp_imp=vdata_comp$rel.inf/100
-
-# Combine the rankings
-ranks=merge(vdata_pcr[c("var","pcr_rank","pcr_imp")],
-            vdata_comp[c("var","comp_rank","comp_imp")],
-            by="var")
-
-# Create a table of ranked features and their relative importance
-table_ranks=ranks
-table_ranks$feature=table_ranks$var
-table_ranks=table_ranks[c("feature","pcr_imp","comp_imp","pcr_rank","comp_rank")]
-write.csv(table_ranks,"Output/table_ranks.csv")
-
-# Create a list of the top 10 variables
-keep_pcr <- ranks$var[which(ranks$pcr_rank<=10)]
-keep_comp <- ranks$var[which(ranks$comp_rank<=10)]
-
-# Get the relative importance values for the top 10 features of the infection model
-vinf=lapply(pcr_brts,function(x) x$rinf)
-pcr_vinf=do.call(rbind,vinf)
-pcr_vinf <- pcr_vinf[which(pcr_vinf$var%in%keep_pcr),]
-pcr_vinf$rel.inf <- pcr_vinf$rel.inf/100
-
-# Boxplot relative feature importance for the infection model
-boxplot_trait_pcr <- ggplot(pcr_vinf) + ggtitle("(A) Host-trait infection model") +
-        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
-        theme_bw() +
-        labs(x="Relative influence",
-             y="Features") + 
-        theme(axis.text.y=element_text(size=10),
-              axis.text.x=element_text(size=12),
-              axis.title.x=element_text(size=12, margin=margin(t=10,r=0,b=0,l=0)),
-              axis.title.y=element_text(size=12, margin=margin(t=0,r=10,b=0,l=0)),
-              strip.text=element_text(size=12))
-
-# Get the relative importance values for the top 10 features of the competence model
-vinf=lapply(comp_brts,function(x) x$rinf)
-comp_vinf=do.call(rbind,vinf)
-comp_vinf <- comp_vinf[which(comp_vinf$var%in%keep_pcr),]
-comp_vinf$rel.inf <- comp_vinf$rel.inf/100
-
-# Boxplot relative feature importance for the competence model
-boxplot_trait_comp <- ggplot(comp_vinf) + ggtitle("(B) Host-trait competence model") +
-        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
-        theme_bw() +
-        labs(x="Relative influence",
-             y="Features") + 
-        theme(axis.text.y=element_text(size=10),
-              axis.text.x=element_text(size=12),
-              axis.title.x=element_text(size=12, margin=margin(t=10,r=0,b=0,l=0)),
-              axis.title.y=element_text(size=12, margin=margin(t=0,r=10,b=0,l=0)),
-              strip.text=element_text(size=12))
-
-# Combine boxplots of relative feature importance
-png("Output/boxplot_trait_ranking.png",width=10,height=10,units="in",res=300)
-ggarrange(boxplot_trait_pcr,boxplot_trait_comp,ncol=2,nrow=1,
-          font.label=list(face="plain",size=12))
-dev.off()
-
-rm(pcr_vinf,comp_vinf,vinf,boxplot_trait_pcr, keep_comp, keep_pcr, boxplot_trait_comp, vdata_comp,vdata_pcr, table_ranks)
-
-```
-
-### *Feature importance: Identify consistently important and unimportant host traits*
-Figure: *scatterplot_trait_ranking.png*
-
-```{r trait_consistent}
-
-# Were the rankings of relative feature importance significantly correlated?
-cor.test(ranks$pcr_rank,ranks$comp_rank,method="spearman")
-
-# What if we remove traits with zero/no relative importance and rerank?
-ranks2=ranks[-which(ranks$pcr_imp==0 & ranks$comp_imp==0),]
-ranks2=ranks2[order(ranks2$pcr_imp,decreasing=T),]
-ranks2$pcr_rank=1:nrow(ranks2)
-ranks2=ranks2[order(ranks2$comp_imp,decreasing=T),]
-ranks2$comp_rank=1:nrow(ranks2)
-
-# Are rankings still correlated after removing traits with zero/no relative importance?
-cor.test(ranks2$pcr_rank,ranks2$comp_rank,method="spearman")
-
-# Can we identify features with high residuals?
-ranks2$resid=abs(resid(lm(comp_rank~pcr_rank,data=ranks2)))  # extract residuals from linear regression as absolute values
-
-# Plot residuals
-plot(ranks2$pcr_rank,ranks2$resid,
-     ylab="Residuals",xlab="pcr_rank", 
-     main="comp_rank")
-
-# Were any  residual values greater than 10 or greater than 18? Flag residuals.
-#ranks2$select=ifelse(ranks2$resid>10,"yes","no")
-ranks2$select=ifelse(ranks2$resid>18,"yes","no")
-which(ranks2$resid>20) # returns 5 values
-
-# Were any features consistenly high or low ranking across both infection and competence models? Flag.
-n=7
-ranks2$select=ifelse(ranks2$comp_rank<n & ranks2$pcr_rank<n,"yes",ranks2$select)
-ranks2$select=ifelse(ranks2$comp_rank%in%tail(1:nrow(ranks2),n) & ranks2$pcr_rank%in%tail(1:nrow(ranks2),n),"yes",ranks2$select)
-
-# Get the names of consistently high or low ranking features
-rset=ranks2
-rset$var=ifelse(rset$select=="yes",rset$var,"")
-
-# Plot feature ranking of infection model against competence model and label traits that were consistently important and unimportant
-set.seed(1)
-png("Output/scatterplot_trait_ranking.png",width=7,height=7,units="in",res=300)
-ggplot(ranks2,aes(pcr_rank,comp_rank))+
-  geom_text_repel(data=rset,aes(label=var),size=2,force=4,direction="both",
-                  segment.size=0.5,segment.color="grey")+
-  geom_point()+
-  scale_y_reverse(limits=c(max(c(ranks2$comp_rank,ranks2$pcr_rank))+4,0))+
-  scale_x_reverse(limits=c(max(c(ranks2$comp_rank,ranks2$pcr_rank))+4,0))+
-  theme_bw()+
-  labs(x="Feature rank for infection model",y="Feature rank for competence model")+
-  theme(axis.text=element_text(size=10),axis.title=element_text(size=12))+
-  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
-  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
-  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))
-dev.off()
-
-# Clean environment
-rm(rset, n)
-
-```
-
-### *Feature importance: Determine effect directions of each feature on the predicted outcome*
-We determine the effect directions of each feature on host prediction using partial dependence plots. These plots allow us to visualize the relationship between a subset of features and the response variable (OPV positivity) while accounting for the average effect of the other predictors in the model.
-Figures: *pdplot_trait_effect.png*
-
-```{r trait_effect}
-
-# Download library for partial dependence plots
-# detach("package:purrr", unload=TRUE)
-library(pdp)
-library(gbm)
-
-# Create a function for compiling across BRTs for a given predictor, all else equal
-pdp_agg=function(mod,feature){
-  
-  ## just the plot function
-  pdep=plot(mod$mod,feature,
-            return.grid=T,
-            n.trees=mod$best,
-            plot=F,
-            continuous.resolution=200,
-            type="response")
-  
-  ## add seed
-  pdep$seed=unique(mod$roc$seed)
-  
-  ## save predictor
-  pdep$predictor=pdep[feature][,1]
-  
-  ## order
-  pdep=pdep[order(pdep$predictor),]
-  
-  ## get rank
-  pdep$rank=1:nrow(pdep)
-  
-  ## save yhat
-  pdep$yhat=pdep$y
-  
-  ## return
-  return(pdep)
-  
-}
-
-# Create a function to plot the PDPs
-pdp_plot=function(bmods,feature){
-  
-  ## pdp_agg
-  agg=do.call(rbind,lapply(bmods,function(x) pdp_agg(x,feature)))
-  
-  ## get class of the feature
-  cl=class(data[feature][,1])
-  
-  ## if else based on type
-  if(cl%in%c("numeric","integer")){
-    
-    ## get element-wise means
-    x=with(agg,tapply(predictor,rank,mean))
-    y=with(agg,tapply(yhat,rank,mean))
-    
-    ## save as mean
-    pmean=data.frame(predictor=x,yhat=y)
-    
-    ## get yrange
-    yrange=range(agg$yhat,pmean$yhat,na.rm=T)
-    
-    ## get histogram
-    hi=hist(data[feature][,1],breaks=30,plot=F)
-    hi=with(hi,data.frame(breaks[1:(length(breaks)-1)],counts))
-    names(hi)=c("mids","counts")
-    
-    ## ggplot it
-    ggplot(agg,aes(predictor,yhat,group=seed))+
-      
-      ## add histogram
-      geom_segment(data=hi,inherit.aes=F,
-                   aes(x=mids,xend=mids,
-                       y=yrange[1],yend=plotrix::rescale(counts,yrange)),
-                   size=1,colour="grey",alpha=0.25)+
-      
-      ## add lines
-      geom_line(linewidth=1,alpha=0.25,colour="grey")+
-      
-      ## add mean
-      geom_line(data=pmean,linewidth=2,inherit.aes=F,
-                aes(predictor,yhat))+
-      
-      ## theme
-      theme_bw()+
-      theme(axis.text=element_text(size=6),
-            axis.title=element_text(size=7))+
-      theme(axis.title.x=element_text(margin=margin(t=5,r=0,b=0,l=0)))+
-      theme(axis.title.y=element_text(margin=margin(t=0,r=5,b=0,l=0)))+
-      theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
-      labs(x=feature,y="marginal effect")+
-      scale_y_continuous(labels=scales::number_format(accuracy=0.01))
-    
-    ## end numeric
-  }else{ ## factor-based plot
-    
-    ## get element-wise means
-    y=with(agg,tapply(yhat,predictor,mean))
-    
-    ## save as mean
-    #pmean=data.frame(predictor=x,yhat=y)
-    pmean=data.frame(y)
-    names(pmean)="yhat"
-    pmean$predictor=rownames(pmean)
-    rownames(pmean)=NULL
-    
-    ## make temp data
-    temp=data
-    temp$predictor=temp[feature][,1]
-    
-    ## do nothing
-    agg=agg
-    pmean=pmean
-    temp=temp
-    
-    ## get yrange
-    yrange=range(agg$yhat,pmean$yhat,na.rm=T)
-    
-    ## fix temp to yrange
-    temp$yhat=ifelse(temp$pcr==1,max(yrange),min(yrange))
-    
-    ## ggplot with rug
-    set.seed(1)
-    ggplot(agg,aes(predictor,yhat,group=seed))+
-      
-      ## add individual BRTs
-      geom_jitter(size=1,alpha=0.25,colour="grey",width=0.1)+
-      
-      ## add mean
-      geom_point(data=pmean,size=2,inherit.aes=F,shape=15,
-                 aes(predictor,yhat))+
-      
-      ## add rug
-      geom_rug(data=temp,inherit.aes=F,
-               aes(predictor,yhat),
-               sides="b",position="jitter",
-               colour="grey",alpha=0.25,
-               na.rm=T)+
-      
-      ## theme
-      theme_bw()+
-      theme(axis.text=element_text(size=6),
-            axis.title=element_text(size=7))+
-      theme(axis.title.x=element_text(margin=margin(t=5,r=0,b=0,l=0)))+
-      theme(axis.title.y=element_text(margin=margin(t=0,r=5,b=0,l=0)))+
-      theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
-      labs(x=feature,y="marginal effect")+
-      scale_y_continuous(limits=c(yrange[1]-0.01,yrange[2]+0.01),
-                         labels=scales::number_format(accuracy=0.01))
-    
-  }
-  
-}
 
 # Load cleaned data file
 load("Output/HostTraitModel_CleanData.RData")
@@ -2102,59 +1783,6 @@ for(i in 1:ncol(dums)){
 # Merge family variables with poxdata
 data=merge(data,dums,by="fam",all.x=T)
 rm(dums)
-
-# PDPs for top ranking features of the infection model
-ranks2=ranks2[order(ranks2$pcr_rank),]
-p1=pdp_plot(pcr_brts,ranks2$var[1])
-p2=pdp_plot(pcr_brts,ranks2$var[2])
-p3=pdp_plot(pcr_brts,ranks2$var[3])
-p4=pdp_plot(pcr_brts,ranks2$var[4])
-p5=pdp_plot(pcr_brts,ranks2$var[5])
-p6=pdp_plot(pcr_brts,ranks2$var[6])
-p7=pdp_plot(pcr_brts,ranks2$var[7])
-p8=pdp_plot(pcr_brts,ranks2$var[8])
-p9=pdp_plot(pcr_brts,ranks2$var[9])
-p10=pdp_plot(pcr_brts,ranks2$var[10])
-
-# PDPs for top ranking features of the competence model
-ranks2=ranks2[order(ranks2$comp_rank),]
-c1=pdp_plot(comp_brts,ranks2$var[1])
-c2=pdp_plot(comp_brts,ranks2$var[2])
-c3=pdp_plot(comp_brts,ranks2$var[3])
-c4=pdp_plot(comp_brts,ranks2$var[4])
-c5=pdp_plot(comp_brts,ranks2$var[5])
-c6=pdp_plot(comp_brts,ranks2$var[6])
-c7=pdp_plot(comp_brts,ranks2$var[7])
-c8=pdp_plot(comp_brts,ranks2$var[8])
-c9=pdp_plot(comp_brts,ranks2$var[9])
-c10=pdp_plot(comp_brts,ranks2$var[10])
-
-# Plot compield PDPs of the top ranked features for both infection and competence models
-library(patchwork)
-pdplot_pcr <- p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+plot_layout(nrow=10,ncol=1,byrow=F)
-pdplot_comp <- c1+c2+c3+c4+c5+c6+c7+c8+c9+c10+plot_layout(nrow=10,ncol=1,byrow=F)
-png("Output/pdplot_trait_effect.png",width=4,height=10,units="in",res=300)
-ggarrange(pdplot_pcr,pdplot_comp,ncol=2,nrow=2,widths=c(4,4),heights=c(22,1),
-          labels=c("(A) Infection model","(B) Competence model"),
-          label.x=c(0,-0.1), label.y=0.001,
-          font.label=list(face="plain",size=12))
-dev.off()
-
-# Clean environment
-rm(pdp_agg,pdp_plot,pdp_pcr,pdp_comp,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,
-   c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,
-   ranks,ranks2,adata)
-
-```
-
-### *Predicted probabilities: Extract and save*
-Table: *table_HostTraitModel_predictions.csv*
-
-```{r pred_save}
-
-# # Load model predictions
-# pcr_brts <- readRDS("Output/pcr brts.rds")
-# comp_brts <- readRDS("Output/comp brts.rds")
 
 # Get predicted probabilities from infection model
 pcr_apreds=lapply(pcr_brts,function(x) x$predict)
@@ -2239,7 +1867,7 @@ write.csv(preds,"Output/table_HostTraitModel_predictions.csv")
 
 ```
 
-### *Predicted probabilities: Visualize how predicted probabilities are distributed*
+### *Visualize how predicted probabilities are distributed*
 Figures: *plot_pp.png*
 
 ```{r pred_figure}
@@ -2306,7 +1934,7 @@ dev.off()
 
 ```
 
-### *Predicted probabilties: Binary classification*
+### *Explore the effect of threshold moving on binary classification*
 We calculate various optimal threshold values and evaluate how threshold moving changes classification of OPV positive vs. negative mammal genera.
 Table: *table_predicted_hosts_infection.xlsx*, *table_predicted_hosts_competence.xlsx*
 
@@ -2514,7 +2142,7 @@ write.xlsx(pred_comp, file='Output/table_predicted_hosts_competence.xlsx')
 
 ```
 
-### *Model predictions: Explore model correlation and phylogenetic signal*
+### *Explore model correlation and phylogenetic signal*
 
 ```{r pred_phylo}
 
@@ -2585,7 +2213,7 @@ summary(comp_lmod)
 
 ```
 
-### *Model predictions: Identify taxonomic patterns via phylofactorization*
+### *Identify taxonomic patterns via phylofactorization*
 Table: *table_pf_clades.csv*
 
 ```{r pred_pf}
@@ -2751,7 +2379,7 @@ write.csv(predpfs,"Output/table_pf_clades.csv")
 
 ```
 
-### *Model predictions: Plot predictions on phylogenetic tree*
+### *Plot predictions on phylogenetic tree*
 
 ```{r pred_tree1}
 
@@ -3121,7 +2749,7 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```
 
-### *Map: Get relevant lists of hosts for mapping*
+### *Get relevant lists of hosts for mapping*
 
 ```{r map_prep}
 
@@ -3167,7 +2795,7 @@ sort(pred.pcrcomp[!(pred.pcrcomp %in% known)]) -> unknown #235
 
 ```
 
-### *Create Map*
+### *Create map*
 
 ```{r map_create}
 
@@ -3217,5 +2845,430 @@ rasterVis::levelplot(maps_hosttraits,
                      labels = labels,
                      maxpixels = 5e6)
 dev.off()
+
+```
+
+7. Feature Importance
+=====================
+
+In this chapter, we examine predictions from our BRT model identifying and ranking the importance of model features.
+
+### *Load required packages and set system*
+
+```{r pred_load}
+
+# Libraries for BRT figures
+library(tidyr)
+library(ggplot2)
+library(fastDummies)
+library(caper)
+library(phylofactor)
+library(plotrix) #std.error
+library(rstatix) 
+library(ggrepel)
+library(ggpubr) #ggarrange
+library(dplyr)
+
+# Clean environment
+rm(list=ls()) 
+graphics.off()
+
+# Set working directory
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Trait Model")
+
+```
+
+### *Identify and rank relative feature importance*
+We compare and contrast the relative feature importance of the predictors in our PCR vs. competence models, determining the mean, variance, and standard error for each model. We then rank features by their relative importance, focusing on the top 10 predictive features. 
+Figure: *boxplot_trait_ranking.png*
+Table: *table_ranks.csv*
+
+```{r feat_rank}
+
+# Load model predictions
+pcr_brts <- readRDS("Output/pcr brts.rds")
+comp_brts <- readRDS("Output/comp brts.rds")
+pm_brts <- readRDS("Output/pm brts.rds")
+
+# What was the relative importance/influence of each feature in the infection model? Get values.
+vinf=lapply(pcr_brts,function(x) x$rinf)
+pcr_vinf=do.call(rbind,vinf)
+
+# What was the relative influence of each feature in the competence model? Get values.
+vinf=lapply(comp_brts,function(x) x$rinf)
+comp_vinf=do.call(rbind,vinf)
+
+# What was the mean, standard error, and variance of feature relative influence in the infection model?
+vdata_pcr=data.frame(aggregate(rel.inf~var,data=pcr_vinf,mean),
+                     aggregate(rel.inf~var,data=pcr_vinf,std.error)["rel.inf"],
+                     aggregate(rel.inf~var,data=pcr_vinf,var)["rel.inf"])
+names(vdata_pcr)=c("var","rel.inf","rse","rvar")
+vdata_pcr=vdata_pcr[order(vdata_pcr$rel.inf,decreasing=T),]
+
+# What was the mean, standard error, and variance of feature relative influence in the competence model?
+vdata_comp=data.frame(aggregate(rel.inf~var,data=comp_vinf,mean),
+                      aggregate(rel.inf~var,data=comp_vinf,std.error)["rel.inf"],
+                      aggregate(rel.inf~var,data=comp_vinf,var)["rel.inf"])
+names(vdata_comp)=c("var","rel.inf","rse","rvar")
+vdata_comp=vdata_comp[order(vdata_comp$rel.inf,decreasing=T),]
+
+# How does the average variance compare between the infection and competence model?
+mean(vdata_pcr$rvar)
+mean(vdata_comp$rvar)
+
+# How does the variance of relative influence compare between the infection and competence model?
+var(vdata_pcr$rel.inf)
+var(vdata_comp$rel.inf)
+
+# Can we rank features by their relative influence?
+vdata_pcr$pcr_rank=1:nrow(vdata_pcr)
+vdata_comp$comp_rank=1:nrow(vdata_comp)
+
+# What is their relative influence/importance as a proportion?
+vdata_pcr$pcr_imp=vdata_pcr$rel.inf/100
+vdata_comp$comp_imp=vdata_comp$rel.inf/100
+
+# Combine the rankings
+ranks=merge(vdata_pcr[c("var","pcr_rank","pcr_imp")],
+            vdata_comp[c("var","comp_rank","comp_imp")],
+            by="var")
+
+# Create a table of ranked features and their relative importance
+table_ranks=ranks
+table_ranks$feature=table_ranks$var
+table_ranks=table_ranks[c("feature","pcr_imp","comp_imp","pcr_rank","comp_rank")]
+write.csv(table_ranks,"Output/table_ranks.csv")
+
+# Create a list of the top 10 variables
+keep_pcr <- ranks$var[which(ranks$pcr_rank<=10)]
+keep_comp <- ranks$var[which(ranks$comp_rank<=10)]
+
+# Get the relative importance values for the top 10 features of the infection model
+vinf=lapply(pcr_brts,function(x) x$rinf)
+pcr_vinf=do.call(rbind,vinf)
+pcr_vinf <- pcr_vinf[which(pcr_vinf$var%in%keep_pcr),]
+pcr_vinf$rel.inf <- pcr_vinf$rel.inf/100
+
+# Boxplot relative feature importance for the infection model
+boxplot_trait_pcr <- ggplot(pcr_vinf) + ggtitle("(A) Host-trait infection model") +
+        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
+        theme_bw() +
+        labs(x="Relative influence",
+             y="Features") + 
+        theme(axis.text.y=element_text(size=10),
+              axis.text.x=element_text(size=12),
+              axis.title.x=element_text(size=12, margin=margin(t=10,r=0,b=0,l=0)),
+              axis.title.y=element_text(size=12, margin=margin(t=0,r=10,b=0,l=0)),
+              strip.text=element_text(size=12))
+
+# Get the relative importance values for the top 10 features of the competence model
+vinf=lapply(comp_brts,function(x) x$rinf)
+comp_vinf=do.call(rbind,vinf)
+comp_vinf <- comp_vinf[which(comp_vinf$var%in%keep_pcr),]
+comp_vinf$rel.inf <- comp_vinf$rel.inf/100
+
+# Boxplot relative feature importance for the competence model
+boxplot_trait_comp <- ggplot(comp_vinf) + ggtitle("(B) Host-trait competence model") +
+        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
+        theme_bw() +
+        labs(x="Relative influence",
+             y="Features") + 
+        theme(axis.text.y=element_text(size=10),
+              axis.text.x=element_text(size=12),
+              axis.title.x=element_text(size=12, margin=margin(t=10,r=0,b=0,l=0)),
+              axis.title.y=element_text(size=12, margin=margin(t=0,r=10,b=0,l=0)),
+              strip.text=element_text(size=12))
+
+# Combine boxplots of relative feature importance
+png("Output/boxplot_trait_ranking.png",width=10,height=10,units="in",res=300)
+ggarrange(boxplot_trait_pcr,boxplot_trait_comp,ncol=2,nrow=1,
+          font.label=list(face="plain",size=12))
+dev.off()
+
+rm(pcr_vinf,comp_vinf,vinf,boxplot_trait_pcr, keep_comp, keep_pcr, boxplot_trait_comp, vdata_comp,vdata_pcr, table_ranks)
+
+```
+
+### *Identify consistently important and unimportant host traits*
+Figure: *scatterplot_trait_ranking.png*
+
+```{r feat_consistent}
+
+# Were the rankings of relative feature importance significantly correlated?
+cor.test(ranks$pcr_rank,ranks$comp_rank,method="spearman")
+
+# What if we remove traits with zero/no relative importance and rerank?
+ranks2=ranks[-which(ranks$pcr_imp==0 & ranks$comp_imp==0),]
+ranks2=ranks2[order(ranks2$pcr_imp,decreasing=T),]
+ranks2$pcr_rank=1:nrow(ranks2)
+ranks2=ranks2[order(ranks2$comp_imp,decreasing=T),]
+ranks2$comp_rank=1:nrow(ranks2)
+
+# Are rankings still correlated after removing traits with zero/no relative importance?
+cor.test(ranks2$pcr_rank,ranks2$comp_rank,method="spearman")
+
+# Can we identify features with high residuals?
+ranks2$resid=abs(resid(lm(comp_rank~pcr_rank,data=ranks2)))  # extract residuals from linear regression as absolute values
+
+# Plot residuals
+plot(ranks2$pcr_rank,ranks2$resid,
+     ylab="Residuals",xlab="pcr_rank", 
+     main="comp_rank")
+
+# Were any  residual values greater than 10 or greater than 18? Flag residuals.
+#ranks2$select=ifelse(ranks2$resid>10,"yes","no")
+ranks2$select=ifelse(ranks2$resid>18,"yes","no")
+which(ranks2$resid>20) # returns 5 values
+
+# Were any features consistenly high or low ranking across both infection and competence models? Flag.
+n=7
+ranks2$select=ifelse(ranks2$comp_rank<n & ranks2$pcr_rank<n,"yes",ranks2$select)
+ranks2$select=ifelse(ranks2$comp_rank%in%tail(1:nrow(ranks2),n) & ranks2$pcr_rank%in%tail(1:nrow(ranks2),n),"yes",ranks2$select)
+
+# Get the names of consistently high or low ranking features
+rset=ranks2
+rset$var=ifelse(rset$select=="yes",rset$var,"")
+
+# Plot feature ranking of infection model against competence model and label traits that were consistently important and unimportant
+set.seed(1)
+png("Output/scatterplot_trait_ranking.png",width=7,height=7,units="in",res=300)
+ggplot(ranks2,aes(pcr_rank,comp_rank))+
+  geom_text_repel(data=rset,aes(label=var),size=2,force=4,direction="both",
+                  segment.size=0.5,segment.color="grey")+
+  geom_point()+
+  scale_y_reverse(limits=c(max(c(ranks2$comp_rank,ranks2$pcr_rank))+4,0))+
+  scale_x_reverse(limits=c(max(c(ranks2$comp_rank,ranks2$pcr_rank))+4,0))+
+  theme_bw()+
+  labs(x="Feature rank for infection model",y="Feature rank for competence model")+
+  theme(axis.text=element_text(size=10),axis.title=element_text(size=12))+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))
+dev.off()
+
+# Clean environment
+rm(rset, n)
+
+```
+
+### *Determine effect directions of each feature on the predicted outcome*
+We determine the effect directions of each feature on host prediction using partial dependence plots. These plots allow us to visualize the relationship between a subset of features and the response variable (OPV positivity) while accounting for the average effect of the other predictors in the model.
+Figures: *pdplot_trait_effect.png*
+
+```{r feat_effect}
+
+# Download library for partial dependence plots
+# detach("package:purrr", unload=TRUE)
+library(pdp)
+library(gbm)
+
+# Create a function for compiling across BRTs for a given predictor, all else equal
+pdp_agg=function(mod,feature){
+  
+  ## just the plot function
+  pdep=plot(mod$mod,feature,
+            return.grid=T,
+            n.trees=mod$best,
+            plot=F,
+            continuous.resolution=200,
+            type="response")
+  
+  ## add seed
+  pdep$seed=unique(mod$roc$seed)
+  
+  ## save predictor
+  pdep$predictor=pdep[feature][,1]
+  
+  ## order
+  pdep=pdep[order(pdep$predictor),]
+  
+  ## get rank
+  pdep$rank=1:nrow(pdep)
+  
+  ## save yhat
+  pdep$yhat=pdep$y
+  
+  ## return
+  return(pdep)
+  
+}
+
+# Create a function to plot the PDPs
+pdp_plot=function(bmods,feature){
+  
+  ## pdp_agg
+  agg=do.call(rbind,lapply(bmods,function(x) pdp_agg(x,feature)))
+  
+  ## get class of the feature
+  cl=class(data[feature][,1])
+  
+  ## if else based on type
+  if(cl%in%c("numeric","integer")){
+    
+    ## get element-wise means
+    x=with(agg,tapply(predictor,rank,mean))
+    y=with(agg,tapply(yhat,rank,mean))
+    
+    ## save as mean
+    pmean=data.frame(predictor=x,yhat=y)
+    
+    ## get yrange
+    yrange=range(agg$yhat,pmean$yhat,na.rm=T)
+    
+    ## get histogram
+    hi=hist(data[feature][,1],breaks=30,plot=F)
+    hi=with(hi,data.frame(breaks[1:(length(breaks)-1)],counts))
+    names(hi)=c("mids","counts")
+    
+    ## ggplot it
+    ggplot(agg,aes(predictor,yhat,group=seed))+
+      
+      ## add histogram
+      geom_segment(data=hi,inherit.aes=F,
+                   aes(x=mids,xend=mids,
+                       y=yrange[1],yend=plotrix::rescale(counts,yrange)),
+                   size=1,colour="grey",alpha=0.25)+
+      
+      ## add lines
+      geom_line(linewidth=1,alpha=0.25,colour="grey")+
+      
+      ## add mean
+      geom_line(data=pmean,linewidth=2,inherit.aes=F,
+                aes(predictor,yhat))+
+      
+      ## theme
+      theme_bw()+
+      theme(axis.text=element_text(size=6),
+            axis.title=element_text(size=7))+
+      theme(axis.title.x=element_text(margin=margin(t=5,r=0,b=0,l=0)))+
+      theme(axis.title.y=element_text(margin=margin(t=0,r=5,b=0,l=0)))+
+      theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+      labs(x=feature,y="marginal effect")+
+      scale_y_continuous(labels=scales::number_format(accuracy=0.01))
+    
+    ## end numeric
+  }else{ ## factor-based plot
+    
+    ## get element-wise means
+    y=with(agg,tapply(yhat,predictor,mean))
+    
+    ## save as mean
+    #pmean=data.frame(predictor=x,yhat=y)
+    pmean=data.frame(y)
+    names(pmean)="yhat"
+    pmean$predictor=rownames(pmean)
+    rownames(pmean)=NULL
+    
+    ## make temp data
+    temp=data
+    temp$predictor=temp[feature][,1]
+    
+    ## do nothing
+    agg=agg
+    pmean=pmean
+    temp=temp
+    
+    ## get yrange
+    yrange=range(agg$yhat,pmean$yhat,na.rm=T)
+    
+    ## fix temp to yrange
+    temp$yhat=ifelse(temp$pcr==1,max(yrange),min(yrange))
+    
+    ## ggplot with rug
+    set.seed(1)
+    ggplot(agg,aes(predictor,yhat,group=seed))+
+      
+      ## add individual BRTs
+      geom_jitter(size=1,alpha=0.25,colour="grey",width=0.1)+
+      
+      ## add mean
+      geom_point(data=pmean,size=2,inherit.aes=F,shape=15,
+                 aes(predictor,yhat))+
+      
+      ## add rug
+      geom_rug(data=temp,inherit.aes=F,
+               aes(predictor,yhat),
+               sides="b",position="jitter",
+               colour="grey",alpha=0.25,
+               na.rm=T)+
+      
+      ## theme
+      theme_bw()+
+      theme(axis.text=element_text(size=6),
+            axis.title=element_text(size=7))+
+      theme(axis.title.x=element_text(margin=margin(t=5,r=0,b=0,l=0)))+
+      theme(axis.title.y=element_text(margin=margin(t=0,r=5,b=0,l=0)))+
+      theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+      labs(x=feature,y="marginal effect")+
+      scale_y_continuous(limits=c(yrange[1]-0.01,yrange[2]+0.01),
+                         labels=scales::number_format(accuracy=0.01))
+    
+  }
+  
+}
+
+# Load cleaned data file
+load("Output/HostTraitModel_CleanData.RData")
+data <- poxdata
+
+# Make binary columns for each taxonomic family in our dataset
+dums=fastDummies::dummy_cols(data["fam"])
+
+# Get only unique observations
+dums=dums[!duplicated(dums$fam),]
+
+# Ensure all are factor
+for(i in 1:ncol(dums)){
+  
+  ## column as factor
+  dums[,i]=factor(dums[,i])
+  
+}
+
+# Merge family variables with poxdata
+data=merge(data,dums,by="fam",all.x=T)
+rm(dums)
+
+# PDPs for top ranking features of the infection model
+ranks2=ranks2[order(ranks2$pcr_rank),]
+p1=pdp_plot(pcr_brts,ranks2$var[1])
+p2=pdp_plot(pcr_brts,ranks2$var[2])
+p3=pdp_plot(pcr_brts,ranks2$var[3])
+p4=pdp_plot(pcr_brts,ranks2$var[4])
+p5=pdp_plot(pcr_brts,ranks2$var[5])
+p6=pdp_plot(pcr_brts,ranks2$var[6])
+p7=pdp_plot(pcr_brts,ranks2$var[7])
+p8=pdp_plot(pcr_brts,ranks2$var[8])
+p9=pdp_plot(pcr_brts,ranks2$var[9])
+p10=pdp_plot(pcr_brts,ranks2$var[10])
+
+# PDPs for top ranking features of the competence model
+ranks2=ranks2[order(ranks2$comp_rank),]
+c1=pdp_plot(comp_brts,ranks2$var[1])
+c2=pdp_plot(comp_brts,ranks2$var[2])
+c3=pdp_plot(comp_brts,ranks2$var[3])
+c4=pdp_plot(comp_brts,ranks2$var[4])
+c5=pdp_plot(comp_brts,ranks2$var[5])
+c6=pdp_plot(comp_brts,ranks2$var[6])
+c7=pdp_plot(comp_brts,ranks2$var[7])
+c8=pdp_plot(comp_brts,ranks2$var[8])
+c9=pdp_plot(comp_brts,ranks2$var[9])
+c10=pdp_plot(comp_brts,ranks2$var[10])
+
+# Plot compield PDPs of the top ranked features for both infection and competence models
+library(patchwork)
+pdplot_pcr <- p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+plot_layout(nrow=10,ncol=1,byrow=F)
+pdplot_comp <- c1+c2+c3+c4+c5+c6+c7+c8+c9+c10+plot_layout(nrow=10,ncol=1,byrow=F)
+png("Output/pdplot_trait_effect.png",width=4,height=10,units="in",res=300)
+ggarrange(pdplot_pcr,pdplot_comp,ncol=2,nrow=2,widths=c(4,4),heights=c(22,1),
+          labels=c("(A) Infection model","(B) Competence model"),
+          label.x=c(0,-0.1), label.y=0.001,
+          font.label=list(face="plain",size=12))
+dev.off()
+
+# Clean environment
+rm(pdp_agg,pdp_plot,pdp_pcr,pdp_comp,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,
+   c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,
+   ranks,ranks2,adata)
 
 ```
