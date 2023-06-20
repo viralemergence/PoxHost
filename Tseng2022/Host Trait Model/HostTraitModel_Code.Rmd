@@ -1729,20 +1729,19 @@ In this chapter, we examine predictions from our BRT model identifying and ranki
 ```{r pred_load}
 
 #(1) Libraries for BRT figures
-# library(tidyr)
+library(tidyr)
 library(ggplot2)
 # library(sciplot)
 # library(fastDummies)
-# library(caper)
+library(caper)
 # library(ape)
-# library(phylofactor)
-# library(treeio)
-# library(ggtree)
+library(phylofactor)
 # library(plotrix)
 library(rstatix) #std.error
 # library(ggrepel)
 library(ggpubr) #ggarrange
 # library(plyr)
+library(dplyr)
 
 #(2) Clean environment
 rm(list=ls()) 
@@ -2307,7 +2306,7 @@ dev.off()
 We calculate various optimal threshold values and evaluate how threshold moving changes classification of OPV positive vs. negative mammal genera.
 
 Figure: **
-Table: **
+Table: *table_predicted_hosts_infection.xlsx*, *table_predicted_hosts_competence.xlsx*
 
 ```{r pred_threshold}
 
@@ -2427,29 +2426,29 @@ pred %>%
          bin_comp_rs0.95 = ifelse(pred_comp > ts_comp_rs0.95$pred_comp, 1, 0),
          bin_comp_mss3 = ifelse(pred_comp > ts_comp_mss3$pred_comp, 1, 0)) -> pred
 
-# Pull out the relevant lists 
-pred %>% filter(PCR==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known_pcr #n=71
-pred %>% filter(bin_pcr_rs0.8==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr_rs0.8 #n=250
-pred %>% filter(bin_pcr_rs0.9==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr_rs0.9 #n=250
+# Pull out the relevant lists of predicted hosts based on various thresholds
+pred %>% filter(PCR==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known_pcr 
+pred %>% filter(bin_pcr_rs0.8==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr_rs0.8
+pred %>% filter(bin_pcr_rs0.9==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr_rs0.9 
 pred %>% filter(bin_pcr_rs0.95==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr_rs0.95
-pred %>% filter(bin_pcr_mss3==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr_mss3 #n=250
-pred %>% filter(competence==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known_comp #n=58
-pred %>% filter(bin_comp_rs0.8==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp_rs0.8 #n=155
-pred %>% filter(bin_comp_rs0.9==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp_rs0.9 #n=155
+pred %>% filter(bin_pcr_mss3==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr_mss3 
+pred %>% filter(competence==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known_comp 
+pred %>% filter(bin_comp_rs0.8==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp_rs0.8
+pred %>% filter(bin_comp_rs0.9==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp_rs0.9
 pred %>% filter(bin_comp_rs0.95==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp_rs0.95
-pred %>% filter(bin_comp_mss3==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp_mss3 #n=155
+pred %>% filter(bin_comp_mss3==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp_mss3 
 
-# Sort and create table of known and unknown hosts (hosts that do not overlap)
+# Sort and create dataframe of known and unknown hosts (hosts that do not overlap)
 pred_kpcr <- as.data.frame(sort(known_pcr)) #n=58
-pred_upcr_rs0.8 <- as.data.frame(sort(pred_pcr_rs0.8[!(pred_pcr_rs0.8 %in% known_pcr)])) #n=74
-pred_upcr_rs0.9 <- as.data.frame(sort(pred_pcr_rs0.9[!(pred_pcr_rs0.9 %in% known_pcr)])) #n=74
+pred_upcr_rs0.8 <- as.data.frame(sort(pred_pcr_rs0.8[!(pred_pcr_rs0.8 %in% known_pcr)])) 
+pred_upcr_rs0.9 <- as.data.frame(sort(pred_pcr_rs0.9[!(pred_pcr_rs0.9 %in% known_pcr)])) 
 pred_upcr_rs0.95 <- as.data.frame(sort(pred_pcr_rs0.95[!(pred_pcr_rs0.95 %in% known_pcr)]))
-pred_upcr_mss3 <- as.data.frame(sort(pred_pcr_mss3[!(pred_pcr_mss3 %in% known_pcr)])) #n=88
+pred_upcr_mss3 <- as.data.frame(sort(pred_pcr_mss3[!(pred_pcr_mss3 %in% known_pcr)])) 
 pred_kcomp <- as.data.frame(sort(known_comp)) #n=41
-pred_ucomp_rs0.8 <- as.data.frame(sort(pred_comp_rs0.8[!(pred_comp_rs0.8 %in% known_comp)])) #n=67
-pred_ucomp_rs0.9 <- as.data.frame(sort(pred_comp_rs0.9[!(pred_comp_rs0.9 %in% known_comp)])) #n=67
+pred_ucomp_rs0.8 <- as.data.frame(sort(pred_comp_rs0.8[!(pred_comp_rs0.8 %in% known_comp)]))
+pred_ucomp_rs0.9 <- as.data.frame(sort(pred_comp_rs0.9[!(pred_comp_rs0.9 %in% known_comp)]))
 pred_ucomp_rs0.95 <- as.data.frame(sort(pred_comp_rs0.95[!(pred_comp_rs0.95 %in% known_comp)]))
-pred_ucomp_mss3 <- as.data.frame(sort(pred_comp_mss3[!(pred_comp_mss3 %in% known_comp)])) #n=152
+pred_ucomp_mss3 <- as.data.frame(sort(pred_comp_mss3[!(pred_comp_mss3 %in% known_comp)])) 
 
 # How many predicted hosts are undiscovered by PCR?
 nrow(pred_upcr_rs0.8)
@@ -2463,7 +2462,7 @@ nrow(pred_ucomp_rs0.9)
 nrow(pred_ucomp_rs0.95)
 nrow(pred_ucomp_mss3)
 
-# Create list of dataframes/tables
+# To export as a single excel sheet, create list of dataframes/tables
 list_df <- list(pred_kpcr, pred_upcr_rs0.8, pred_upcr_rs0.9, pred_upcr_rs0.95, pred_upcr_mss3, pred_kcomp, pred_ucomp_rs0.8, pred_ucomp_rs0.9, pred_ucomp_rs0.95, pred_ucomp_mss3)
 
 # Rename variables
@@ -2517,32 +2516,31 @@ write.xlsx(pred_comp, file='Output/table_predicted_hosts_competence.xlsx')
 
 ```{r pred_phylo}
 
-#(1) Test correlation between the predicted probabilities of infection vs. competence models
-cor(apreds2$pred_pcr,apreds2$pred_comp,method='spearman') #computes Spearment correlation coefficient
-cor.test(apreds2$pred_pcr,apreds2$pred_comp,method='spearman') #tests for correlation b/w paires samples based on Spearman corr test
+# Test correlation between the predicted probabilities of infection vs. competence models
+cor(apreds2$pred_pcr,apreds2$pred_comp,method='spearman') #computes Spearman correlation coefficient
+cor.test(apreds2$pred_pcr,apreds2$pred_comp,method='spearman') #tests for correlation b/w paired samples based on Spearman corr test
 
-#(2) Load phylogeny
-load("Output/HostData_clean.RData")
+# Load phylogeny
+load("Output/HostTraitModel_CleanData.RData")
 # load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/HPC Example/HostData_clean.RData")
 mtree=hostTree
 
-#(3) Setdiff
+# Label observations in apreds2 that are non-existent in mtree
 apreds2$tree=ifelse(apreds2$treename%in%setdiff(apreds2$treename,mtree$tip.label),'cut','keep')
-table(apreds2$tree)    
-## keep: 945
+table(apreds2$tree) ## keep: 945
 
-#(4) Trim and match
+# Trim and match
 bdata=subset(apreds2,tree=='keep')
 bdata=bdata[match(mtree$tip.label,bdata$treename),]
 
-#(5) Save
+# Save
 bdata$label=bdata$treename
 bdata$Species=bdata$treename
 
-#()Generate mean of pcr and comp predicted probabilities
+# Generate mean of pcr and comp predicted probabilities
 bdata <- bdata %>% mutate(pred_mean = rowMeans(across(pred_pcr:pred_comp), na.rm = TRUE))
 
-#()Generate variable of whether a link was predicted based on threshold value
+# Generate variable of whether a link was predicted based on threshold value
 bdata$pcr_rs0.8 <- ifelse(bdata$pred_pcr > ts_pcr_rs0.8$pred_pcr, 1, 0)
 bdata$comp_rs0.8 <- ifelse(bdata$pred_comp > ts_comp_rs0.8$pred_comp, 1, 0)
 bdata$pcrcomp_rs0.8 <- ifelse(bdata$pcr_rs0.8==1 & bdata$comp_rs0.8==1, "Both",
@@ -2554,52 +2552,53 @@ bdata$pcrcomp_mss3 <- ifelse(bdata$pcr_mss3==1 & bdata$comp_mss3==1, "Both",
                               ifelse(bdata$pcr_mss3==1 & bdata$comp_mss3==0, "PCR",
                                      ifelse(bdata$pcr_mss3==0 & bdata$comp_mss3==1, "Virus isolation", "Not predicted")))
 
-#Make factor
+# Make factor
 bdata$pcrcomp_rs0.8 <- factor(bdata$pcrcomp_rs0.8,levels=c("PCR","Virus isolation","Both","Not predicted"))
 bdata$pcrcomp_mss3 <- factor(bdata$pcrcomp_mss3,levels=c("PCR","Virus isolation","Both","Not predicted"))
 
-#(6) Merge
+# Merge phylogeny with predictions ensuring consistent structure  
 cdata=comparative.data(phy=mtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)    #vcv=T indicates to include variance covariance array representing phylogeny within the comparative dataset
 ### Returned error indicating missing values: Error in '.rowNamesDF<- '(x, value = value) : missing values in 'row.names' are not allowed
 
-#Identify which rows are NA
+# Identify which rows are NA
 which(is.na(bdata))
 
-#Subsetting only non-missing data
+# Subsetting only non-missing data
 bdata_nonNA = bdata[-which(is.na(bdata)),]
 
-#Try merging again 
+# Try merging again 
 cdata=comparative.data(phy=mtree,data=bdata_nonNA,names.col=treename,vcv=T,na.omit=T,warn.dropped=T)
 
-#(7) Fix
+# Fix
 cdata$data$tree=NULL
 
-#(8) Measure phylogenetic signal (Pagel's lambda) of model predictions
+# Measure phylogenetic signal (Pagel's lambda) of model predictions
 pcr_lmod=pgls(pred_pcr~1,data=cdata,lambda="ML")     #pgls fits a linear model while taking into account phylogenetic non-independence between data points
 comp_lmod=pgls(pred_comp~1,data=cdata,lambda="ML")   #lambda = value for lambda transformation; 'ML' uses maximum likelihood to optimize branch length transformations
 ###for more info: https://static1.squarespace.com/static/5459da8ae4b042d9849b7a7b/t/57ea64eae58c62718aa34769/1474979059782/Nesin_Winternitz_Practical_1and2.pdf
 
-#(9) Summarize 
+# Summarize 
 summary(pcr_lmod)
 summary(comp_lmod)
 
 ```
 
-### *Model predictions: Identify taxonomic patterns*
+### *Model predictions: Identify taxonomic patterns via phylofactorization*
+Table: *table_pf_clades.csv*
 
-```{r pred_taxo}
+```{r pred_pf}
 
-#(1) Extract taxonomy
+# Extract taxonomy
 cdata$data$taxonomy=paste(cdata$data$ord,cdata$data$fam,cdata$data$Species,sep='; ') #We refer to genus as "Species" as this is required in later functions
 
-#(2) Set taxonomy
+# Set taxonomy
 taxonomy=data.frame(cdata$data$taxonomy)
 names(taxonomy)="taxonomy"
 taxonomy$Species=rownames(cdata$data)
 taxonomy=taxonomy[c("Species","taxonomy")]
 taxonomy$taxonomy=as.character(taxonomy$taxonomy)
 
-#(3) Holm rejection procedure (counteract the problem of multiple comparisons and controls FWER)
+# Holm rejection procedure (counteracts the problem of multiple comparisons and controls for family-wise error rate)
 HolmProcedure <- function(pf,FWER=0.05){
   
   ## get split variable
@@ -2626,13 +2625,13 @@ HolmProcedure <- function(pf,FWER=0.05){
   return(nfactors)
 }
 
-#(13) Get species in a clade
+# Get species in a clade
 cladeget=function(pf,factor){
   spp=pf$tree$tip.label[pf$groups[[factor]][[1]]]
   return(spp)
 }
 
-#(4) Summarize pf object 
+# Summarize pf object 
 pfsum=function(pf){
   
   ## get formula
@@ -2707,7 +2706,7 @@ pfsum=function(pf){
   return(list(set=dat,results=results))
 }
 
-#(5) Fix palette
+# Fix palette
 AlberPalettes <- c("YlGnBu","Reds","BuPu", "PiYG")
 AlberColours <- sapply(AlberPalettes, function(a) RColorBrewer::brewer.pal(5, a)[4])
 afun=function(x){
@@ -2715,74 +2714,78 @@ afun=function(x){
   return(a)
 }
 
-#(6) Make low and high
+# Make low and high
 pcols=afun(2)
 
-#(7) PCR predictions
+# Generalized phylofactorization on PCR predictions
 set.seed(1)
 pcrpred_pf=gpf(Data=cdata$data,tree=cdata$phy,
                frmla.phylo=pred_pcr~phylo,
                family=gaussian,algorithm='phylo',nfactors=10,min.group.size=5)
 
-#(8) Comp predictions
+# Generalized phylofactorization on competence predictions
 set.seed(1)
 comppred_pf=gpf(Data=cdata$data,tree=cdata$phy,
                 frmla.phylo=pred_comp~phylo,
                 family=gaussian,algorithm='phylo',nfactors=10,min.group.size=5)
 
-#(9) Summarize
+# Summarize results of phylofactorization
 pcrpred_pf_results=pfsum(pcrpred_pf)$results  # runs pfsum fxn on PCR predictions (pcrpred_pf); HolmProcedure is nested in pfsum
 comppred_pf_results=pfsum(comppred_pf)$results
 
-#(10) Add model
+# Add model/evidence type
 pcrpred_pf_results$model="infection"
 comppred_pf_results$model="competence"
 
-#(11) Bind
+# Bind results of both models
 predpfs=rbind.data.frame(pcrpred_pf_results,comppred_pf_results)
 
-#(12) Round
+# Round probabilities to the 2nd decimal place
 predpfs$clade=round(predpfs$clade,2)
 predpfs$other=round(predpfs$other,2)
 
-#(13) Write
-write.csv(predpfs,"Output/TableS6.csv")
+# Save to output folder
+write.csv(predpfs,"Output/table_pf_clades.csv")
 
 ```
 
-### *Model predictions: Re-plot predicted probabilities with phylogenetic tree - Figure 3(C)*
+### *Model predictions: plot on phylogenetic tree*
 
 ```{r pred_tree1}
 
-#(1) Combine tree and data
+# Load libraries
+library(treeio)
+library(ggtree)
+
+# Combine tree and data
 dtree=treeio::full_join(as.treedata(cdata$phy),cdata$data,by="label")
 
-#(2) Plot base tree
+# Plot base tree
 pbase=ggtree(dtree,layout="fan",branch.length="none",size=0.25)
 
-#(3) Get tree data
+# Get tree data
 tdata=pbase$data
 
-#(4) Get tips only
+# Get tips only
 tdata=tdata[which(tdata$isTip==T),]
 
-#(5) Set x max
+# Set x max
 xmax=max(tdata$x)+10
 
-#(6) Make data frame
+# Make data frame
 samp=data.frame(x=tdata$x,
                 y=tdata$y,
                 yend=tdata$y,
-                xend_pcr=rescale(cdata$data$pred_pcr,c(max(tdata$x),xmax)),
-                xend_comp=rescale(cdata$data$pred_comp,c(max(tdata$x),xmax)),
+                xend_pcr=scales::rescale(cdata$data$pred_pcr,c(max(tdata$x),xmax)),
+                xend_comp=scales::rescale(cdata$data$pred_comp,c(max(tdata$x),xmax)),
                 pred_pcr=(cdata$data$pred_pcr),
                 pred_comp=(cdata$data$pred_comp),
                 treename=tdata$label)
 
-#(7) Merge with cat
+# Merge with cat
 samp=merge(samp,apreds2[c("treename","cat")],by="treename",all.x=T)
 
-#(8) PCR
+# Plot circular tree base and significant clades identified by phylofactorization on infection model results
 gg=pbase
 for(i in 1:nrow(pcrpred_pf_results)){
   
@@ -2792,14 +2795,14 @@ for(i in 1:nrow(pcrpred_pf_results)){
                  fill="black")
 }
 
-#(9) Add preds
+# Add predicted probabilities as bars colored based on host positivity
 p1=gg+
   geom_segment(data=samp,aes(x=x,y=y,xend=xend_pcr,yend=yend,colour=cat),linewidth=0.75)+
   scale_colour_manual(values=cc)+
   scale_fill_manual(values=cc)+
   guides(colour="none")
 
-#(10) Competence
+# Plot circular tree base and significant clades identified by phylofactorization on competence model results
 gg=pbase
 for(i in 1:nrow(comppred_pf_results)){
   
@@ -2809,27 +2812,28 @@ for(i in 1:nrow(comppred_pf_results)){
                  fill="black")
 }
 
-#(11) Add preds
+# Add predicted probabilities as bars colored based on host positivity
 p2=gg+
   geom_segment(data=samp,aes(x=x,y=y,xend=xend_comp,yend=yend,colour=cat),linewidth=0.75)+
   scale_colour_manual(values=cc)+
   scale_fill_manual(values=cc)+
   guides(colour="none")
 
-#(12) Figure F3C - Combine p1 and p2
-f3C=p1+p2
-f3C=ggarrange(p1,p2,
+# Combine plots based on different evidence types
+tree_pp_clades=p1+p2
+tree_pp_clades=ggarrange(p1,p2,
               labels=c("(b) RT-PCR predictions","(c) Virus isolation predictions"),
               label.x=c(-0.03,-0.1),
               label.y=0.1,
               font.label=list(face="plain",size=13))
 
-#(13) Revise Figure 3
-png("Output/Figure3.png",width=7,height=7.25,units="in",res=300)
-#f3+f3C+plot_layout(nrow=2,heights=c(1.25,1))
-ggarrange(f3,f3C,nrow=2,heights=c(1.1,1))
-#f3B+f3C+plot_layout(nrow=2,heights=c(1,1.5))
-#f3B|(p1/p2)+plot_layout(widths=c(1.5,1))
+# Save and reformat tree plot
+png("Output/tree_pp_clades.png",width=12,height=8,units="in",res=300)
+tree_pp_clades
+dev.off()
+
+png("Output/pp_tree2_f1.png",width=12,height=8,units="in",res=300)
+pp_tree2
 dev.off()
 
 ```
