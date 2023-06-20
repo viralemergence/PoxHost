@@ -1511,8 +1511,8 @@ library(ape)
 # library(phylofactor)
 # library(treeio)
 # library(ggtree)
-library(plotrix)
-library(rstatix) #std.error
+library(plotrix) #std.error
+library(rstatix) 
 library(ggrepel)
 library(ggpubr) #ggarrange
 library(plyr)
@@ -1738,7 +1738,7 @@ library(caper)
 library(phylofactor)
 # library(plotrix)
 library(rstatix) #std.error
-# library(ggrepel)
+library(ggrepel)
 library(ggpubr) #ggarrange
 # library(plyr)
 library(dplyr)
@@ -2152,6 +2152,10 @@ Table: *table_HostTraitModel_predictions.csv*
 
 ```{r pred_save}
 
+# # Load model predictions
+# pcr_brts <- readRDS("Output/pcr brts.rds")
+# comp_brts <- readRDS("Output/comp brts.rds")
+
 # Get predicted probabilities from infection model
 pcr_apreds=lapply(pcr_brts,function(x) x$predict)
 pcr_apreds=do.call(rbind,pcr_apreds)
@@ -2194,7 +2198,7 @@ apreds$cat=ifelse(apreds$studies==0,"unsampled",
 
 # Generate evidence type variable
 apreds$type=factor(apreds$type,levels=c("PCR","competence"))
-apreds$type2=revalue(apreds$type,c("PCR"="infection"))
+apreds$type2=plyr::revalue(apreds$type,c("PCR"="infection"))
 
 # Transform apreds long to wide
 apreds2=tidyr::spread(apreds[c('treename','type','cpred')],type,cpred)
@@ -2221,7 +2225,7 @@ apreds2$cat=factor(apreds2$cat,c("positive",'negative','unsampled'))
 apreds$cat=factor(apreds$cat,levels=levels(apreds2$cat))
 
 # Fix label of type2 variable
-apreds$type2=revalue(apreds$type2,
+apreds$type2=plyr::revalue(apreds$type2,
                      c("infection"="Infection",
                        "competence"="Competence"))
 
@@ -2304,8 +2308,6 @@ dev.off()
 
 ### *Predicted probabilties: Binary classification*
 We calculate various optimal threshold values and evaluate how threshold moving changes classification of OPV positive vs. negative mammal genera.
-
-Figure: **
 Table: *table_predicted_hosts_infection.xlsx*, *table_predicted_hosts_competence.xlsx*
 
 ```{r pred_threshold}
@@ -2749,13 +2751,18 @@ write.csv(predpfs,"Output/table_pf_clades.csv")
 
 ```
 
-### *Model predictions: plot on phylogenetic tree*
+### *Model predictions: Plot predictions on phylogenetic tree*
 
 ```{r pred_tree1}
 
 # Load libraries
 library(treeio)
 library(ggtree)
+library(viridis) #library for color palette
+
+# View distribution of predicted probabilities
+hist(cdata$data$pred_pcr)
+hist(cdata$data$pred_comp)
 
 # Combine tree and data
 dtree=treeio::full_join(as.treedata(cdata$phy),cdata$data,by="label")
@@ -2771,6 +2778,9 @@ tdata=tdata[which(tdata$isTip==T),]
 
 # Set x max
 xmax=max(tdata$x)+10
+
+### VERSION 1 ###
+# For each model evidence type, we plot the predicted probabilities of mammal genera as geom segments corresponding to the tips of a circular mammal tree; colored segments correspond to host positivity
 
 # Make data frame
 samp=data.frame(x=tdata$x,
@@ -2800,7 +2810,10 @@ p1=gg+
   geom_segment(data=samp,aes(x=x,y=y,xend=xend_pcr,yend=yend,colour=cat),linewidth=0.75)+
   scale_colour_manual(values=cc)+
   scale_fill_manual(values=cc)+
-  guides(colour="none")
+  # guides(colour="none")
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+                      guide=guide_legend(reverse=TRUE),
+                      name="Host positivity")
 
 # Plot circular tree base and significant clades identified by phylofactorization on competence model results
 gg=pbase
@@ -2817,7 +2830,10 @@ p2=gg+
   geom_segment(data=samp,aes(x=x,y=y,xend=xend_comp,yend=yend,colour=cat),linewidth=0.75)+
   scale_colour_manual(values=cc)+
   scale_fill_manual(values=cc)+
-  guides(colour="none")
+  # guides(colour="none")
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+                      guide=guide_legend(reverse=TRUE),
+                      name="Host positivity")
 
 # Combine plots based on different evidence types
 tree_pp_clades=p1+p2
@@ -2828,49 +2844,20 @@ tree_pp_clades=ggarrange(p1,p2,
               font.label=list(face="plain",size=13))
 
 # Save and reformat tree plot
-png("Output/tree_pp_clades.png",width=12,height=8,units="in",res=300)
+png("Output/tree_pp_clades1.png",width=12,height=8,units="in",res=300)
 tree_pp_clades
 dev.off()
 
-png("Output/pp_tree2_f1.png",width=12,height=8,units="in",res=300)
-pp_tree2
-dev.off()
+### VERSION 2  ###
+# For each model evidence type and various threshold values, we plot the predicted probabilities of mammal genera as geom segments corresponding to the tips of a circular mammal tree; colored segments correspond to host positivity 
 
-```
-
-
-### *Model predictions V2: Re-plot predicted probabilities with phylogenetic tree for MANUSCRIPT*
-
-```{r pred_tree2}
-
-####For manuscript, create phylotree of hosts and non-hosts
-
-#view distribution of predicted probabilities
-# hist(cdata$data$pred_pcr)
-# hist(cdata$data$pred_comp)
-
-#(1) Combine tree and data
-dtree=treeio::full_join(as.treedata(cdata$phy),cdata$data,by="label")
-
-#(2) Plot base tree
-pbase=ggtree(dtree,layout="fan",branch.length="none",size=0.25)
-
-#(3) Get tree data
-tdata=pbase$data
-
-#(4) Get tips only
-tdata=tdata[which(tdata$isTip==T),]
-
-#(5) Set x max
-xmax=max(tdata$x)+10
-
-#make dataframe
+# Make dataframe
 samp=data.frame(x=tdata$x,
                 y=tdata$y,
                 yend=tdata$y,
-                xend_pcr=rescale(cdata$data$pred_pcr,c(max(tdata$x),xmax)),
-                xend_comp=rescale(cdata$data$pred_comp,c(max(tdata$x),xmax)),
-                xend_mean=rescale(cdata$data$pred_mean,c(max(tdata$x),xmax)),
+                xend_pcr=scales::rescale(cdata$data$pred_pcr,c(max(tdata$x),xmax)),
+                xend_comp=scales::rescale(cdata$data$pred_comp,c(max(tdata$x),xmax)),
+                xend_mean=scales::rescale(cdata$data$pred_mean,c(max(tdata$x),xmax)),
                 pcr_rs0.8=(cdata$data$pcr_rs0.8),
                 pcr_mss3=(cdata$data$pcr_mss3),
                 comp_rs0.8=(cdata$data$comp_rs0.8),
@@ -2881,7 +2868,7 @@ samp=data.frame(x=tdata$x,
                 factor_comp_mss3=as.factor((cdata$data$comp_mss3)),
                 treename=tdata$label)
 
-#separate df into predicted host genera and non-predicted host genera for different thresholds
+# Separate df into predicted host genera and non-predicted host genera for different thresholds
 samp_nopcr_rs0.8 <- samp[samp$pcr_rs0.8==0,]
 samp_pcr_rs0.8 <- samp[samp$pcr_rs0.8>0,] #121
 samp_nopcr_mss3 <- samp[samp$pcr_mss3==0,]
@@ -2892,10 +2879,7 @@ samp_comp_rs0.8 <- samp[samp$comp_rs0.8>0,] #100
 samp_nocomp_mss3 <- samp[samp$comp_mss3==0,]
 samp_comp_mss3 <- samp[samp$comp_mss3>0,] #191
 
-#() load library for color palette
-library(viridis)
-
-#(8) Plot base tree and highlight significant clades for PCR model
+# Plot base tree and highlight significant clades for PCR model
 gg=pbase
 for(i in 1:nrow(pcrpred_pf_results)){
   gg=gg+
@@ -2904,7 +2888,7 @@ for(i in 1:nrow(pcrpred_pf_results)){
                  fill="black")
 }
 
-#(9) Add PCR pred-probs and assign color based on binary classification assuming rs0.8
+# Add PCR pred-probs and assign color based on binary classification assuming rs0.8
 p1=gg+
   geom_segment(
     data=samp_nopcr_rs0.8,
@@ -2920,7 +2904,7 @@ p1=gg+
                       guide=guide_legend(reverse=TRUE),
                       name="Evidence type")
 
-#(9) Add PCR pred-probs and assign color based on binary classification assuming mss3
+# Add PCR pred-probs and assign color based on binary classification assuming mss3
 p2=gg+
   geom_segment(
     data=samp_nopcr_mss3,
@@ -2936,7 +2920,7 @@ p2=gg+
                       guide=guide_legend(reverse=TRUE),
                       name="Evidence type")
 
-#(10) Competence
+# Competence
 gg=pbase
 for(i in 1:nrow(comppred_pf_results)){
   gg=gg+
@@ -2945,7 +2929,7 @@ for(i in 1:nrow(comppred_pf_results)){
                  fill="black")
 }
 
-#(11) Add preds to comp results based on rs0.8
+# Add preds to comp results based on rs0.8
 p3=gg+
   geom_segment(
     data=samp_nocomp_rs0.8,
@@ -2961,7 +2945,7 @@ p3=gg+
                       guide=guide_legend(reverse=TRUE),
                       name="Evidence type")
 
-#(11) Add preds to comp results based on mss3
+# Add preds to comp results based on mss3
 p4=gg+
   geom_segment(
     data=samp_nocomp_mss3,
@@ -2988,46 +2972,20 @@ pp_tree2=ggarrange(p1,p2,p3,p4,
               common.legend = TRUE, legend="left")
 
 #Save
-png("Output/pp_tree2_f1.png",width=12,height=8,units="in",res=300)
+png("Output/tree_pp_clades2.png",width=12,height=8,units="in",res=300)
 pp_tree2
 dev.off()
 
-```
+### VERSION 3 ###
+# For various threshold values, we plot the predicted probabilities of mammal genera as geom segments corresponding to the tips of a circular mammal tree; colored segments correspond to host positivity distinguished by evidence type
 
-
-### *Model predictions V3: Re-plot predicted probabilities with phylogenetic tree for MANUSCRIPT*
-
-```{r pred_tree3}
-
-####For manuscript, create phylotree of hosts and non-hosts
-
-#view distribution of predicted probabilities
-# hist(cdata$data$pred_pcr)
-# hist(cdata$data$pred_comp)
-
-#(1) Combine tree and data
-dtree=treeio::full_join(as.treedata(cdata$phy),cdata$data,by="label")
-
-#(2) Plot base tree
-pbase=ggtree(dtree,layout="fan",branch.length="none",size=0.25)
-
-#(3) Get tree data
-tdata=pbase$data
-
-#(4) Get tips only
-tdata=tdata[which(tdata$isTip==T),]
-
-#(5) Set x max
-xmax=max(tdata$x)+10
-
-#make dataframe
+#Make dataframe
 samp=data.frame(x=tdata$x,
                 y=tdata$y,
                 yend=tdata$y,
-                xend_pcr=rescale(cdata$data$pred_pcr,c(max(tdata$x),xmax)),
-                xend_comp=rescale(cdata$data$pred_comp,c(max(tdata$x),xmax)),
-                xend_mean=rescale(cdata$data$pred_mean,c(max(tdata$x),xmax)),
-
+                xend_pcr=scales::rescale(cdata$data$pred_pcr,c(max(tdata$x),xmax)),
+                xend_comp=scales::rescale(cdata$data$pred_comp,c(max(tdata$x),xmax)),
+                xend_mean=scales::rescale(cdata$data$pred_mean,c(max(tdata$x),xmax)),
                 pcrcomp_rs0.8=(cdata$data$pcrcomp_rs0.8),
                 pcrcomp_mss3=(cdata$data$pcrcomp_mss3),
                 factor_pcr_rs0.8=as.factor((cdata$data$pcr_rs0.8)),
@@ -3046,10 +3004,7 @@ samp_pcr_mss3 <- samp[samp$pcrcomp_mss3=="PCR",]
 samp_comp_mss3 <- samp[samp$pcrcomp_mss3=="Virus isolation",]
 samp_both_mss3 <- samp[samp$pcrcomp_mss3=="Both",]
 
-#() load library for color palette
-library(viridis)
-
-#(8) Plot base tree and highlight significant clades for PCR model
+# Plot base tree and highlight significant clades for PCR model
 gg=pbase
 for(i in 1:nrow(pcrpred_pf_results)){
   gg=gg+
@@ -3058,7 +3013,7 @@ for(i in 1:nrow(pcrpred_pf_results)){
                  fill="black")
 }
 
-#(9) Add PCR pred-probs and assign color based on whether host genera had any predicted host-virus links (binary)
+# Add PCR pred-probs and assign color based on whether host genera had any predicted host-virus links (binary)
 p1=gg+
   geom_segment(
     data=samp_no_rs0.8,
@@ -3083,7 +3038,7 @@ p1=gg+
                       name="Evidence type")
   # geom_text2(aes(subset = !is.na(label)), label = cdata$phy$tip.label, size = 3, color = "black")
 
-#(10) Competence
+# Competence
 gg=pbase
 for(i in 1:nrow(comppred_pf_results)){
   gg=gg+
@@ -3092,7 +3047,7 @@ for(i in 1:nrow(comppred_pf_results)){
                  fill="black")
 }
 
-#(11) Add preds
+# Add preds
 p2=gg+
   geom_segment(
     data=samp_no_mss3,
@@ -3124,10 +3079,10 @@ pp_tree3=ggarrange(p1,p2,
               label.y=c(1,1),
               font.label=list(face="plain",size=13),
               ncol=1,nrow=2,
-              common.l egend = TRUE, legend="left")
+              common.legend = TRUE, legend="left")
 
-#Save
-png("Output/pp_tree3_f1.png",width=12,height=8,units="in",res=300)
+# Save
+png("Output/tree_pp_clades3.png",width=12,height=8,units="in",res=300)
 pp_tree3
 dev.off()
 
@@ -3141,7 +3096,7 @@ dev.off()
 
 ```{r map_load}
 
-#(1) Libraries for generating maps
+# Libraries for generating maps
 library(classInt)
 library(tidyverse)
 library(raster)
@@ -3157,103 +3112,110 @@ library(velox)
 library(fasterize)
 library(sf)
 
-#(2) Clean environment
+# Clean environment
 rm(list=ls()) 
 graphics.off()
 
 # Set working directory
-setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Prediction Model")
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Trait Model")
 
 ```
 
-### *Let's make some maps! - Figure 4*
+### *Map: Get relevant lists of hosts for mapping*
 
-```{r map_figure}
+```{r map_prep}
 
-## Before proceeding, make sure you have downloaded "MAMMALS.shp" to your working directory. This shape file of mammal geographic range can be obtained from IUCN Red List Spatial Database: <https://www.iucnredlist.org/resources/spatial-data-download>. This file (>1GB) is only required for this section of the code ("5. Mapping host distribution").
+# Before proceeding, make sure you have downloaded "MAMMALS.shp" to your working directory. This shape file of mammal geographic range can be obtained from IUCN Red List Spatial Database: <https://www.iucnredlist.org/resources/spatial-data-download>. This file (>1GB) is only required for this section of the code ("6. Mapping Host Distribution").
 
-####Let's combine comp and pcr for manuscript
-pred %>% filter(competence==1|PCR==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known
+# Load file
+pred <- read.csv("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Trait Model/Output/table_HostTraitModel_predictions.csv")
+
+# Optimal thresholds for PCR
+t.pcr <- optimal.thresholds(data.frame(pred[,c('treename','PCR','pred_pcr')]),
+                            threshold = 10001,
+                            opt.methods = 10,
+                            req.sens = 0.90,
+                            na.rm = TRUE)
+
+# Optimal threshold for competence
+t.comp <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
+                             threshold = 10001,
+                             opt.methods = 10,
+                             req.sens = 0.90,
+                             na.rm = TRUE)
+
+# Threshold the results to binary outputs
+pred %>%
+  mutate(bin_comp = (pred_comp > t.comp$pred_comp),
+         bin_pcr = (pred_pcr > t.pcr$pred_pcr)) -> pred
+
+
+# Get the relevant lists of known and predicted hosts for all OPVs keeping pcr and competence predictions separate 
+pred %>% filter(PCR==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known_pcr
+pred %>% filter(competence==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known_comp
+pred %>% filter(bin_pcr==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_pcr
+pred %>% filter(bin_comp==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred_comp
+
+#Pull out the relevant lists of predicted unknown hosts for all OPVs keeping pcr and competence predictions separate
+unk_pcr <- pred_pcr[!(pred_pcr %in% known_pcr)] #n=197
+unk_comp <- pred_comp[!(pred_comp %in% known_comp)] #n=118
+
+# Get the relevant lists of known and predicted hosts for all OPVs combining comp and pcr predictions for manuscript
+pred %>% filter(competence==1|PCR==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known #71
 pred %>% filter(bin_comp==1|bin_pcr==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred.pcrcomp #n=299
 sort(pred.pcrcomp[!(pred.pcrcomp %in% known)]) -> unknown #235
 
-#(1) Load shape file of mammal geographic range
+```
+
+### *Create Map*
+
+```{r map_create}
+
+# Load shape file of mammal geographic range
 iucn <- sf::st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/MAMMALS/MAMMALS.shp", layer='MAMMALS')
 
-#(2) Make a blank raster (must be connected to wifi for the disaggregate function)
+# Make a blank raster (must be connected to wifi for the disaggregate function)
 r <- raster::disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
 
-#(3) Create four layers
+# Create layers
 iucn$treename=sapply(strsplit(iucn$binomial,' '),function(x) paste(x[1],sep=' '))
 
-iucn.1 <- iucn[iucn$treename %in% known.comp,] 
-iucn.2 <- iucn[iucn$treename %in% known.pcr,] 
-iucn.3 <- iucn[iucn$treename %in% pred.comp,] 
-iucn.4 <- iucn[iucn$treename %in% pred.pcr,] 
+iucn_known <- iucn[iucn$treename %in% known,] #n=1676
+iucn_pcrcomp <- iucn[iucn$treename %in% pred.pcrcomp,] #n=1908
+iucn_unknown <- iucn[iucn$treename %in% unknown,] #n=1699
 
-map.knc <- (fasterize(iucn.1, r, fun="sum"))
-map.knp <- (fasterize(iucn.2, r, fun="sum"))
-map.prc <- (fasterize(iucn.3, r, fun="sum"))
-map.prp <- (fasterize(iucn.4, r, fun="sum"))
+map_known <- (fasterize(iucn_known, r, fun="sum"))
+map_pcrcomp <- (fasterize(iucn_pcrcomp, r, fun="sum"))
+map_unknown <- (fasterize(iucn_unknown, r, fun="sum"))
 
-#(4) Add zeros for the continental area 
+# Add zeros for the continental area 
 fix <- function(x) {sum(x,r,na.rm=TRUE)+r}
 
-map.knc <- fix(map.knc)
-map.knp <- fix(map.knp)
-map.prc <- fix(map.prc)
-map.prp <- fix(map.prp)
+map_known <- fix(map_known)
+map_pcrcomp <- fix(map_pcrcomp)
+map_unknown <- fix(map_unknown)
 
-raster::stack(map.knp, map.knc, map.prp, map.prc) %>%    #alternatively, can use tera package
-raster::trim() -> maps
+raster::stack(map_known, map_pcrcomp, map_unknown) %>% raster::trim() -> maps_hosttraits #alternatively, can use tera package
 
-names(maps) <- c('KnownPCR', 'KnownComp', 'PredPCR', 'PredComp')
+names(maps_hosttraits) <- c('Host traits model - known', 'Host traits model - pred', 'Host traits model - unknown')
 
-#(5) Generate the actual visualization
+# Generate the actual visualization
 library(rasterVis)
 library(RColorBrewer)
 
 mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
 mycolors[1] <- "#C0C0C0"
 
-png("Output/map_figure_f1.png",width=10,height=10,units="in",res=300)
-rasterVis::levelplot(maps,  
+png("Output/Map_HostTraits.png",width=10,height=12,units="in",res=300)
+rasterVis::levelplot(maps_hosttraits,  
                      col.regions = mycolors,
                      #at = seq(0, 15, 1),
                      alpha = 0.5, 
                      scales=list(alternating=FALSE),
                      par.strip.text=list(cex=0),
                      xlab = NULL, ylab = NULL,
-                     #labels = labels,
+                     labels = labels,
                      maxpixels = 5e6)
 dev.off()
 
-
-### Generate map for manuscript combining predictions from infection and competence models ###
-
-#create layers
-iucn_known <- iucn[iucn$treename %in% known,] 
-iucn_unknown <- iucn[iucn$treename %in% unknown,] 
-map_known <- (fasterize(iucn_known, r, fun="sum"))
-map_unknown <- (fasterize(iucn_unknown, r, fun="sum"))
-
-#add zeros for the continental area
-map_known <- fix(map_known)
-map_unknown <- fix(map_unknown)
-
-raster::stack(map_known, map_unknown) %>%    #alternatively, can use tera package
-raster::trim() -> maps
-
-names(maps) <- c('KnownPCR+Comp', 'PredUnknownPCR+Comp')
-
-png("Output/map_figure_f1.png",width=10,height=10,units="in",res=300)
-rasterVis::levelplot(maps,  
-                     col.regions = mycolors,
-                     #at = seq(0, 15, 1),
-                     alpha = 0.5, 
-                     scales=list(alternating=FALSE),
-                     par.strip.text=list(cex=0),
-                     xlab = NULL, ylab = NULL,
-                     #labels = labels,
-                     maxpixels = 5e6)
-dev.off()
+```
