@@ -1,0 +1,9 @@
+"","Method","pred_Model2"
+"1","Sens=Spec",0.0456
+"2","MaxSens+Spec",0.0861
+"3","MaxKappa",0.57835
+"4","MaxPCC",0.57835
+"5","ReqSens",0.0348
+"6","ReqSens",0.0905
+"7","ReqSens",0.0348
+"8","ReqSens",0.007
