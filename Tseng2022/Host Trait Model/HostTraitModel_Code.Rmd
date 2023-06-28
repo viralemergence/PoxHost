@@ -163,15 +163,15 @@ bin_competence <- aggregate(competence~HostGenus+Virus, data=poxdata, max)
 # Extract studies data, summing the number of studies for every unique host genus and virus pair in poxdata
 sum_studies <- aggregate(studies~HostGenus+Virus, data=poxdata, sum)
 
-#(8) Merge variables of binary PCR, binary competence and studies
+# Merge variables of binary PCR, binary competence and studies
 poxdata <- merge(bin_pcr,bin_competence)
 poxdata <- merge(poxdata,sum_studies)
 
-#(9) Rename and reformat variables
+# Rename and reformat variables
 poxdata <- plyr::rename(poxdata,c('HostGenus'='gen','Virus'='virus'))
 poxdata$gen <- str_to_title(poxdata$gen)
 
-#(10) Clean environment
+# Clean environment
 rm(pcr,competence,bin_pcr, bin_competence, sum_studies)
 
 ```
@@ -327,10 +327,10 @@ tdata <- data.frame(matrix(NA,nrow=length(hostTree$tip.label),ncol=0))
 tdata$genus <- sapply(strsplit(hostTree$tip.label,'_'),function(x) paste(x[1],sep='_'))
 tdata$species <- hostTree$tip.label
 
-#(3) Collapse tree to genus level
+# Collapse tree to genus level
 hostTree <- makeCollapsedTree(tree=hostTree,df=tdata[c('genus','species')])
 
-#(4) Clean environment
+# Clean environment
 rm(tdata)
 
 ```
@@ -397,20 +397,20 @@ rm(fix)
 
 ```{r prep_merge}
 
-#(2) Merge traits with poxdata
+# Merge traits with poxdata
 hostTraits$traitname <- hostTraits$gtip
 poxdata <- merge(poxdata,hostTraits,by=c('traitname'),all.x=T)
 
-#(3) Clean up poxdata
+# Clean up poxdata
 poxdata <- plyr::rename(poxdata,c('gtip.x'='gtip'))
 poxdata <- subset(poxdata,select=-c(order, family, genus, gtip.y))
 
-#(4) Trim hostTree to mirror poxdata
+# Trim hostTree to mirror poxdata
 hostTree <- keep.tip(hostTree,hostTree$tip.label[hostTree$tip.label%in%poxdata$treename])
 hostTree$gtip <- NULL
 hostTree=makeLabel(hostTree)
 
-#(5) Clean environment
+# Clean environment
 rm(hostTraits)
 
 ```
@@ -942,7 +942,7 @@ Table: *table_trait_coverage.csv*
 
 ```{r brt_var}
 
-# Create mode function where for each variable, we will extract the frequency of the most frequently occurring value for that variable, and divide it by the number of non-NA elements in that variable
+# Create mode function where for each variable, we extract the frequency of the most frequently occurring value for that variable and divide it by the number of non-NA elements in that variable
 mode.prop <- function(x) {                
   ux <- unique(x[is.na(x)==FALSE])        # creates array of unique values
   tab <- tabulate(match(na.omit(x), ux))  # creates array of the frequency (number of times) a unique value appears in a column 
@@ -1040,7 +1040,7 @@ rm(keeps,mval,mval_hist,table1)
 ```
 
 ### Tuning to asses model performance for each combination of tuning parameters
-We create a hyperparamter 'grid' that represents different combinations of parameter values for model tuning.
+We create a hyperparamter 'grid' that represents different combinations of parameter values to which we tune the model.
 Table: *par_tuning_data_summary.csv*
 
 ```{r brt_tuning}
@@ -1208,7 +1208,7 @@ if(hok!="ok"){
 ```
 
 ### *Assess model tuning results*
-We fit a beta regression model using mgcv::gam to explore the main and interaction effects of tuning parameters, interaction depth and shrinkage, on performance metrics: AUC, sensitivity, and specificity. This model is appropriate for analyzing continuous response variables bounded between 0 and 1 (i.e., beta distributions). Using ANOVA, we then determine whether the coefficients between the two interaction depths, the two shrinkage rates, and the four possible interactions between them are significantly different. Next, we plot the performance of BRTs based on various parameter combinations. Finally, we assess the distribution of best.iter (the optimal number of iterations) to determine the max number of trees to use for model training.
+We fit a beta regression model using mgcv::gam to explore the main and interaction effects of tuning parameters, interaction depth and shrinkage, on performance metrics: AUC, sensitivity, and specificity. This model is appropriate for analyzing continuous response variables bounded b/w 0-1 (i.e., beta distributions). Using ANOVA, we determine whether the coefficients b/w the two interaction depths, the two shrinkage rates, and the four possible interactions b/w them are significantly different. We then plot the performance of BRTs based on various parameter combinations. Finally, we assess the distribution of best.iter (optimal # of iterations) to determine the max # of trees to use for model training.
 Figure: *boxplot_brt_tuning.png*
 
 ```{r brt_tuning_results}
@@ -1263,7 +1263,7 @@ search_long$measure=plyr::revalue(search_long$measure,
 search_long$measure=factor(search_long$measure,
                        levels=c("test AUC","sensitivity","specificity"))
 
-# Boxplot performance of model tuning with various parameter combinations
+# Boxplot performance of model tuning w/ various parameter combinations
 png("Output/boxplot_brt_tuning.png",width=5,height=8,units="in",res=600)
 set.seed(1)
 ggplot(search_long,aes(shrinkage,value,
@@ -1321,27 +1321,27 @@ rm(search,search_long,hok,mod,search_nt5000,search_nt15000,search_nt5000_sh0.01,
 ```
 
 ### *BRT function for applying across multiple data partitions*
-Here we create our BRT function for model training where we apply the function across multiple data partitions.
+We create our BRT function for model training, where we apply the function across multiple data partitions.
 
 ```{r brt_partition}
 
 # BRT function to use different data partitions
 brt_part=function(seed,response){
   
-  ## make new dataset
+  ## Make new dataset
   ndata=set
   
-  ## correct response variable
+  ## Correct response variable
   ndata$response=ndata[response][,1]
   
-  ## remove raw response variables
+  ## Remove raw response variables
   ndata$pcr=NULL
   ndata$competence=NULL
   
-  ## for BRT where cites is the response variable...
+  ## For BRT where cites is the response variable...
   if(response=="cites"){
     
-    ## we add 1 to cites if cites equals 0
+    ## We add 1 to cites if cites equals 0
     ndata$cites=ifelse(ndata$cites==0,1,ndata$cites)
     
   }else{
@@ -1350,26 +1350,26 @@ brt_part=function(seed,response){
     
   }
   
-  ## use rsample package to split data
+  ## Use rsample package to split data
   set.seed(seed)
   split=initial_split(ndata,prop=0.7,strata="response")
   
-  ## create test and train datasets
+  ## Create test and train datasets
   dataTrain=training(split)
   dataTest=testing(split)
   
-  ## get response variable for test dataset and train dataset
+  ## Get response variable for test dataset and train dataset
   yTrain=dataTrain$response
   yTest=dataTest$response
   
-  ## save distribution
+  ## Save distribution
   dist=ifelse(response=="cites","poisson","bernoulli")
   
-  ## save number of trees based on previous plots of optimal iterations
+  ## Save number of trees based on previous plots of optimal iterations
   nt=ifelse(response=="cites",10000,
      ifelse(response=="pcr",4500,5000)) #see plots of best.iter 
   
-  ## run BRTs using gbm package
+  ## Run BRTs using gbm package
   set.seed(1)
   gbmOut=gbm(response ~ . ,data=dataTrain,
              n.trees=nt,
@@ -1383,79 +1383,79 @@ brt_part=function(seed,response){
              verbose=F)
             # par.details=(gbmParallel(num_threads=5)),
 
-  ## get optimal number of iterations using gbm.perf & set plotting parameters for performance chart generated by gbm.perf
+  ## Get optimal number of iterations using gbm.perf & set plotting parameters for performance chart generated by gbm.perf
   par(mfrow=c(1,1),mar=c(4,4,1,1))                         
   best.iter=gbm.perf(gbmOut,method="cv")  #estimates optimal number of boosting iterations for a gbm object     
   
-  ## predict with test data, applying the optimal number of iterations as n.trees
+  ## Predict with test data, applying the optimal number of iterations as n.trees
   preds=predict(gbmOut,dataTest,n.trees=best.iter,type="response")
   
-  ## save known associations
+  ## Save known associations
   result=dataTest$response
   
-  ## get sensitivity and specificity
+  ## Get sensitivity and specificity
   sen=InformationValue::sensitivity(result,preds)
   spec=InformationValue::specificity(result,preds)
   
-  ## get AUC from model training
+  ## Get AUC from model training
   auc_train=gbm.roc.area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))
   
-  ## get AUC from model test
+  ## Get AUC from model test
   auc_test=gbm.roc.area(yTest,predict(gbmOut,dataTest,n.trees=best.iter,type="response"))
   
-  ## skip if poisson
+  ## Skip if poisson
   if(response=="cites"){
     
     perf=NA
     
   }else{
     
-    ## inner loop if yTest is all 0
+    ## Inner loop if yTest is all 0
     if(var(yTest)==0){
       
       perf=NA
     }else{
       
-      ## ROC: create a prediction object using the predicted probabilities and the true class labels (known responses)
+      ## To construct an ROC curve, create a prediction object using the predicted probabilities and the true class labels (known responses)
       pr=prediction(preds,dataTest$response)    
       
-      ## ROC: calculate the desired performance measures specified by the 'measure' argument
+      ## Next, calculate the desired performance measures specified by the 'measures' argument
       perf=performance(pr,measure="tpr",x.measure="fpr")         #pr=prediction object; measure=performance measure for evaluation; x.measure=second perf measure (2-D)
       
-      ## ROC: create dataframe of performance values
+      ## Create a dataframe of those performance values
       perf=data.frame(perf@x.values,perf@y.values)
       
-      ## ROC: rename columns
+      ## Rename columns
       names(perf)=c("fpr","tpr")
       
-      ## add seed
+      ## Add seed
       perf$seed=seed
       
     }
   }
   
-  ## get relative importance
+  ## Get relative importance
   bars=summary(gbmOut,n.trees=best.iter,plotit=F)
   bars$rel.inf=round(bars$rel.inf,2)
 
-  ## predict with cites
+  ## Predict with cites
   preds=predict(gbmOut,data,n.trees=best.iter,type="response")
   pred_data=data[c("gtip",'treename',"fam","ord","pcr","competence")]
   pred_data$pred=preds
   pred_data$type=response
   
-  ## predict with mean cites
+  ## Predict with mean cites
   pdata=data
   pdata$cites=mean(pdata$cites)
   pred_data$cpred=predict(gbmOut,pdata,n.trees=best.iter,type="response")
   
-  ## sort by decreasing predicted probability
+  ## Sort by decreasing predicted probability
   pred_data=pred_data[order(pred_data$pred,decreasing=T),]
   
-  ## print
+  ## Print
   print(paste("BRT ",seed," done; test AUC = ",auc_test,sep=""))
   
-  ## save outputs
+  ## Save outputs
   return(list(mod=gbmOut,
               best=best.iter,
               trainAUC=auc_train,
@@ -1485,10 +1485,10 @@ comp_brts=lapply(1:smax,function(x) brt_part(seed=x,response="competence"))
 # Run wos brts
 pm_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="cites"))
 
-# Save results to working directory
+# Save results to output
 saveRDS(pcr_brts, "Output/pcr_brts.rds")
-saveRDS(comp_brts, "Output/pcr_brts.rds")
-saveRDS(pm_brts, "Output/pcr_brts.rds")
+saveRDS(comp_brts, "Output/comp_brts.rds")
+saveRDS(pm_brts, "Output/pm_brts.rds")
 
 ```
 
@@ -1517,71 +1517,70 @@ library(ggrepel)
 library(ggpubr) #ggarrange
 library(plyr)
 
-#(2) Clean environment
+# Clean environment
 rm(list=ls()) 
 graphics.off()
 
-#(3) Set working directory
+# Set working directory
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Trait Model")
 
 ```
 
 ### *Evaluate performance measures *
-How accurately did infection and competence BRT models distinguish OPV positive and negative species? We evaluate the mean AUC, sensitivity, and specificity of our models, both combined (net) and independently. 
+How accurately did infection and competence BRT models distinguish OPV positive and negative species (assuming a threshold value of 0.5)? We evaluate the mean AUC, sensitivity, and specificity of our models, both combined (net) and independently. 
 
 ```{r perf_auc}
 
 #### If needed, increase vector memory in R environment and reboot R before proceeding (https://stackoverflow.com/questions/51295402/r-on-macos-error-vector-memory-exhausted-limit-reached)
 
-#(1) Load data
-# load("Output/HostData_results.RData")
-# save(pcr_brts,comp_brts,pm_brts,file="Output/HostTraitModel_Results.RData")
-
+# Load data
 pcr_brts <- readRDS("Output/pcr brts.rds")
 comp_brts <- readRDS("Output/comp brts.rds")
 pm_brts <- readRDS("Output/pm brts.rds")
 
-#(2) Index and save non-missing BRT iterations
+# Index and save non-missing BRT iterations
 pcr_keep=which(!is.na(sapply(pcr_brts,function(x) x$testAUC)))
 comp_keep=which(!is.na(sapply(comp_brts,function(x) x$testAUC)))
 keep=intersect(pcr_keep,comp_keep)
 
-#(4) Trim 
+# Trim, keeping only those that are non-missing
 pcr_brts=pcr_brts[keep]
 comp_brts=comp_brts[keep]
 
-#(5) Get net AUC
+### Get model performance measures from BRT results, whereby threshold value (THV) = 0.5
+
+# Get net AUC
 mean(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC)))
 std.error(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC)))
 
-#(6) Get net sensitivity
+# Get net sensitivity
 mean(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen)))
 std.error(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen)))
 
-#(7) Get net specificity
+# Get net specificity
 mean(c(sapply(pcr_brts,function(x) x$spec),sapply(comp_brts,function(x) x$spec)))
 std.error(c(sapply(pcr_brts,function(x) x$spec),sapply(comp_brts,function(x) x$spec)))
 
-#(8) Get net AUC for cites
+# Get net AUC for cites
 mean(sapply(pm_brts,function(x) x$testAUC))
 std.error(sapply(pm_brts,function(x) x$testAUC))
 
-#(9) Clean environment
+# Clean environment
 rm(pm_brts)
 
-#(10) Get independent AUC for PCR and Comp models
+# Get independent AUC for PCR and Comp models
 mean(sapply(pcr_brts,function(x) x$testAUC))
 std.error(sapply(pcr_brts,function(x) x$testAUC))
 mean(sapply(comp_brts,function(x) x$testAUC))
 std.error(sapply(comp_brts,function(x) x$testAUC))
 
-#(11) Get independent sensitivity for PCR and Comp models
+# Get independent sensitivity for PCR and Comp models
 mean(sapply(pcr_brts,function(x) x$sen))
 std.error(sapply(pcr_brts,function(x) x$sen))
 mean(sapply(comp_brts,function(x) x$sen))
 std.error(sapply(comp_brts,function(x) x$sen))
 
-#(11) Get independent specificity for PCR and Comp models
+# Get independent specificity for PCR and Comp models
 mean(sapply(pcr_brts,function(x) x$spec))
 std.error(sapply(pcr_brts,function(x) x$spec))
 mean(sapply(comp_brts,function(x) x$spec))
@@ -1594,7 +1593,7 @@ Is model performance significantly different when training on infection vs. comp
 
 ```{r perf_compare}
 
-#(1) Function for extracting data, performing unpaired t-test and determining effect size via Cohen's d
+# Function for extracting data, performing unpaired t-test and determining effect size via Cohen's d
 tfun=function(measure){
   
   ## format data
@@ -1630,22 +1629,22 @@ tfun=function(measure){
   return(list(adata=adata,tsum=tsum,csum=csum))
 }
 
-#(2) Compare AUC w/ tfun function; extract t-stat & Cohen's d
+# Compare AUC w/ tfun function; extract t-stat & Cohen's d
 adata=tfun("testAUC")
 adata$tsum$statistic
 adata$csum$effsize
 
-#(4) Compare sensitivity w/ tfun function; extract t-stat & Cohen's d
+# Compare sensitivity w/ tfun function; extract t-stat & Cohen's d
 sedata=tfun("sen")
 sedata$tsum$statistic
 sedata$csum$effsize
 
-#(6) Compare specificity w/ tfun function; extract t-stat & Cohen's d
+# Compare specificity w/ tfun function; extract t-stat & Cohen's d
 spdata=tfun("spec")
 spdata$tsum$statistic
 spdata$csum$effsize
 
-#(7) Adjust p-values with Benjamini Hochberg correction method
+# Adjust p-values w/ Benjamini Hochberg correction method
 ps=c(adata$tsum$p.value,
      sedata$tsum$p.value,
      spdata$tsum$p.value)
@@ -1722,14 +1721,13 @@ dev.off()
 
 5. Model Predictions
 ====================
-
 In this chapter, we examine predictions from our BRT model, assessing the predicted probabilities of OPV positivity.
 
 ### *Load required packages and set system*
 
 ```{r pred_load}
 
-#(1) Libraries for BRT figures
+# Libraries for BRT figures
 library(tidyr)
 library(ggplot2)
 library(sciplot)
@@ -1744,11 +1742,11 @@ library(ggpubr) #ggarrange
 library(plyr)
 library(dplyr)
 
-#(2) Clean environment
+# Clean environment
 rm(list=ls()) 
 graphics.off()
 
-#(3) Set working directory
+# Set working directory
 setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Trait Model")
 
 ```
@@ -1763,11 +1761,12 @@ pcr_brts <- readRDS("Output/pcr brts.rds")
 comp_brts <- readRDS("Output/comp brts.rds")
 
 # Load cleaned data file
+library(fastDummies)
 load("Output/HostTraitModel_CleanData.RData")
 data <- poxdata
 
 # Make binary columns for each taxonomic family in our dataset
-dums=fastDummies::dummy_cols(data["fam"])
+dums=dummy_cols(data["fam"])
 
 # Get only unique observations
 dums=dums[!duplicated(dums$fam),]
@@ -1797,11 +1796,11 @@ pcr_apreds=data.frame(aggregate(pred~treename,data=pcr_apreds,mean),
 # Generate variable of evidence type for infection model
 pcr_apreds$type='PCR'
 
-# Average predictions: competence
+# Get predicted probabilities from competence model
 comp_apreds=lapply(comp_brts,function(x) x$predict)
 comp_apreds=do.call(rbind,comp_apreds)
 
-# Aggregate
+# Collapse to mean of predicted probabilities for each unique treename/tip
 comp_apreds=data.frame(aggregate(pred~treename,data=comp_apreds,mean),
                        aggregate(cpred~treename,data=comp_apreds,mean)['cpred'], ## holding wos constant
                        aggregate(pcr~treename,data=comp_apreds,prod)["pcr"],
@@ -1934,9 +1933,9 @@ dev.off()
 
 ```
 
-### *Explore the effect of threshold moving on binary classification*
+### *Explore the effects of threshold moving on binary classification*
 We calculate various optimal threshold values and evaluate how threshold moving changes classification of OPV positive vs. negative mammal genera.
-Table: *table_predicted_hosts_infection.xlsx*, *table_predicted_hosts_competence.xlsx*
+Tables: *table_predicted_hosts_infection.xlsx*, *table_predicted_hosts_competence.xlsx*
 
 ```{r pred_threshold}
 
@@ -2170,7 +2169,7 @@ bdata$Species=bdata$treename
 # Generate mean of pcr and comp predicted probabilities
 bdata <- bdata %>% mutate(pred_mean = rowMeans(across(pred_pcr:pred_comp), na.rm = TRUE))
 
-# Generate variable of whether a link was predicted based on threshold value
+# Generate variable of whether OPV positivity was predicted based on threshold value
 bdata$pcr_rs0.8 <- ifelse(bdata$pred_pcr > ts_pcr_rs0.8$pred_pcr, 1, 0)
 bdata$comp_rs0.8 <- ifelse(bdata$pred_comp > ts_comp_rs0.8$pred_comp, 1, 0)
 bdata$pcrcomp_rs0.8 <- ifelse(bdata$pcr_rs0.8==1 & bdata$comp_rs0.8==1, "Both",
@@ -2207,7 +2206,7 @@ pcr_lmod=pgls(pred_pcr~1,data=cdata,lambda="ML")     #pgls fits a linear model w
 comp_lmod=pgls(pred_comp~1,data=cdata,lambda="ML")   #lambda = value for lambda transformation; 'ML' uses maximum likelihood to optimize branch length transformations
 ###for more info: https://static1.squarespace.com/static/5459da8ae4b042d9849b7a7b/t/57ea64eae58c62718aa34769/1474979059782/Nesin_Winternitz_Practical_1and2.pdf
 
-# Summarize 
+# Get Pagel's lambda (phylogenetic) 
 summary(pcr_lmod)
 summary(comp_lmod)
 
@@ -2367,7 +2366,7 @@ comppred_pf_results=pfsum(comppred_pf)$results
 pcrpred_pf_results$model="infection"
 comppred_pf_results$model="competence"
 
-# Bind results of both models
+# Combine results of both models
 predpfs=rbind.data.frame(pcrpred_pf_results,comppred_pf_results)
 
 # Round probabilities to the 2nd decimal place
@@ -2848,6 +2847,7 @@ dev.off()
 
 ```
 
+
 7. Feature Importance
 =====================
 
@@ -2855,7 +2855,7 @@ In this chapter, we examine predictions from our BRT model identifying and ranki
 
 ### *Load required packages and set system*
 
-```{r pred_load}
+```{r feat_load}
 
 # Libraries for BRT figures
 library(tidyr)
@@ -2879,7 +2879,7 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 ```
 
 ### *Identify and rank relative feature importance*
-We compare and contrast the relative feature importance of the predictors in our PCR vs. competence models, determining the mean, variance, and standard error for each model. We then rank features by their relative importance, focusing on the top 10 predictive features. 
+We compare and contrast the relative feature importance of the predictors in our PCR vs. competence models, determining the mean, variance, and standard error for each model. We then rank features by their relative importance, focusing on the top 10 predictive features.
 Figure: *boxplot_trait_ranking.png*
 Table: *table_ranks.csv*
 
@@ -3015,7 +3015,7 @@ plot(ranks2$pcr_rank,ranks2$resid,
      ylab="Residuals",xlab="pcr_rank", 
      main="comp_rank")
 
-# Were any  residual values greater than 10 or greater than 18? Flag residuals.
+# Were any residual values greater than 10 or greater than 18? Flag residuals.
 #ranks2$select=ifelse(ranks2$resid>10,"yes","no")
 ranks2$select=ifelse(ranks2$resid>18,"yes","no")
 which(ranks2$resid>20) # returns 5 values
@@ -3255,7 +3255,7 @@ c8=pdp_plot(comp_brts,ranks2$var[8])
 c9=pdp_plot(comp_brts,ranks2$var[9])
 c10=pdp_plot(comp_brts,ranks2$var[10])
 
-# Plot compield PDPs of the top ranked features for both infection and competence models
+# Plot compiled PDPs of the top ranked features for both infection and competence models
 library(patchwork)
 pdplot_pcr <- p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+plot_layout(nrow=10,ncol=1,byrow=F)
 pdplot_comp <- c1+c2+c3+c4+c5+c6+c7+c8+c9+c10+plot_layout(nrow=10,ncol=1,byrow=F)
