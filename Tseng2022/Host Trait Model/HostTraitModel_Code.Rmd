@@ -87,7 +87,7 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 ```{r prep_raw}
 
 # Load raw data
-load("HostTraitModel_RawData.RData")
+load("PoxHost_RawData.RData")
 
 # Pox data: host-OPV interactions detected via PCR/isolation from Virion database
 ##virion <- vroom('https://github.com/viralemergence/virion/blob/main/Virion/Virion.csv.gz')
@@ -1534,9 +1534,9 @@ How accurately did infection and competence BRT models distinguish OPV positive 
 #### If needed, increase vector memory in R environment and reboot R before proceeding (https://stackoverflow.com/questions/51295402/r-on-macos-error-vector-memory-exhausted-limit-reached)
 
 # Load data
-pcr_brts <- readRDS("Output/pcr brts.rds")
-comp_brts <- readRDS("Output/comp brts.rds")
-pm_brts <- readRDS("Output/pm brts.rds")
+pcr_brts <- readRDS("Output/pcr_brts.rds")
+comp_brts <- readRDS("Output/comp_brts.rds")
+pm_brts <- readRDS("Output/pm_brts.rds")
 
 # Index and save non-missing BRT iterations
 pcr_keep=which(!is.na(sapply(pcr_brts,function(x) x$testAUC)))

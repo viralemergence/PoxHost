@@ -8,16 +8,16 @@ This repository contains data and code to reproduce all analyses from <...>.
 To run the analysis, you can fork and clone this repository or download the "Tseng2020" folder directly to your local desktop (see *File organization (recommended)*). The code is separated into two markdown files, each contained within their corresponding folders: one for the host prediction model – *HostPrediction_Code.Rmd* – and the other for the link prediction model – *LinkPrediction_Code.Rmd*. Both markdown files are organized similarly into five parts (see *Code organization*) and draw data from the same source file, *Data_raw.RData*. 
 
 ### File organization (recommended)
-1. Tseng2020 > Host Prediction Model > ... 
-      - HostPrediction_Code.Rmd
-      - HostPrediction_Code.pdf
-      - Data_raw.RData
+1. Tseng2020 > Host Trait Model > ... 
+      - HostTraitModel_Code.Rmd
+      - HostTraitModel_Code.pdf
+      - PoxHost_RawData.RData
       - MAMMALS.shp (*see NOTES*)
       - Output/ (*see NOTES*)
 2. Tseng 2020 > Link Prediction Model > ...
-      - LinkPrediction_Code.Rmd
-      - LinkPrediction_Code.pdf
-      - Data_raw.RData
+      - LinkPredictionModel_Code.Rmd
+      - LinkPredictionModel_Code.pdf
+      - PoxHost_RawData.RData
       - MAMMALS.shp (*see NOTES*)
       - Output/ (*see NOTES*)
 
@@ -26,29 +26,29 @@ To run the analysis, you can fork and clone this repository or download the "Tse
 - Before proceeding to run the code, we recommend you create an "Output" sub-folder (e.g., ~/Tseng2022/#### Prediction Model/Output/) contained within each model folder. The code for both models will save all output (e.g., cleaned datasets, model output, figures and tables) to the corresponding "Output" folders. 
 
 ### Code organization
-For *HostPrediction_Code.Rmd*:
+For *HostTraitModel_Code.Rmd*:
 1. Data Preparation
-     - Input: *Data_raw.RData*
-     - Output: *HostData_clean.RData*
+     - Input: *PoxHost_RawData.RData*
+     - Output: *HostTraitModel_CleanData.RData*
 2. Phylogenetic analysis
-     - Input: *HostData_clean.RData*
+     - Input: *HostTraitModel_CleanData.RData*
      - Output: Figure1
 3. Boosted regression trees (BRT)
-     - Input: *HostData_clean.RData*
+     - Input: *HostTraitModel_CleanData.RData*
      - Output: FigureS1, TableS1, *par_tuning_data_summary.csv*, FigureS2, *HostData_results.RData*
 4. BRT figures 
-     - Input: *HostData_results.RData*, *HostData_clean.RData*
+     - Input: *pcr_brts.rds*, *comp_brts.rds*, *pm_brts.rds*, *HostTraitModel_CleanData.RData*
      - Output: FigureS3, Figure2, TableS5, FigureS4, *PoxHost_predictions.csv*, Figure3, TableS6.csv
 5. Mapping host distributions
      - Input: *PoxHost_predictions.csv*, *MAMMALS.shp*
      - Output: Figure4
 
-For *LinkPrediction_Code.Rmd*:
+For *LinkPredictionModel_Code.Rmd*:
 1. Dimensionality Reduction
      - Input: *PresenceAbsence_OPV.xlsx*
      - Output: *pc_genes.RData*
 2. Data Preparation
-     - Input: *Data_raw.RData* & *pc_genes.RData*
+     - Input: *PoxHost_RawData.RData* & *pc_genes.RData*
      - Output: *LinkData_clean.RData*
 3. Boosted regression trees (BRT)
      - Input: *LinkData_clean.RData*
