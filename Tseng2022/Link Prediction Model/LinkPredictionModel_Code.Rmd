@@ -3008,8 +3008,9 @@ bdata$link1_rs0.85 <- ifelse(bdata$pred_Model1 > ts1_rs0.85$pred_Model1, 1, 0)
 bdata$link1_rs0.9 <- ifelse(bdata$pred_Model1 > ts1_rs0.9$pred_Model1, 1, 0)
 bdata$link1_mss3 <- ifelse(bdata$pred_Model1 > ts1_mss3$pred_Model1, 1, 0)
 
-#Aggregate at the host genera level assuming the mean b/c pgls() takes only one value per tip
-bdata_mean <- aggregate(cbind(pred_Model1,pred_Model2) ~ treename + ord + fam + genus + label + Species, data=bdata, mean)
+#Aggregate at the host genera level across virus species; assume the mean b/c pgls() takes only one value per tip; aggregate separately for Model 1 and 2 predictions due to NA value for vaccinia virus in Model 2
+bdata_mean_model1 <- aggregate(pred_Model1 ~ treename + ord + fam + genus + label + Species, data=bdata, mean)
+bdata_mean_model2 <- aggregate(pred_Model2 ~ treename + ord + fam + genus + label + Species, data=bdata, mean)
 
 # For visualizing binary classification of links on a phylogenetic tree (where only one tip value is allowed), we regroup as 'unclassified orthopoxvirus' the following virus species:
   # 'cetacean poxvirus 1'
@@ -3052,7 +3053,9 @@ bdata_sum <- rbind(bdata_sum, bdata_unclassified)
 bdata_sum <- aggregate(cbind(link1,link2,link1_rs0.8,link1_rs0.85,link1_rs0.9,link1_mss3) ~ treename + ord + fam + genus + label + Species, data=bdata_sum, sum)
 
 # Combine bdata_mean and bdata_sum
-bdata_agg <- merge(bdata_mean, bdata_sum, by=c("treename", "ord", "fam", "genus", "label", "Species"))
+bdata_agg <- merge(bdata_mean_model1, bdata_mean_model2, by=c("treename", "ord", "fam", "genus", "label", "Species"))
+bdata_agg <- merge(bdata_agg, bdata_sum, by=c("treename", "ord", "fam", "genus", "label", "Species"))
+
 
 ### We take the mean of the predictions for visualizing the phylotree later b/c if the mean is >1 that means at least one host-virus link was positive within that host genera
 ### link1 and link2 represent known hosts; unknown_link1_ and unknown_link2_ represent unknown predicted hosts
@@ -3389,7 +3392,7 @@ tree_pp_model1=ggarrange(p1_rs0.8,p1_rs0.85, p1_rs0.9,p1_mss3,
               ncol=2,nrow=2,
               common.legend = TRUE, legend="right")
 
-# Visualize and select threshold to apply binary classificaiton
+# Visualize and select threshold to apply binary classification
 tree_pp_model1
 
 # Let's use ReqSens0.8 and MaxSensSpec to demonstrate the impact of threshold moving on binary classification
