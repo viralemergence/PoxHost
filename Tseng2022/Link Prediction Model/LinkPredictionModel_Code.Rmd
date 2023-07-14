@@ -2042,6 +2042,11 @@ How accurately did Model 1 and Model 2 distinguish host-virus links vs. non-link
 
 ```{r perf_auc}
 
+# Get data from Model 1
+load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model1/Output/brts_Model1.RData")
+brts1=brts
+rm(brts)
+
 # Get data from Model 2
 load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model2/Output/brts_Model2.RData")
 brts2=brts
@@ -3884,17 +3889,21 @@ vinf1$rel.inf <- vinf1$rel.inf/100
 vinf2 <- vinf2[which(vinf2$var%in%keep2),]
 vinf2$rel.inf <- vinf2$rel.inf/100
 
+# Relabel 'cites' to 'citations' for boxplots
+vinf1$var <- ifelse(vinf1$var=="cites", "citations", vinf1$var)
+vinf2$var <- ifelse(vinf2$var=="cites", "citations", vinf2$var)
+
 # Boxplot relative feature importance for Model 1
 boxplot_trait_Model1 <- ggplot(vinf1) + ggtitle("(C) Link prediction model") +
         geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
         theme_bw() +
         labs(x="Relative influence",
              y="Features") + 
-        theme(axis.text.y=element_text(size=10),
-              axis.text.x=element_text(size=12),
-              axis.title.x=element_text(size=12, margin=margin(t=10,r=0,b=0,l=0)),
-              axis.title.y=element_text(size=12, margin=margin(t=0,r=10,b=0,l=0)),
-              strip.text=element_text(size=12))
+        theme(axis.text.y=element_text(size=16),
+              axis.text.x=element_text(size=16),
+              axis.title.x=element_text(size=20, margin=margin(t=10,r=0,b=0,l=0)),
+              axis.title.y=element_text(size=20, margin=margin(t=0,r=10,b=0,l=0)),
+              strip.text=element_text(size=20))
 
 # Boxplot relative feature importance for Model 1
 boxplot_trait_Model2 <- ggplot(vinf2) + ggtitle("(D) Link prediction model (no vaccinia virus)") +
@@ -3902,11 +3911,11 @@ boxplot_trait_Model2 <- ggplot(vinf2) + ggtitle("(D) Link prediction model (no v
         theme_bw() +
         labs(x="Relative influence",
              y="Features") + 
-        theme(axis.text.y=element_text(size=10),
-              axis.text.x=element_text(size=12),
-              axis.title.x=element_text(size=12, margin=margin(t=10,r=0,b=0,l=0)),
-              axis.title.y=element_text(size=12, margin=margin(t=0,r=10,b=0,l=0)),
-              strip.text=element_text(size=12))
+        theme(axis.text.y=element_text(size=16),
+              axis.text.x=element_text(size=16),
+              axis.title.x=element_text(size=20, margin=margin(t=10,r=0,b=0,l=0)),
+              axis.title.y=element_text(size=20, margin=margin(t=0,r=10,b=0,l=0)),
+              strip.text=element_text(size=20))
 
   
 # Combine boxplots of relative feature importance

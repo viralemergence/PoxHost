@@ -1757,8 +1757,8 @@ Table: *table_HostTraitModel_predictions.csv*
 ```{r pred_save}
 
 # Load model predictions
-pcr_brts <- readRDS("Output/pcr brts.rds")
-comp_brts <- readRDS("Output/comp brts.rds")
+pcr_brts <- readRDS("Output/pcr_brts.rds")
+comp_brts <- readRDS("Output/comp_brts.rds")
 
 # Load cleaned data file
 library(fastDummies)
@@ -1976,19 +1976,6 @@ ts_pcr[nrow(ts_pcr) + 1,] <- optimal.thresholds(data.frame(pred[,c('treename','P
                            req.sens = 0.95,
                            na.rm = TRUE)
 
-# Create function to apply thresholds to predictions for all mammal genera and only those that are potentially unknown
-cut_pcr1 <- function(x) {sum(pred$pred_pcr > x)}
-cut_pcr2 <- function(x) {sum(pred$pred_pcr[pred$PCR==0] > x)}
-
-# Let's briefly view the number of predicted hosts based on the various thresholds
-sapply(unlist(ts_pcr[2]), cut_pcr1)
-
-# Let's briefly view the number of predicted unknown hosts based on the various thresholds
-sapply(unlist(ts_pcr[2]), cut_pcr2)
-
-# Save threshold values
-#write.csv(ts_pcr, file='Output/ts_pcr.csv')
-
 # For the competence model, let's calculate the opt. threshold values using different optimization methods (e.g., 80% sensitivity)
 ts_comp <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
                            threshold = 10001,
@@ -2017,19 +2004,66 @@ ts_comp[nrow(ts_comp) + 1,] <- optimal.thresholds(data.frame(pred[,c('treename',
                            req.sens = 0.95,
                            na.rm = TRUE)
 
-# Create function to apply thresholds to predictions for all mammal genera and only those that are potentially unknown
+# Create function to apply thresholds to predictions for all mammal genera and only those that are potentially unknown; use sapply to view counts
+cut_pcr1 <- function(x) {sum(pred$pred_pcr > x)}
+cut_pcr2 <- function(x) {sum(pred$pred_pcr[pred$PCR==0] > x)}
+sapply(unlist(ts_pcr[2]), cut_pcr1)
+sapply(unlist(ts_pcr[2]), cut_pcr2)
+
+# Create function to apply thresholds to predictions for all mammal genera and only those that are potentially unknown; use sapply to view counts
 cut_comp1 <- function(x) {sum(pred$pred_comp > x)}
 cut_comp2 <- function(x) {sum(pred$pred_comp[pred$competence==0] > x)}
-
-# Let's briefly view the number of predicted hosts based on the various thresholds
 sapply(unlist(ts_comp[2]), cut_comp1)
-
-# Let's briefly view the number of predicted unknown hosts based on the various thresholds
 sapply(unlist(ts_comp[2]), cut_comp2)
 sum(pred$competence)
 
-# Save threshold values
-#write.csv(ts_comp, file='Output/ts_comp.csv')
+### Create table of optimal thresholding methods, values, and number of predicted hosts ###
+
+# Save threshold values as new tables
+table_ts_pcr <- ts_pcr
+table_ts_comp <- ts_comp
+
+# Correct method labels
+table_ts_pcr[5,1] <- "ReqSens 80%"
+table_ts_pcr[6,1] <- "ReqSens 85%"
+table_ts_pcr[7,1] <- "ReqSens 90%"
+table_ts_pcr[8,1] <- "ReqSens 95%"
+table_ts_comp[5,1] <- "ReqSens 80%"
+table_ts_comp[6,1] <- "ReqSens 85%"
+table_ts_comp[7,1] <- "ReqSens 90%"
+table_ts_comp[8,1] <- "ReqSens 95%"
+# Get sensitivity and specificity of model based on various optimal thresholds
+table_ts_pcr$threshold <- table_ts_pcr$pred_pcr
+table_ts_pcr$pred_pcr <- NULL
+table_ts_pcr$sensitivity <- NA
+table_ts_pcr$specificity <- NA
+table_ts_pcr$n_predicted <- NA
+table_ts_pcr$n_predicted_unknown <- NA
+table_ts_comp$threshold <- table_ts_comp$pred_comp
+table_ts_comp$pred_comp <- NULL
+table_ts_comp$sensitivity <- NA
+table_ts_comp$specificity <- NA
+table_ts_comp$n_predicted <- NA
+table_ts_comp$n_predicted_unknown <- NA
+
+# For Sens=Spec
+for (i in 1:nrow(table_ts_pcr)) {
+  table_ts_pcr[i,3] <-  InformationValue::sensitivity(pred$PCR, pred$pred_pcr, threshold = table_ts_pcr[i,2])
+  table_ts_pcr[i,4] <-  InformationValue::specificity(pred$PCR, pred$pred_pcr, threshold = table_ts_pcr[i,2])
+  table_ts_pcr[i,5] <- cut_pcr1(table_ts_pcr[i,2])
+  table_ts_pcr[i,6] <- cut_pcr2(table_ts_pcr[i,2])
+}
+
+for (i in 1:nrow(table_ts_comp)) {
+  table_ts_comp[i,3] <-  InformationValue::sensitivity(pred$competence, pred$pred_comp, threshold = table_ts_comp[i,2])
+  table_ts_comp[i,4] <-  InformationValue::specificity(pred$competence, pred$pred_comp, threshold = table_ts_comp[i,2])
+  table_ts_comp[i,5] <- cut_comp1(table_ts_comp[i,2])
+  table_ts_comp[i,6] <- cut_comp2(table_ts_comp[i,2])
+}
+
+# Save table of the effects of threshold moving
+write.csv(table_ts_pcr, file='Output/table_thresholdmoving_pcr.csv')
+write.csv(table_ts_comp, file='Output/table_thresholdmoving_comp.csv')
 
 ### APPLY THRESHOLDS TO PREDICTIONS ###
 
@@ -2886,9 +2920,9 @@ Table: *table_ranks.csv*
 ```{r feat_rank}
 
 # Load model predictions
-pcr_brts <- readRDS("Output/pcr brts.rds")
-comp_brts <- readRDS("Output/comp brts.rds")
-pm_brts <- readRDS("Output/pm brts.rds")
+pcr_brts <- readRDS("Output/pcr_brts.rds")
+comp_brts <- readRDS("Output/comp_brts.rds")
+pm_brts <- readRDS("Output/pm_brts.rds")
 
 # What was the relative importance/influence of each feature in the infection model? Get values.
 vinf=lapply(pcr_brts,function(x) x$rinf)
@@ -2949,17 +2983,20 @@ pcr_vinf=do.call(rbind,vinf)
 pcr_vinf <- pcr_vinf[which(pcr_vinf$var%in%keep_pcr),]
 pcr_vinf$rel.inf <- pcr_vinf$rel.inf/100
 
+# Relabel 'cites' to 'citations' for boxplots
+pcr_vinf$var <- ifelse(pcr_vinf$var=="cites", "citations", pcr_vinf$var)
+
 # Boxplot relative feature importance for the infection model
 boxplot_trait_pcr <- ggplot(pcr_vinf) + ggtitle("(A) Host-trait infection model") +
         geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
         theme_bw() +
         labs(x="Relative influence",
              y="Features") + 
-        theme(axis.text.y=element_text(size=10),
-              axis.text.x=element_text(size=12),
-              axis.title.x=element_text(size=12, margin=margin(t=10,r=0,b=0,l=0)),
-              axis.title.y=element_text(size=12, margin=margin(t=0,r=10,b=0,l=0)),
-              strip.text=element_text(size=12))
+        theme(axis.text.y=element_text(size=16),
+              axis.text.x=element_text(size=16),
+              axis.title.x=element_text(size=20, margin=margin(t=10,r=0,b=0,l=0)),
+              axis.title.y=element_text(size=20, margin=margin(t=0,r=10,b=0,l=0)),
+              strip.text=element_text(size=20))
 
 # Get the relative importance values for the top 10 features of the competence model
 vinf=lapply(comp_brts,function(x) x$rinf)
@@ -2967,17 +3004,20 @@ comp_vinf=do.call(rbind,vinf)
 comp_vinf <- comp_vinf[which(comp_vinf$var%in%keep_pcr),]
 comp_vinf$rel.inf <- comp_vinf$rel.inf/100
 
+# Relabel 'cites' to 'citations' for boxplots
+comp_vinf$var <- ifelse(comp_vinf$var=="cites", "citations", comp_vinf$var)
+
 # Boxplot relative feature importance for the competence model
 boxplot_trait_comp <- ggplot(comp_vinf) + ggtitle("(B) Host-trait competence model") +
         geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
         theme_bw() +
         labs(x="Relative influence",
              y="Features") + 
-        theme(axis.text.y=element_text(size=10),
-              axis.text.x=element_text(size=12),
-              axis.title.x=element_text(size=12, margin=margin(t=10,r=0,b=0,l=0)),
-              axis.title.y=element_text(size=12, margin=margin(t=0,r=10,b=0,l=0)),
-              strip.text=element_text(size=12))
+        theme(axis.text.y=element_text(size=16),
+              axis.text.x=element_text(size=16),
+              axis.title.x=element_text(size=20, margin=margin(t=10,r=0,b=0,l=0)),
+              axis.title.y=element_text(size=20, margin=margin(t=0,r=10,b=0,l=0)),
+              strip.text=element_text(size=20))
 
 # Combine boxplots of relative feature importance
 png("Output/boxplot_trait_ranking.png",width=10,height=10,units="in",res=300)
