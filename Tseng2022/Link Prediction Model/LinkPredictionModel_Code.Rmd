@@ -2690,17 +2690,42 @@ ts1[nrow(ts1) + 1,] <- optimal.thresholds(data.frame(pred1[,c('virus_treename','
                            req.sens = 0.95,
                            na.rm = TRUE)
 
-# Create function that sums the number of predicted obs (known and unknown) and just unknown obs predicted as links based on calculated THVs for Model 1
+# Create function that sums the number of predicted obs (known and unknown) and just unknown obs predicted as links based on calculated THVs for Model 1; use sapply to view counts
 cut.1 <- function(x) {sum(pred1$pred_Model1 > x)}  #all predicted links
 cut.2 <- function(x) {sum(pred1$pred_Model1[pred1$link1==0] > x)}  #unknown predicted links only
-
-# Apply cut function using THVs from ts.1 and from prior calculated THVs for Model 1 to view number of obs with previously undetected links having predicted probabilities greater than the optimum threshold value
 sapply(unlist(ts1[2]), cut.1) #number of predicted links
 sapply(unlist(ts1[2]), cut.2) #number of unknown predicted links
 sum(pred1$link1)
 
-# save threshold values 
-write.csv(ts1, file='Output/table_thresholdvalues_model1.csv')
+### CREAT TABLE OF OPTIMAL THRESHOLDING METHODS, VALUES, AND NUMBER OF PREDICTED HOSTS ###
+
+# Save threshold values as new tables
+table_ts1 <- ts1
+
+# Correct method labels
+table_ts1[5,1] <- "ReqSens 80%"
+table_ts1[6,1] <- "ReqSens 85%"
+table_ts1[7,1] <- "ReqSens 90%"
+table_ts1[8,1] <- "ReqSens 95%"
+
+# Add new columns for sensitivity, specificity, number of predicted hosts, and number of unknown predicted hosts
+table_ts1$threshold <- table_ts1$pred_pcr
+table_ts1$pred_pcr <- NULL
+table_ts1$sensitivity <- NA
+table_ts1$specificity <- NA
+table_ts1$n_predicted <- NA
+table_ts1$n_predicted_unknown <- NA
+
+# For infection model, get sensitivity, specificity, and number of predicted hosts based on various threshold values
+for (i in 1:nrow(table_ts1)) {
+  table_ts1[i,3] <-  InformationValue::sensitivity(pred1$link1, pred1$pred_Model1, threshold = table_ts1[i,2])
+  table_ts1[i,4] <-  InformationValue::specificity(pred1$link1, pred1$pred_Model1, threshold = table_ts1[i,2])
+  table_ts1[i,5] <- cut.1(table_ts1[i,2])
+  table_ts1[i,6] <- cut.2(table_ts1[i,2])
+}
+
+# Save table of the effects of threshold moving
+write.csv(table_ts1, file='Output/table_thresholdmoving_linkmodel1.csv')
 
 ### APPLY THRESHOLDS TO PREDICTIONS ###
 

@@ -2004,20 +2004,20 @@ ts_comp[nrow(ts_comp) + 1,] <- optimal.thresholds(data.frame(pred[,c('treename',
                            req.sens = 0.95,
                            na.rm = TRUE)
 
-# Create function to apply thresholds to predictions for all mammal genera and only those that are potentially unknown; use sapply to view counts
+# For infection model, create function that sums the number of predicted obs (known and unknown) and just known obs; use sapply to view counts
 cut_pcr1 <- function(x) {sum(pred$pred_pcr > x)}
 cut_pcr2 <- function(x) {sum(pred$pred_pcr[pred$PCR==0] > x)}
 sapply(unlist(ts_pcr[2]), cut_pcr1)
 sapply(unlist(ts_pcr[2]), cut_pcr2)
 
-# Create function to apply thresholds to predictions for all mammal genera and only those that are potentially unknown; use sapply to view counts
+# For competence model, create function that sums the number of predicted obs (known and unknown) and just known obs; use sapply to view counts
 cut_comp1 <- function(x) {sum(pred$pred_comp > x)}
 cut_comp2 <- function(x) {sum(pred$pred_comp[pred$competence==0] > x)}
 sapply(unlist(ts_comp[2]), cut_comp1)
 sapply(unlist(ts_comp[2]), cut_comp2)
 sum(pred$competence)
 
-### Create table of optimal thresholding methods, values, and number of predicted hosts ###
+### CREAT TABLE OF OPTIMAL THRESHOLDING METHODS, VALUES, AND NUMBER OF PREDICTED HOSTS ###
 
 # Save threshold values as new tables
 table_ts_pcr <- ts_pcr
@@ -2032,7 +2032,8 @@ table_ts_comp[5,1] <- "ReqSens 80%"
 table_ts_comp[6,1] <- "ReqSens 85%"
 table_ts_comp[7,1] <- "ReqSens 90%"
 table_ts_comp[8,1] <- "ReqSens 95%"
-# Get sensitivity and specificity of model based on various optimal thresholds
+
+# Add new columns for sensitivity, specificity, number of predicted hosts, and number of unknown predicted hosts
 table_ts_pcr$threshold <- table_ts_pcr$pred_pcr
 table_ts_pcr$pred_pcr <- NULL
 table_ts_pcr$sensitivity <- NA
@@ -2046,7 +2047,7 @@ table_ts_comp$specificity <- NA
 table_ts_comp$n_predicted <- NA
 table_ts_comp$n_predicted_unknown <- NA
 
-# For Sens=Spec
+# For infection model, get sensitivity, specificity, and number of predicted hosts based on various threshold values 
 for (i in 1:nrow(table_ts_pcr)) {
   table_ts_pcr[i,3] <-  InformationValue::sensitivity(pred$PCR, pred$pred_pcr, threshold = table_ts_pcr[i,2])
   table_ts_pcr[i,4] <-  InformationValue::specificity(pred$PCR, pred$pred_pcr, threshold = table_ts_pcr[i,2])
@@ -2054,6 +2055,7 @@ for (i in 1:nrow(table_ts_pcr)) {
   table_ts_pcr[i,6] <- cut_pcr2(table_ts_pcr[i,2])
 }
 
+# For competence model, get sensitivity, specificity, and number of predicted hosts based on various threshold values
 for (i in 1:nrow(table_ts_comp)) {
   table_ts_comp[i,3] <-  InformationValue::sensitivity(pred$competence, pred$pred_comp, threshold = table_ts_comp[i,2])
   table_ts_comp[i,4] <-  InformationValue::specificity(pred$competence, pred$pred_comp, threshold = table_ts_comp[i,2])
