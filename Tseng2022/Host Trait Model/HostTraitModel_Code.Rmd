@@ -2009,6 +2009,7 @@ cut_pcr1 <- function(x) {sum(pred$pred_pcr > x)}
 cut_pcr2 <- function(x) {sum(pred$pred_pcr[pred$PCR==0] > x)}
 sapply(unlist(ts_pcr[2]), cut_pcr1)
 sapply(unlist(ts_pcr[2]), cut_pcr2)
+sum(pred$PCR)
 
 # For competence model, create function that sums the number of predicted obs (known and unknown) and just known obs; use sapply to view counts
 cut_comp1 <- function(x) {sum(pred$pred_comp > x)}
