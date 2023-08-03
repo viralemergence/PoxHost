@@ -2060,111 +2060,299 @@ keep2=which(!is.na(sapply(brts2,function(x) x$testAUC)))
 brts1=brts1[keep1]
 brts2=brts2[keep2]
 
-# Get AUC for Model 1
-auc1 <- paste0(round(mean(sapply(brts1,function(x) x$testAUC)),3), " (", round(std.error(sapply(brts1,function(x) x$testAUC)),4), ")")
+# Check number of iterations
+length(keep1)
+length(keep2)
 
-# Get sensitivity for Model 1
-sens1 <- paste0(round(mean(sapply(brts1,function(x) x$sen)),3)," (", round(std.error(sapply(brts1,function(x) x$sen)),4), ")")
+### MODEL 1 (INCL. VACCINIA LINKS): Get model performance measures assuming 0.5 threshold ###
 
-# Get specificity for Model 1
-spec1 <- paste0(round(mean(sapply(brts1,function(x) x$spec)),3), " (", round(std.error(sapply(brts1,function(x) x$spec)),4), ")")
+# Get predicted probabilities for each iteration
+m1_cpreds=lapply(brts1,function(x) x$predict)
+m1_cpreds=lapply(m1_cpreds,function(x) select(x,c("link","cpred")))
 
-# Get AUC for Model 2
-auc2 <- paste0(round(mean(sapply(brts2,function(x) x$testAUC)),3), " (", round(std.error(sapply(brts2,function(x) x$testAUC)),4), ")")
+# Get AUC for each iteration and calculate mean AUC and standard error across iterations
+m1_auc = lapply(m1_cpreds, function(x) auc(x$link, x$cpred))
+mean = mean(sapply(m1_auc,function(x) x))
+se = std.error(sapply(m1_auc,function(x) x))
+m1_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
-# Get sensitivity for Model 2
-sens2 <- paste0(round(mean(sapply(brts2,function(x) x$sen)),3), " (", round(std.error(sapply(brts2,function(x) x$sen)),4), ")")
+# Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
+m1_sens = lapply(m1_cpreds, function(x) InformationValue::sensitivity(x$link, x$cpred, threshold=0.5))
+mean = mean(sapply(m1_sens,function(x) x))
+se = std.error(sapply(m1_sens,function(x) x))
+m1_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
-# Get specificity for Model 2
-spec2 <- paste0(round(mean(sapply(brts2,function(x) x$spec)),3), " (", round(std.error(sapply(brts2,function(x) x$spec)),4), ")")
+# Get specificity for each iteration and calculate mean specificity and standard error across iterations
+m1_spec = lapply(m1_cpreds, function(x) InformationValue::specificity(x$link, x$cpred, threshold=0.5))
+mean = mean(sapply(m1_spec,function(x) x))
+se = std.error(sapply(m1_spec,function(x) x))
+m1_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
-# # Get AUC for Cites Model 1
-# paste0(round(mean(sapply(pm_brts1,function(x) x$testAUC)),3), " (", round(std.error(sapply(pm_brts1,function(x) x$testAUC)),4), ")")
+### MODEL 2 (EXCL. VACCINIA LINKS): Get model performance measures assuming 0.5 threshold ###
 
-# # Get AUC for Cites Model 2
-# paste0(round(mean(sapply(pm_brts2,function(x) x$testAUC)),3), " (", round(std.error(sapply(pm_brts2,function(x) x$testAUC)),4), ")")
+# Get predicted probabilities for each iteration
+m2_cpreds=lapply(brts2,function(x) x$predict)
+m2_cpreds=lapply(m2_cpreds,function(x) select(x,c("link","cpred")))
 
-# Clean environment
-rm(keep1, keep2) 
+# Get AUC for each iteration and calculate mean AUC and standard error across iterations
+m2_auc = lapply(m2_cpreds, function(x) auc(x$link, x$cpred))
+mean = mean(sapply(m2_auc,function(x) x))
+se = std.error(sapply(m2_auc,function(x) x))
+m2_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+
+# Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
+m2_sens = lapply(m2_cpreds, function(x) InformationValue::sensitivity(x$link, x$cpred, threshold=0.5))
+mean = mean(sapply(m2_sens,function(x) x))
+se = std.error(sapply(m2_sens,function(x) x))
+m2_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+
+# Get specificity for each iteration and calculate mean specificity and standard error across iterations
+m2_spec = lapply(m2_cpreds, function(x) InformationValue::specificity(x$link, x$cpred, threshold=0.5))
+mean = mean(sapply(m2_spec,function(x) x))
+se = std.error(sapply(m2_spec,function(x) x))
+m2_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+
+# Clean environment; save performance metrics to create a table in the next section
+rm(m1_cpreds, m2_cpreds, keep1, keep2, mean, se)
 
 ```
 
-### *Compare performance between BRTs trained on infection vs. competence*
+### *Compare performance between BRTs trained on host-virus associations including and excluding vaccinia virus*
 Is model performance significantly different when trained on all links (Model 1) vs. links excluding Vaccinia virus (Model 2)? We create a function to perform an unpaired T-test on the AUC, sensitivity and specificity of the two models and determine the effect size (mean difference) via Cohen's d.
 
 ```{r perf_compare}
 
-# Function for extracting data, performing unpaired t-test and determining effect size via Cohen's d
-tfun=function(measure){
-  
-  ## format data
-  n=length(sapply(brts1,function(x) x$measure))
-  adata=data.frame(y=c(sapply(brts1,function(x) x[measure][[1]]),
-                       sapply(brts2,function(x) x[measure][[1]])),
-                   response=c(rep('model1',n),rep('model2',n)),
-                   seed=c(sapply(brts1,function(x) x$seed),
-                          sapply(brts2,function(x) x$seed)))
-  rm(n)
-  
-  ## factor
-  adata$model=factor(adata$response,levels=c('model1','model2'))
-  
-  ## make jitter position
-  adata$x=as.numeric(factor(adata$response))
-  set.seed(1)
-  adata$xj=jitter(adata$x,0.5)
-  
-  ## fix response
-  adata$response1=plyr::revalue(adata$response,c("model1"="Full Model",
-                                           "model2"="Partial Model"))
-  
-  ## t-test
-  tsum=t.test(y~response,data=adata,
-              alternative='two.sided',
-              var.equal=F,paired=F)  
-  
-  ## effect size
-  csum=cohens_d(y~response,data=adata,paired=F,var.equal=F)
-  
-  ## return
-  return(list(adata=adata,tsum=tsum,csum=csum))
-}
+### T-test for AUC ###
 
-# Compare AUC between models; extract t-stat and Cohen's d
-adata=tfun("testAUC")
-adata$tsum$statistic
-adata$csum$effsize
+# Get auc values for model 1
+adata_m1=data.frame(y=c(sapply(m1_auc, function(x) x)))
+adata_m1$seed = 1:nrow(adata_m1)
+adata_m1$response = "model1"
 
-# Compare sensitivity between models; extract t-stat and Cohen's d
-sedata=tfun("sen")
-sedata$tsum$statistic
-sedata$csum$effsize
+# Get auc values for model 2
+adata_m2=data.frame(y=c(sapply(m2_auc, function(x) x)))
+adata_m2$seed = 1:nrow(adata_m2)
+adata_m2$response = "model2"
+adata_auc=rbind(adata_m1, adata_m2)
 
-# Compare specificity between models; extract t-stat and Cohen's d
-spdata=tfun("spec")
-spdata$tsum$statistic
-spdata$csum$effsize
+# Transform 'response' to factor
+adata_auc$response=factor(adata_auc$response,levels=c('model1','model2'))
+ 
+# T-test
+tsum_auc=t.test(y~response,data=adata_auc,
+            alternative='two.sided',
+            var.equal=F,paired=F)  
+  
+# Effect size
+csum_auc=cohens_d(y~response,data=adata_auc,paired=F,var.equal=F)
 
-# Adjust p values w/ Benjamini Hochberg correction method
-ps=c(adata$tsum$p.value, sedata$tsum$p.value, spdata$tsum$p.value)
-ps_adjust <- round(p.adjust(ps,method="BH"),4)    
-###"BH" (aka "fdr") = Benjamini & Hochberg (1995) method controls the false discovery rate, the expected proportion of false discoveries among the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate)
+### T-test for sensitivity ###
+
+# Get sensitivity values for model 1 
+adata_m1=data.frame(y=c(sapply(m1_sens, function(x) x)))
+adata_m1$seed = 1:nrow(adata_m1)
+adata_m1$response = "model1"
+
+# Get sensitivity values for model 2
+adata_m2=data.frame(y=c(sapply(m2_sens, function(x) x)))
+adata_m2$seed = 1:nrow(adata_m2)
+adata_m2$response = "model2"
+adata_sens=rbind(adata_m1, adata_m2)
+
+# Transform 'response' to factor
+adata_sens$response=factor(adata_sens$response,levels=c('model1','model2'))
+ 
+# T-test
+tsum_sens=t.test(y~response,data=adata_sens,
+            alternative='two.sided',
+            var.equal=F,paired=F)  
+  
+# Effect size
+csum_sens=cohens_d(y~response,data=adata_sens,paired=F,var.equal=F)
+
+### T-test for specificity ###
+
+# Get sensitivity values for model 1 
+adata_m1=data.frame(y=c(sapply(m1_spec, function(x) x)))
+adata_m1$seed = 1:nrow(adata_m1)
+adata_m1$response = "model1"
+
+# Get sensitivity values for model 2
+adata_m2=data.frame(y=c(sapply(m2_spec, function(x) x)))
+adata_m2$seed = 1:nrow(adata_m2)
+adata_m2$response = "model2"
+adata_spec=rbind(adata_m1, adata_m2)
+
+# Transform 'response' to factor
+adata_spec$response=factor(adata_spec$response,levels=c('model1','model2'))
+ 
+# T-test
+tsum_spec=t.test(y~response,data=adata_spec,
+            alternative='two.sided',
+            var.equal=F,paired=F)  
+  
+# Effect size
+csum_spec=cohens_d(y~response,data=adata_spec,paired=F,var.equal=F)
+
+# Adjust p-values w/ Benjamini Hochberg correction method
+ps=c(tsum_auc$p.value,
+     tsum_sens$p.value,
+     tsum_spec$p.value)
+ps_adjust <- sprintf("%.4f",p.adjust(ps,method="BH"))    #"BH" (aka "fdr") = Benjamini & Hochberg (1995) method control the false discovery rate, the expected proportion of false discoveries amongst the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate)
 
 # Create and save table of performance measures 
-ts4 <- data.frame(matrix(c(auc1, sens1, spec1, 
-                auc2, sens2, spec2, 
-                round(adata$tsum$statistic,2), round(sedata$tsum$statistic,2), round(spdata$tsum$statistic,2), 
-                ps_adjust, 
-                round(adata$csum$effsize,2), round(sedata$csum$effsize,2), round(spdata$csum$effsize,2)), 
-            ncol=3, byrow=TRUE))
-colnames(ts4) <- c('mean_AUC (SE)', 'mean_sens (SE)', 'mean_spec (SE)')
-rownames(ts4) <- c('Model 1', 'Model 2', 't-test', 'p-val', "Cohen's d")
-write.csv(ts4, "Output/table_perf_metrics.csv")
+table_perf_metrics <- data.frame(matrix(c(m1_auc_mean, m1_sens_mean, m1_spec_mean, 
+                                          m2_auc_mean, m2_sens_mean, m2_spec_mean,
+                                          sprintf("%.2f", tsum_auc$statistic), 
+                                          sprintf("%.2f", tsum_sens$statistic), 
+                                          sprintf("%.2f", tsum_spec$statistic), 
+                                          ps_adjust, 
+                                          sprintf("%.2f", csum_auc$effsize), 
+                                          sprintf("%.2f", csum_sens$effsize), 
+                                          sprintf("%.2f", csum_spec$effsize)), 
+                                  ncol=3, byrow=TRUE))
+
+# Rename columns and rownames
+colnames(table_perf_metrics) <- c('AUC (mean \u00b1 SE)', 'Sensitivity (mean \u00b1 SE)', 'Specificity (mean \u00b1 SE)')
+rownames(table_perf_metrics) <- c('Link prediction model', 'Link prediction model excluding VACV associations', 't-test', 'p-val', "Cohen's d")
+
+# Save table
+write.csv(table_perf_metrics, "Output/table_perf_metrics.csv")
 
 # Clean environment
-rm(tfun, ts4, auc1, sens1, spec1, auc2, sens2, spec2, ps, ps_adjust)
+rm(list=setdiff(ls(), c("brts1", "brts2", 
+                        "adata_auc", "adata_sens", "adata_spec")))
 
 ```
+
+<!-- ### *Evaluate performance measures for Model 1 (all links) and Model 2 (excluding Vaccinia)* -->
+<!-- How accurately did Model 1 and Model 2 distinguish host-virus links vs. non-links (assuming a threshold value of 0.5)? We evaluate the mean AUC, sensitivity, and specificity of our models. -->
+
+<!-- ```{r perf_auc} -->
+
+<!-- # Get data from Model 1 -->
+<!-- load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model1/Output/brts_Model1.RData") -->
+<!-- brts1=brts -->
+<!-- rm(brts) -->
+
+<!-- # Get data from Model 2 -->
+<!-- load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model2/Output/brts_Model2.RData") -->
+<!-- brts2=brts -->
+<!-- rm(brts) -->
+
+<!-- # Index non-missing -->
+<!-- keep1=which(!is.na(sapply(brts1,function(x) x$testAUC))) -->
+<!-- keep2=which(!is.na(sapply(brts2,function(x) x$testAUC))) -->
+
+<!-- # Trim, keeping only those that are non-missing -->
+<!-- brts1=brts1[keep1] -->
+<!-- brts2=brts2[keep2] -->
+
+<!-- # Get AUC for Model 1 -->
+<!-- auc1 <- paste0(round(mean(sapply(brts1,function(x) x$testAUC)),3), " (", round(std.error(sapply(brts1,function(x) x$testAUC)),4), ")") -->
+
+<!-- # Get sensitivity for Model 1 -->
+<!-- sens1 <- paste0(round(mean(sapply(brts1,function(x) x$sen)),3)," (", round(std.error(sapply(brts1,function(x) x$sen)),4), ")") -->
+
+<!-- # Get specificity for Model 1 -->
+<!-- spec1 <- paste0(round(mean(sapply(brts1,function(x) x$spec)),3), " (", round(std.error(sapply(brts1,function(x) x$spec)),4), ")") -->
+
+<!-- # Get AUC for Model 2 -->
+<!-- auc2 <- paste0(round(mean(sapply(brts2,function(x) x$testAUC)),3), " (", round(std.error(sapply(brts2,function(x) x$testAUC)),4), ")") -->
+
+<!-- # Get sensitivity for Model 2 -->
+<!-- sens2 <- paste0(round(mean(sapply(brts2,function(x) x$sen)),3), " (", round(std.error(sapply(brts2,function(x) x$sen)),4), ")") -->
+
+<!-- # Get specificity for Model 2 -->
+<!-- spec2 <- paste0(round(mean(sapply(brts2,function(x) x$spec)),3), " (", round(std.error(sapply(brts2,function(x) x$spec)),4), ")") -->
+
+<!-- # # Get AUC for Cites Model 1 -->
+<!-- # paste0(round(mean(sapply(pm_brts1,function(x) x$testAUC)),3), " (", round(std.error(sapply(pm_brts1,function(x) x$testAUC)),4), ")") -->
+
+<!-- # # Get AUC for Cites Model 2 -->
+<!-- # paste0(round(mean(sapply(pm_brts2,function(x) x$testAUC)),3), " (", round(std.error(sapply(pm_brts2,function(x) x$testAUC)),4), ")") -->
+
+<!-- # Clean environment -->
+<!-- rm(keep1, keep2)  -->
+
+<!-- ``` -->
+
+<!-- ### *Compare performance between BRTs trained on infection vs. competence* -->
+<!-- Is model performance significantly different when trained on all links (Model 1) vs. links excluding Vaccinia virus (Model 2)? We create a function to perform an unpaired T-test on the AUC, sensitivity and specificity of the two models and determine the effect size (mean difference) via Cohen's d. -->
+
+<!-- ```{r perf_compare} -->
+
+<!-- # Function for extracting data, performing unpaired t-test and determining effect size via Cohen's d -->
+<!-- tfun=function(measure){ -->
+
+<!--   ## format data -->
+<!--   n=length(sapply(brts1,function(x) x$measure)) -->
+<!--   adata=data.frame(y=c(sapply(brts1,function(x) x[measure][[1]]), -->
+<!--                        sapply(brts2,function(x) x[measure][[1]])), -->
+<!--                    response=c(rep('model1',n),rep('model2',n)), -->
+<!--                    seed=c(sapply(brts1,function(x) x$seed), -->
+<!--                           sapply(brts2,function(x) x$seed))) -->
+<!--   rm(n) -->
+
+<!--   ## factor -->
+<!--   adata$model=factor(adata$response,levels=c('model1','model2')) -->
+
+<!--   ## make jitter position -->
+<!--   adata$x=as.numeric(factor(adata$response)) -->
+<!--   set.seed(1) -->
+<!--   adata$xj=jitter(adata$x,0.5) -->
+
+<!--   ## fix response -->
+<!--   adata$response1=plyr::revalue(adata$response,c("model1"="Full Model", -->
+<!--                                            "model2"="Partial Model")) -->
+
+<!--   ## t-test -->
+<!--   tsum=t.test(y~response,data=adata, -->
+<!--               alternative='two.sided', -->
+<!--               var.equal=F,paired=F)   -->
+
+<!--   ## effect size -->
+<!--   csum=cohens_d(y~response,data=adata,paired=F,var.equal=F) -->
+
+<!--   ## return -->
+<!--   return(list(adata=adata,tsum=tsum,csum=csum)) -->
+<!-- } -->
+
+<!-- # Compare AUC between models; extract t-stat and Cohen's d -->
+<!-- adata=tfun("testAUC") -->
+<!-- adata$tsum$statistic -->
+<!-- adata$csum$effsize -->
+
+<!-- # Compare sensitivity between models; extract t-stat and Cohen's d -->
+<!-- sedata=tfun("sen") -->
+<!-- sedata$tsum$statistic -->
+<!-- sedata$csum$effsize -->
+
+<!-- # Compare specificity between models; extract t-stat and Cohen's d -->
+<!-- spdata=tfun("spec") -->
+<!-- spdata$tsum$statistic -->
+<!-- spdata$csum$effsize -->
+
+<!-- # Adjust p values w/ Benjamini Hochberg correction method -->
+<!-- ps=c(adata$tsum$p.value, sedata$tsum$p.value, spdata$tsum$p.value) -->
+<!-- ps_adjust <- round(p.adjust(ps,method="BH"),4)     -->
+<!-- ###"BH" (aka "fdr") = Benjamini & Hochberg (1995) method controls the false discovery rate, the expected proportion of false discoveries among the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate) -->
+
+<!-- # Create and save table of performance measures  -->
+<!-- ts4 <- data.frame(matrix(c(auc1, sens1, spec1,  -->
+<!--                 auc2, sens2, spec2,  -->
+<!--                 round(adata$tsum$statistic,2), round(sedata$tsum$statistic,2), round(spdata$tsum$statistic,2),  -->
+<!--                 ps_adjust,  -->
+<!--                 round(adata$csum$effsize,2), round(sedata$csum$effsize,2), round(spdata$csum$effsize,2)),  -->
+<!--             ncol=3, byrow=TRUE)) -->
+<!-- colnames(ts4) <- c('mean_AUC (SE)', 'mean_sens (SE)', 'mean_spec (SE)') -->
+<!-- rownames(ts4) <- c('Model 1', 'Model 2', 't-test', 'p-val', "Cohen's d") -->
+<!-- write.csv(ts4, "Output/table_perf_metrics.csv") -->
+
+<!-- # Clean environment -->
+<!-- rm(tfun, ts4, auc1, sens1, spec1, auc2, sens2, spec2, ps, ps_adjust) -->
+
+<!-- ``` -->
 
 ### How do performance measures change when we apply different optimal threshold values (e.g., based on maximizing sensitivity + specificity)?
 
@@ -2320,6 +2508,35 @@ Figures: *boxplot_model_senspec.png*, *boxplot_model_auc.png*
 
 ```{r perf_boxplot}
 
+# Create list of dataframes
+list_dfs <- list(adata_auc, adata_sens, adata_spec)
+
+# Generate additional variables needed for plotting model performance
+for (i in 1:length(list_dfs)){
+  
+  ## make jitter position to spread out points along the x-coordinate
+  list_dfs[[i]]$x=as.numeric(factor(list_dfs[[i]]$response))
+  set.seed(1)
+  list_dfs[[i]]$xj=jitter(list_dfs[[i]]$x,0.5)
+  
+  # ## fix response
+  # list_dfs[[i]]$respond2=plyr::revalue(list_dfs[[i]]$response,c("model1"="Host-virus links","model2"="Host-virus links excludin VACV"))
+}
+
+# Unlist
+df_auc <- as.data.frame(list_dfs[[1]])
+df_sens <- as.data.frame(list_dfs[[2]])
+df_spec <- as.data.frame(list_dfs[[3]])
+
+# Add type variable
+df_auc$type="auc"
+df_sens$type="sensitivity"
+df_spec$type="specificity"
+
+# Aggregate sens and spec datasets
+sdata=rbind.data.frame(df_sens, df_spec)
+
+
 # Extract sensitivity and specificity data; save as new dataframes
 data1=sedata$adata
 data2=spdata$adata
@@ -2331,6 +2548,27 @@ data2$type="specificity"
 # Aggregate datasets
 sdata=rbind.data.frame(data1,data2)
 rm(data1,data2,sedata,spdata)
+
+# Boxplot of AUC
+png("Output/boxplot_model_auc.png",width=4,height=5,units="in",res=300)
+set.seed(1)
+ggplot(df_auc)+
+  geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+
+  geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
+  scale_x_continuous(breaks=c(1,2),
+                     labels=c("Host-virus links","Host-virus links \n excluding VACV"),
+                     limits=c(0.5,2.5))+
+  theme_bw()+
+  labs(x="Response variable",
+       y="Area under the curve (AUC)")+
+  theme(axis.text=element_text(size=10),
+        axis.text.x=element_text(size=8),
+        axis.title=element_text(size=12))+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  guides(colour="none")
+dev.off()
 
 # Boxplot of sensitivity and specificity
 png("Output/boxplot_model_senspec.png",width=4,height=5,units="in",res=300)
@@ -2351,27 +2589,6 @@ ggplot(sdata) +
         axis.text.x=element_text(size=8),
         axis.title=element_text(size=12),
         strip.text=element_text(size=12))+
-  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
-  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
-  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
-  guides(colour="none")
-dev.off()
-
-# Boxplot of AUC
-png("Output/boxplot_model_auc.png",width=4,height=5,units="in",res=300)
-set.seed(1)
-ggplot(adata$adata)+
-  geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+
-  geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
-  scale_x_continuous(breaks=c(1,2),
-                     labels=c("Host-virus links","Host-virus links \n excluding VACV"),
-                     limits=c(0.5,2.5))+
-  theme_bw()+
-  labs(x="Response variable",
-       y="Area under the curve (AUC)")+
-  theme(axis.text=element_text(size=10),
-        axis.text.x=element_text(size=8),
-        axis.title=element_text(size=12))+
   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
@@ -3010,7 +3227,7 @@ write.xlsx(virus_ratio_model2, file = 'Output/table_LinkPredictionModel2_virusra
 
 # Test correlation between the predicted probabilities of the two models
 cor(apreds2$pred_Model1,apreds2$pred_Model2,method='spearman') #computes Spearman correlation coefficient
-cor.test(apreds2$pred_Model1,apreds2$pred_Model2,method='spearman') #tests for correlation b/w paires samples based on Spearman corr test
+cor.test(apreds2$pred_Model1,apreds2$pred_Model2,method='spearman') #tests for correlation b/w paired samples based on Spearman corr test
 ## The predicted probabilities of the BRT models including vs. excluding vaccinia virus links (Model 1 vs. Model 2) were significantly correlated.
 
 #Load phylogeny
@@ -3355,7 +3572,8 @@ p1_rs0.8=gg+
     data=samp_nopred_rs0.8,
     mapping=aes(x=x,y=y,xend=xend_Model1,yend=yend,
                 alpha=factor_link1_rs0.8),
-    color="gray",linewidth=0.75)+
+    # color="gray60",linewidth=0.75)+
+    color="tomato2",linewidth=0.75)+
   scale_alpha_discrete(range=c(1,1),name="No predicted links")+
   geom_segment(
     data=samp_pred_rs0.8,
@@ -3372,7 +3590,8 @@ p1_rs0.85=gg+
     data=samp_nopred_rs0.85,
     mapping=aes(x=x,y=y,xend=xend_Model1,yend=yend,
                 alpha=factor_link1_rs0.85),
-    color="gray",linewidth=0.75)+
+    # color="gray60",linewidth=0.75)+
+    color="tomato2",linewidth=0.75)+
   scale_alpha_discrete(range=c(1,1),name="No predicted links")+
   geom_segment(data=samp_pred_rs0.85,aes(x=x,y=y,xend=xend_Model1,yend=yend,
                                   colour=factor(link1_rs0.85)),linewidth=0.75,)+
@@ -3387,7 +3606,8 @@ p1_rs0.9=gg+
     data=samp_nopred_rs0.9,
     mapping=aes(x=x,y=y,xend=xend_Model1,yend=yend,
                 alpha=factor_link1_rs0.9),
-    color="gray",linewidth=0.75)+
+    # color="gray60",linewidth=0.75)+
+    color="tomato2",linewidth=0.75)+
   scale_alpha_discrete(range=c(1,1),name="No predicted links")+
   geom_segment(data=samp_pred_rs0.9,aes(x=x,y=y,xend=xend_Model1,yend=yend,
                                   colour=factor(link1_rs0.9)),linewidth=0.75,)+
@@ -3402,8 +3622,8 @@ p1_mss3=gg+
     data=samp_nopred_mss3,
     mapping=aes(x=x,y=y,xend=xend_Model1,yend=yend,
                 alpha=factor_link1_mss3),
-    color="gray",
-    linewidth=0.75)+
+    # color="gray60",linewidth=0.75)+
+    color="tomato2",linewidth=0.75)+
   scale_alpha_discrete(range=c(1,1),name="No predicted links")+
   geom_segment(data=samp_pred_mss3,aes(x=x,y=y,xend=xend_Model1,yend=yend,
                                   colour=factor(link1_mss3)),linewidth=0.75,)+
@@ -3435,7 +3655,10 @@ tree_pp_model1_select=ggarrange(p1_rs0.8,p1_mss3,
               common.legend = TRUE, legend="left")
 
 # Save tree plot
-png("Output/tree_pp_model1.png",width=12,height=8,units="in",res=300)
+# png("Output/tree_pp_model1_gray.png",width=12,height=8,units="in",res=300)
+png("Output/tree_pp_model1_red.png",width=12,height=8,units="in",res=600)
+# pdf("Output/tree_pp_model1_gray.pdf",width=12,height=8)
+# pdf("Output/tree_pp_model1_red.pdf",width=12,height=8)
 tree_pp_model1_select
 dev.off()
 
@@ -3786,7 +4009,8 @@ library(RColorBrewer)
 mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
 mycolors[1] <- "#C0C0C0"
 
-png("Output/map_hostlink_rs0.9_manuscript.png",width=10,height=12,units="in",res=300)
+# png("Output/map_hostlink_rs0.9_manuscript.png",width=10,height=12,units="in",res=300)
+pdf("Output/map_hostlink_rs0.9_manuscript.pdf",width=10,height=12)
 rasterVis::levelplot(maps_hostlink,  
                      col.regions = mycolors,
                      #at = seq(0, 15, 1),
@@ -3914,37 +4138,76 @@ vinf1$rel.inf <- vinf1$rel.inf/100
 vinf2 <- vinf2[which(vinf2$var%in%keep2),]
 vinf2$rel.inf <- vinf2$rel.inf/100
 
-# Relabel 'cites' to 'citations' for boxplots
-vinf1$var <- ifelse(vinf1$var=="cites", "citations", vinf1$var)
-vinf2$var <- ifelse(vinf2$var=="cites", "citations", vinf2$var)
+# Relabel 'cites' for boxplots
+vinf1$var <- ifelse(vinf1$var=="cites", "Citations", vinf1$var)
+vinf2$var <- ifelse(vinf2$var=="cites", "Citations", vinf2$var)
+
+# Relabel 'island_dwelling' for boxplots
+vinf1$var <- ifelse(vinf1$var=="island_dwelling", "Island dwelling", vinf1$var)
+vinf2$var <- ifelse(vinf2$var=="island_dwelling", "Island dwelling", vinf2$var)
+
+# Relabel 'dispersal_km' for boxplots
+vinf1$var <- ifelse(vinf1$var=="dispersal_km", "Dispersal (km)", vinf1$var)
+vinf2$var <- ifelse(vinf2$var=="dispersal_km", "Dispersal (km)", vinf2$var)
+
+# Create grouping variable for Model 1
+vinf1$type <- NA
+vinf1$type <- ifelse(vinf1$var=="Citations", "Sampling effort", vinf1$type)
+vinf1$type <- ifelse(vinf1$var=="Island dwelling", "Life history", vinf1$type)
+vinf1$type <- ifelse(vinf1$var=="Dispersal (km)", "Life history", vinf1$type)
+vinf1$type <- ifelse(vinf1$var=="PC4", "Viral genomic", vinf1$type)
+vinf1$type <- ifelse(vinf1$var=="PC1", "Viral genomic", vinf1$type)
+vinf1$type <- ifelse(vinf1$var=="PC3", "Viral genomic", vinf1$type)
+vinf1$type <- ifelse(vinf1$var=="PC9", "Viral genomic", vinf1$type)
+vinf1$type <- ifelse(vinf1$var=="PC10", "Viral genomic", vinf1$type)
+vinf1$type <- ifelse(vinf1$var=="PC7", "Viral genomic", vinf1$type)
+vinf1$type <- ifelse(vinf1$var=="PC8", "Viral genomic", vinf1$type)
+
+# Create grouping variable for Model 2
+vinf2$type <- NA
+vinf2$type <- ifelse(vinf2$var=="Citations", "Sampling effort", vinf2$type)
+vinf2$type <- ifelse(vinf2$var=="Island dwelling", "Life history", vinf2$type)
+vinf2$type <- ifelse(vinf2$var=="Dispersal (km)", "Life history", vinf2$type)
+vinf2$type <- ifelse(vinf2$var=="PC4", "Viral genomic", vinf2$type)
+vinf2$type <- ifelse(vinf2$var=="PC1", "Viral genomic", vinf2$type)
+vinf2$type <- ifelse(vinf2$var=="PC3", "Viral genomic", vinf2$type)
+vinf2$type <- ifelse(vinf2$var=="PC9", "Viral genomic", vinf2$type)
+vinf2$type <- ifelse(vinf2$var=="PC10", "Viral genomic", vinf2$type)
+vinf2$type <- ifelse(vinf2$var=="PC7", "Viral genomic", vinf2$type)
+vinf2$type <- ifelse(vinf2$var=="PC2", "Viral genomic", vinf2$type)
 
 # Boxplot relative feature importance for Model 1
 boxplot_trait_Model1 <- ggplot(vinf1) + ggtitle("(C) Link prediction model") +
-        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
+        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var, fill=type), width=0.7, alpha=0.85, linewidth=0.2) +
         theme_bw() +
         labs(x="Relative influence",
              y="Features") + 
-        theme(axis.text.y=element_text(size=16),
-              axis.text.x=element_text(size=16),
+        theme(axis.text.y=element_text(size=14),
+              axis.text.x=element_text(size=14),
               axis.title.x=element_text(size=20, margin=margin(t=10,r=0,b=0,l=0)),
               axis.title.y=element_text(size=20, margin=margin(t=0,r=10,b=0,l=0)),
-              strip.text=element_text(size=20))
+              strip.text=element_text(size=20)) +
+        scale_fill_manual(values=c("#482677FF","#238A8DFF","#FDE725FF")) +
+        scale_y_discrete(labels = function(x) str_wrap(x, width = 16))
 
-# Boxplot relative feature importance for Model 1
+#For viridis palette c("#482677FF","#238A8DFF", "#55C667FF","#FDE725FF"): https://www.thinkingondata.com/something-about-viridis-library/
+
+# Boxplot relative feature importance for Model 2
 boxplot_trait_Model2 <- ggplot(vinf2) + ggtitle("(D) Link prediction model (no vaccinia virus)") +
-        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
+        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var, fill=type), width=0.7, alpha=0.85, linewidth=0.2) +
         theme_bw() +
         labs(x="Relative influence",
              y="Features") + 
-        theme(axis.text.y=element_text(size=16),
-              axis.text.x=element_text(size=16),
+        theme(axis.text.y=element_text(size=14),
+              axis.text.x=element_text(size=14),
               axis.title.x=element_text(size=20, margin=margin(t=10,r=0,b=0,l=0)),
               axis.title.y=element_text(size=20, margin=margin(t=0,r=10,b=0,l=0)),
-              strip.text=element_text(size=20))
+              strip.text=element_text(size=20)) +
+        scale_fill_manual(values=c("#482677FF","#238A8DFF","#FDE725FF")) +
+        scale_y_discrete(labels = function(x) str_wrap(x, width = 16)) 
 
-  
 # Combine boxplots of relative feature importance
-png("Output/boxplot_trait_ranking.png",width=10,height=10,units="in",res=300)
+png("Output/boxplot_trait_ranking.png",width=12,height=10,units="in",res=600)
 ggarrange(boxplot_trait_Model1,boxplot_trait_Model2,ncol=2,nrow=1,
           font.label=list(face="plain",size=12))
 dev.off()
