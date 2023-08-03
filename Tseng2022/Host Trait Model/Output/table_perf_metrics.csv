@@ -1,0 +1,6 @@
+,AUC (mean ± SE),Sensitivity (mean ± SE),Specificity (mean ± SE)
+Host-trait infection model,0.88 ± 0.002,0.50 ± 0.014,0.96 ± 0.003
+Host-trait competence model,0.87 ± 0.003,0.36 ± 0.013,0.99 ± 0.001
+t-test,1.01,7.44,-8.86
+p-val,0.3142,0,0
+Cohen's d,0.14,1.05,-1.25

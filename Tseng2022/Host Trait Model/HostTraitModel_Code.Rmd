@@ -1502,6 +1502,8 @@ In this chapter, we assess the performance of our BRT models trained on PCR and 
 ```{r perf_load}
 
 #(1) Libraries for BRT figures
+library(pROC) #get auc
+library(InformationValue) #get sens/spec
 library(tidyr)
 library(ggplot2)
 # library(sciplot)
@@ -1526,158 +1528,376 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```
 
-### *Evaluate performance measures *
-How accurately did infection and competence BRT models distinguish OPV positive and negative species (assuming a threshold value of 0.5)? We evaluate the mean AUC, sensitivity, and specificity of our models, both combined (net) and independently. 
+
+### *Evaluate performance measures - ALT *
+How accurately did infection and competence BRT models distinguish OPV positive and negative species (assuming a threshold value of 0.5)? We evaluate the mean AUC, sensitivity, and specificity of each of our independent models
 
 ```{r perf_auc}
 
 #### If needed, increase vector memory in R environment and reboot R before proceeding (https://stackoverflow.com/questions/51295402/r-on-macos-error-vector-memory-exhausted-limit-reached)
 
 # Load data
-pcr_brts <- readRDS("Output/pcr_brts.rds")
-comp_brts <- readRDS("Output/comp_brts.rds")
-pm_brts <- readRDS("Output/pm_brts.rds")
+pcr_brts <- readRDS("Output/pcr_brts.rds") #101 elements
+comp_brts <- readRDS("Output/comp_brts.rds") #101 elements
+pm_brts <- readRDS("Output/pm_brts.rds") #100 elements
 
 # Index and save non-missing BRT iterations
 pcr_keep=which(!is.na(sapply(pcr_brts,function(x) x$testAUC)))
 comp_keep=which(!is.na(sapply(comp_brts,function(x) x$testAUC)))
 keep=intersect(pcr_keep,comp_keep)
 
-# Trim, keeping only those that are non-missing
+# Check number of iterations (only keep 100)
+length(keep)
+keep=keep[!keep==101]
+
+# Trim, keeping only 100 iterations that are non-missing 
 pcr_brts=pcr_brts[keep]
 comp_brts=comp_brts[keep]
 
-### Get model performance measures from BRT results, whereby threshold value (THV) = 0.5
+### INFECTION MODEL: Get model performance measures assuming 0.5 threshold ###
 
-# Get net AUC
-mean(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC)))
-std.error(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC)))
+# Get predicted probabilities from infection model for each iteration
+pcr_cpreds=lapply(pcr_brts,function(x) x$predict)
+pcr_cpreds=lapply(pcr_cpreds,function(x) select(x,c("pcr","cpred")))
 
-# Get net sensitivity
-mean(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen)))
-std.error(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen)))
+# Get AUC for each iteration and calculate mean AUC and standard error across iterations
+pcr_auc = lapply(pcr_cpreds, function(x) auc(x$pcr, x$cpred))
+mean = mean(sapply(pcr_auc,function(x) x))
+se = std.error(sapply(pcr_auc,function(x) x))
+pcr_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
-# Get net specificity
-mean(c(sapply(pcr_brts,function(x) x$spec),sapply(comp_brts,function(x) x$spec)))
-std.error(c(sapply(pcr_brts,function(x) x$spec),sapply(comp_brts,function(x) x$spec)))
+# Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
+pcr_sens = lapply(pcr_cpreds, function(x) InformationValue::sensitivity(x$pcr, x$cpred, threshold=0.5))
+mean = mean(sapply(pcr_sens,function(x) x))
+se = std.error(sapply(pcr_sens,function(x) x))
+pcr_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
-# Get net AUC for cites
-mean(sapply(pm_brts,function(x) x$testAUC))
-std.error(sapply(pm_brts,function(x) x$testAUC))
+# Get specificity for each iteration and calculate mean specificity and standard error across iterations
+pcr_spec = lapply(pcr_cpreds, function(x) InformationValue::specificity(x$pcr, x$cpred, threshold=0.5))
+mean = mean(sapply(pcr_spec,function(x) x))
+se = std.error(sapply(pcr_spec,function(x) x))
+pcr_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
-# Clean environment
-rm(pm_brts)
+### COMPETENCE MODEL: Get model performance measures assuming 0.5 threshold ###
 
-# Get independent AUC for PCR and Comp models
-mean(sapply(pcr_brts,function(x) x$testAUC))
-std.error(sapply(pcr_brts,function(x) x$testAUC))
-mean(sapply(comp_brts,function(x) x$testAUC))
-std.error(sapply(comp_brts,function(x) x$testAUC))
+# Get predicted probabilities from competence model for each iteration
+comp_cpreds=lapply(comp_brts,function(x) x$predict)
+comp_cpreds=lapply(comp_cpreds,function(x) select(x,c("competence","cpred")))
 
-# Get independent sensitivity for PCR and Comp models
-mean(sapply(pcr_brts,function(x) x$sen))
-std.error(sapply(pcr_brts,function(x) x$sen))
-mean(sapply(comp_brts,function(x) x$sen))
-std.error(sapply(comp_brts,function(x) x$sen))
+# Get AUC for each iteration and calculate mean AUC and standard error across iterations
+comp_auc = lapply(comp_cpreds, function(x) auc(x$comp, x$cpred))
+mean = mean(sapply(comp_auc,function(x) x))
+se = std.error(sapply(comp_auc,function(x) x))
+comp_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
-# Get independent specificity for PCR and Comp models
-mean(sapply(pcr_brts,function(x) x$spec))
-std.error(sapply(pcr_brts,function(x) x$spec))
-mean(sapply(comp_brts,function(x) x$spec))
-std.error(sapply(comp_brts,function(x) x$spec))
+# Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
+comp_sens = lapply(comp_cpreds, function(x) InformationValue::sensitivity(x$comp, x$cpred, threshold=0.5))
+mean = mean(sapply(comp_sens,function(x) x))
+se = std.error(sapply(comp_sens,function(x) x))
+comp_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+
+# Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
+comp_spec = lapply(comp_cpreds, function(x) InformationValue::specificity(x$comp, x$cpred, threshold=0.5))
+mean = mean(sapply(comp_spec,function(x) x))
+se = std.error(sapply(comp_spec,function(x) x))
+comp_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+
+# Clean environment; save performance metrics to create a table in the next section
+rm(comp_cpreds, pcr_cpreds, comp_keep, keep, pcr_keep, mean, se)
 
 ```
+
+<!-- ### *Evaluate performance measures * -->
+<!-- How accurately did infection and competence BRT models distinguish OPV positive and negative species (assuming a threshold value of 0.5)? We evaluate the mean AUC, sensitivity, and specificity of our models, both combined (net) and independently. -->
+
+<!-- ```{r perf_auc} -->
+
+<!-- #### If needed, increase vector memory in R environment and reboot R before proceeding (https://stackoverflow.com/questions/51295402/r-on-macos-error-vector-memory-exhausted-limit-reached) -->
+
+<!-- # Load data -->
+<!-- pcr_brts <- readRDS("Output/pcr_brts.rds") -->
+<!-- comp_brts <- readRDS("Output/comp_brts.rds") -->
+<!-- pm_brts <- readRDS("Output/pm_brts.rds") -->
+
+<!-- # Index and save non-missing BRT iterations -->
+<!-- pcr_keep=which(!is.na(sapply(pcr_brts,function(x) x$testAUC))) -->
+<!-- comp_keep=which(!is.na(sapply(comp_brts,function(x) x$testAUC))) -->
+<!-- keep=intersect(pcr_keep,comp_keep) -->
+
+<!-- # Trim, keeping only those that are non-missing -->
+<!-- pcr_brts=pcr_brts[keep] -->
+<!-- comp_brts=comp_brts[keep] -->
+
+<!-- ### Get model performance measures from BRT results, whereby threshold value (THV) = 0.5 -->
+
+<!-- # Get net AUC -->
+<!-- mean(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC))) -->
+<!-- std.error(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC))) -->
+
+<!-- # Get net sensitivity -->
+<!-- mean(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen))) -->
+<!-- std.error(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen))) -->
+
+<!-- # Get net specificity -->
+<!-- mean(c(sapply(pcr_brts,function(x) x$spec),sapply(comp_brts,function(x) x$spec))) -->
+<!-- std.error(c(sapply(pcr_brts,function(x) x$spec),sapply(comp_brts,function(x) x$spec))) -->
+
+<!-- # Get net AUC for cites -->
+<!-- mean(sapply(pm_brts,function(x) x$testAUC)) -->
+<!-- std.error(sapply(pm_brts,function(x) x$testAUC)) -->
+
+<!-- # Clean environment -->
+<!-- rm(pm_brts) -->
+
+<!-- # Get independent AUC for PCR and Comp models -->
+<!-- mean(sapply(pcr_brts,function(x) x$testAUC)) -->
+<!-- std.error(sapply(pcr_brts,function(x) x$testAUC)) -->
+<!-- mean(sapply(comp_brts,function(x) x$testAUC)) -->
+<!-- std.error(sapply(comp_brts,function(x) x$testAUC)) -->
+
+<!-- # Get independent sensitivity for PCR and Comp models -->
+<!-- mean(sapply(pcr_brts,function(x) x$sen)) -->
+<!-- std.error(sapply(pcr_brts,function(x) x$sen)) -->
+<!-- mean(sapply(comp_brts,function(x) x$sen)) -->
+<!-- std.error(sapply(comp_brts,function(x) x$sen)) -->
+
+<!-- # Get independent specificity for PCR and Comp models -->
+<!-- mean(sapply(pcr_brts,function(x) x$spec)) -->
+<!-- std.error(sapply(pcr_brts,function(x) x$spec)) -->
+<!-- mean(sapply(comp_brts,function(x) x$spec)) -->
+<!-- std.error(sapply(comp_brts,function(x) x$spec)) -->
+
+<!-- ``` -->
+
 
 ### *Compare performance between BRTs trained on infection vs. competence*
 Is model performance significantly different when training on infection vs. competence data? We create a function to perform an unpaired T-test on the AUC, sensitivity and specificity of the two models and determine the effect size (mean difference) via Cohen's d.
 
 ```{r perf_compare}
 
-# Function for extracting data, performing unpaired t-test and determining effect size via Cohen's d
-tfun=function(measure){
-  
-  ## format data
-  n=length(sapply(pcr_brts,function(x) x$testAUC))
-  adata=data.frame(y=c(sapply(pcr_brts,function(x) x[measure][[1]]),
-                       sapply(comp_brts,function(x) x[measure][[1]])),
-                   response=c(rep('infection',n),rep('competence',n)),
-                   seed=c(sapply(pcr_brts,function(x) x$seed),
-                          sapply(comp_brts,function(x) x$seed)))
-  rm(n)
-  
-  ## factor
-  adata$response=factor(adata$response,levels=c('infection','competence'))
-  
-  ## make jitter position
-  adata$x=as.numeric(factor(adata$response))
-  set.seed(1)
-  adata$xj=jitter(adata$x,0.5)
-  
-  ## fix response
-  adata$response2=plyr::revalue(adata$response,c("infection"="RT-PCR",
-                                           "competence"="virus isolation"))
-  
-  ## t-test
-  tsum=t.test(y~response,data=adata,
-              alternative='two.sided',
-              var.equal=F,paired=F)  
-  
-  ## effect size
-  csum=cohens_d(y~response,data=adata,paired=F,var.equal=F)
-  
-  ## return
-  return(list(adata=adata,tsum=tsum,csum=csum))
-}
+### T-test for AUC ###
 
-# Compare AUC w/ tfun function; extract t-stat & Cohen's d
-adata=tfun("testAUC")
-adata$tsum$statistic
-adata$csum$effsize
+# Get auc values for infection model
+adata_pcr=data.frame(y=c(sapply(pcr_auc, function(x) x)))
+adata_pcr$seed = 1:nrow(adata_pcr)
+adata_pcr$response = "infection"
 
-# Compare sensitivity w/ tfun function; extract t-stat & Cohen's d
-sedata=tfun("sen")
-sedata$tsum$statistic
-sedata$csum$effsize
+# Get auc values for competence model
+adata_comp=data.frame(y=c(sapply(comp_auc, function(x) x)))
+adata_comp$seed = 1:nrow(adata_comp)
+adata_comp$response = "competence"
+adata_auc=rbind(adata_pcr, adata_comp)
 
-# Compare specificity w/ tfun function; extract t-stat & Cohen's d
-spdata=tfun("spec")
-spdata$tsum$statistic
-spdata$csum$effsize
+# Transform 'response' to factor
+adata_auc$response=factor(adata_auc$response,levels=c('infection','competence'))
+ 
+# T-test
+tsum_auc=t.test(y~response,data=adata_auc,
+            alternative='two.sided',
+            var.equal=F,paired=F)  
+  
+# Effect size
+csum_auc=cohens_d(y~response,data=adata_auc,paired=F,var.equal=F)
+
+### T-test for sensitivity ###
+
+# Get sensitivity values for infection model
+adata_pcr=data.frame(y=c(sapply(pcr_sens, function(x) x)))
+adata_pcr$seed = 1:nrow(adata_pcr)
+adata_pcr$response = "infection"
+
+# Get specificity values for competence model
+adata_comp=data.frame(y=c(sapply(comp_sens, function(x) x)))
+adata_comp$seed = 1:nrow(adata_comp)
+adata_comp$response = "competence"
+adata_sens=rbind(adata_pcr, adata_comp)
+
+# Transform 'response' to factor
+adata_sens$response=factor(adata_sens$response,levels=c('infection','competence'))
+ 
+# T-test
+tsum_sens=t.test(y~response,data=adata_sens,
+            alternative='two.sided',
+            var.equal=F,paired=F)  
+  
+# Effect size
+csum_sens=cohens_d(y~response,data=adata_sens,paired=F,var.equal=F)
+
+### T-test for specificity ###
+
+# Get specificity values for infection model
+adata_pcr=data.frame(y=c(sapply(pcr_spec, function(x) x)))
+adata_pcr$seed = 1:nrow(adata_pcr)
+adata_pcr$response = "infection"
+
+# Get specificity values for competence model
+adata_comp=data.frame(y=c(sapply(comp_spec, function(x) x)))
+adata_comp$seed = 1:nrow(adata_comp)
+adata_comp$response = "competence"
+adata_spec=rbind(adata_pcr, adata_comp)
+
+# Transform 'response' to factor
+adata_spec$response=factor(adata_spec$response,levels=c('infection','competence'))
+ 
+# T-test
+tsum_spec=t.test(y~response,data=adata_spec,
+            alternative='two.sided',
+            var.equal=F,paired=F)  
+  
+# Effect size
+csum_spec=cohens_d(y~response,data=adata_spec,paired=F,var.equal=F)
 
 # Adjust p-values w/ Benjamini Hochberg correction method
-ps=c(adata$tsum$p.value,
-     sedata$tsum$p.value,
-     spdata$tsum$p.value)
-round(p.adjust(ps,method="BH"),4)    #"BH" (aka "fdr") = Benjamini & Hochberg (1995) method control the false discovery rate, the expected proportion of false discoveries amongst the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate)
+ps=c(tsum_auc$p.value,
+     tsum_sens$p.value,
+     tsum_spec$p.value)
+ps_adjust <- sprintf("%.4f",p.adjust(ps,method="BH"))    #"BH" (aka "fdr") = Benjamini & Hochberg (1995) method control the false discovery rate, the expected proportion of false discoveries amongst the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate)
 
+# Create and save table of performance measures 
+table_perf_metrics <- data.frame(matrix(c(pcr_auc_mean, pcr_sens_mean, pcr_spec_mean, 
+                                          comp_auc_mean, comp_sens_mean, comp_spec_mean, 
+                                          sprintf("%.2f", tsum_auc$statistic), 
+                                          sprintf("%.2f", tsum_sens$statistic), 
+                                          sprintf("%.2f", tsum_spec$statistic), 
+                                          ps_adjust, 
+                                          sprintf("%.2f", csum_auc$effsize), 
+                                          sprintf("%.2f", csum_sens$effsize), 
+                                          sprintf("%.2f", csum_spec$effsize)), 
+                                  ncol=3, byrow=TRUE))
+
+colnames(table_perf_metrics) <- c('AUC (mean \u00b1 SE)', 'Sensitivity (mean \u00b1 SE)', 'Specificity (mean \u00b1 SE)')
+rownames(table_perf_metrics) <- c('Host-trait infection model', 'Host-trait competence model', 't-test', 'p-val', "Cohen's d")
+write.csv(table_perf_metrics, "Output/table_perf_metrics.csv")
+
+rm(list=setdiff(ls(), c("pcr_brts", "comp_brts", "pm_brts", 
+                        "adata_auc", "adata_sens", "adata_spec")))
 ```
+
+<!-- ### *Compare performance between BRTs trained on infection vs. competence* -->
+<!-- Is model performance significantly different when training on infection vs. competence data? We create a function to perform an unpaired T-test on the AUC, sensitivity and specificity of the two models and determine the effect size (mean difference) via Cohen's d. -->
+
+<!-- ```{r perf_compare} -->
+
+<!-- # Function for extracting data, performing unpaired t-test and determining effect size via Cohen's d -->
+<!-- tfun=function(measure){ -->
+
+<!--   ## format data -->
+<!--   n=length(sapply(pcr_brts,function(x) x$testAUC)) -->
+<!--   adata=data.frame(y=c(sapply(pcr_brts,function(x) x[measure][[1]]), -->
+<!--                        sapply(comp_brts,function(x) x[measure][[1]])), -->
+<!--                    response=c(rep('infection',n),rep('competence',n)), -->
+<!--                    seed=c(sapply(pcr_brts,function(x) x$seed), -->
+<!--                           sapply(comp_brts,function(x) x$seed))) -->
+<!--   rm(n) -->
+
+<!--   ## factor -->
+<!--   adata$response=factor(adata$response,levels=c('infection','competence')) -->
+
+<!--   ## make jitter position -->
+<!--   adata$x=as.numeric(factor(adata$response)) -->
+<!--   set.seed(1) -->
+<!--   adata$xj=jitter(adata$x,0.5) -->
+
+<!--   ## fix response -->
+<!--   adata$response2=plyr::revalue(adata$response,c("infection"="RT-PCR", -->
+<!--                                            "competence"="virus isolation")) -->
+
+<!--   ## t-test -->
+<!--   tsum=t.test(y~response,data=adata, -->
+<!--               alternative='two.sided', -->
+<!--               var.equal=F,paired=F)   -->
+
+<!--   ## effect size -->
+<!--   csum=cohens_d(y~response,data=adata,paired=F,var.equal=F) -->
+
+<!--   ## return -->
+<!--   return(list(adata=adata,tsum=tsum,csum=csum)) -->
+<!-- } -->
+
+<!-- # Compare AUC w/ tfun function; extract t-stat & Cohen's d -->
+<!-- adata=tfun("testAUC") -->
+<!-- adata$tsum$statistic -->
+<!-- adata$csum$effsize -->
+
+<!-- # Compare sensitivity w/ tfun function; extract t-stat & Cohen's d -->
+<!-- sedata=tfun("sen") -->
+<!-- sedata$tsum$statistic -->
+<!-- sedata$csum$effsize -->
+
+<!-- # Compare specificity w/ tfun function; extract t-stat & Cohen's d -->
+<!-- spdata=tfun("spec") -->
+<!-- spdata$tsum$statistic -->
+<!-- spdata$csum$effsize -->
+
+<!-- # Adjust p-values w/ Benjamini Hochberg correction method -->
+<!-- ps=c(adata$tsum$p.value, -->
+<!--      sedata$tsum$p.value, -->
+<!--      spdata$tsum$p.value) -->
+<!-- round(p.adjust(ps,method="BH"),4)    #"BH" (aka "fdr") = Benjamini & Hochberg (1995) method control the false discovery rate, the expected proportion of false discoveries amongst the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate) -->
+
+<!-- ``` -->
+
 
 ### *Generate boxplot of model performance*
 Figure: *boxplot_model_senspec.png*, *boxplot_model_auc.png*
 
 ```{r perf_boxplot}
 
-# Extract sensitivity and specificity data; save as new dataframes
-data1=sedata$adata
-data2=spdata$adata
+# Create list of dataframes
+list_dfs <- list(adata_auc, adata_sens, adata_spec)
 
-# Group observations by type for plotting
-data1$type="sensitivity"
-data2$type="specificity"
+# Generate additional variables needed for plotting model performance
+for (i in 1:length(list_dfs)){
 
-# Aggregate datasets
-sdata=rbind.data.frame(data1,data2)
-rm(data1,data2)
+  ## make jitter position to spread out points along the x-coordinate
+  list_dfs[[i]]$x=as.numeric(factor(list_dfs[[i]]$response))
+  set.seed(1)
+  list_dfs[[i]]$xj=jitter(list_dfs[[i]]$x,0.5)
+  
+}
 
-# Boxplot model performance 
-png("Output/boxplot_model_senspec.png",width=4,height=5,units="in",res=300)
+# Unlist
+df_auc <- as.data.frame(list_dfs[[1]])
+df_sens <- as.data.frame(list_dfs[[2]])
+df_spec <- as.data.frame(list_dfs[[3]])
+
+# Add type variable
+df_auc$type="auc"
+df_sens$type="sensitivity"
+df_spec$type="specificity"
+
+# Aggregate sens and spec datasets
+sdata=rbind.data.frame(df_sens, df_spec)
+
+# Boxplot of AUC
+png("Output/boxplot_model_auc.png",width=4,height=5,units="in",res=300)
 set.seed(1)
-ggplot(sdata)+
-  #geom_violin(aes(x=x,y=auc,group=x),trim=T,scale="count",width=0.5)+
+ggplot(df_auc)+
   geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+
   geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
   scale_x_continuous(breaks=c(1,2),
-                     labels=levels(sdata$response2),
+                     labels=levels("RT-PCR", "Virus isolation"),
+                     limits=c(0.5,2.5))+
+  theme_bw()+
+  labs(x="Response variable",
+       y="Area under the curve (AUC)")+
+  theme(axis.text=element_text(size=10),
+        axis.text.x=element_text(size=12),
+        axis.title=element_text(size=12))+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  guides(colour="none")
+dev.off()
+
+# Boxplot of sensitivity and specificity
+png("Output/boxplot_model_senspec.png",width=4,height=5,units="in",res=300)
+set.seed(1)
+ggplot(sdata)+
+  geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+
+  geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
+  scale_x_continuous(breaks=c(1,2),
+                     labels=levels("RT-PCR","Virus isolation"),
                      limits=c(0.5,2.5))+
   theme_bw()+
   facet_wrap(~type,scales="free_y",strip.position="left",ncol=1)+
@@ -1695,28 +1915,75 @@ ggplot(sdata)+
   guides(colour="none")
 dev.off()
 
-# Boxplot of AUC
-png("Output/boxplot_model_auc.png",width=4,height=5,units="in",res=300)
-set.seed(1)
-ggplot(adata$adata)+
-  geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+
-  geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
-  scale_x_continuous(breaks=c(1,2),
-                     labels=levels(adata$adata$response2),
-                     limits=c(0.5,2.5))+
-  theme_bw()+
-  labs(x="Response variable",
-       y="Area under the curve (AUC)")+
-  theme(axis.text=element_text(size=10),
-        axis.text.x=element_text(size=12),
-        axis.title=element_text(size=12))+
-  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
-  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
-  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
-  guides(colour="none")
-dev.off()
 
+rm(df_auc, df_sens, df_spec)
 ```
+
+<!-- ### *Generate boxplot of model performance* -->
+<!-- Figure: *boxplot_model_senspec.png*, *boxplot_model_auc.png* -->
+
+<!-- ```{r perf_boxplot} -->
+
+<!-- # Extract sensitivity and specificity data; save as new dataframes -->
+<!-- data1=sedata$adata -->
+<!-- data2=spdata$adata -->
+
+<!-- # Group observations by type for plotting -->
+<!-- data1$type="sensitivity" -->
+<!-- data2$type="specificity" -->
+
+<!-- # Aggregate datasets -->
+<!-- sdata=rbind.data.frame(data1,data2) -->
+<!-- rm(data1,data2) -->
+
+<!-- # Boxplot model performance  -->
+<!-- png("Output/boxplot_model_senspec.png",width=4,height=5,units="in",res=300) -->
+<!-- set.seed(1) -->
+<!-- ggplot(sdata)+ -->
+<!--   #geom_violin(aes(x=x,y=auc,group=x),trim=T,scale="count",width=0.5)+ -->
+<!--   geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+ -->
+<!--   geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+ -->
+<!--   scale_x_continuous(breaks=c(1,2), -->
+<!--                      labels=levels(sdata$response2), -->
+<!--                      limits=c(0.5,2.5))+ -->
+<!--   theme_bw()+ -->
+<!--   facet_wrap(~type,scales="free_y",strip.position="left",ncol=1)+ -->
+<!--   theme(strip.placement="outside", -->
+<!--         strip.background=element_blank())+ -->
+<!--   labs(x="Response variable", -->
+<!--        y=NULL)+ -->
+<!--   theme(axis.text.y=element_text(size=10), -->
+<!--         axis.text.x=element_text(size=12), -->
+<!--         axis.title=element_text(size=12), -->
+<!--         strip.text=element_text(size=12))+ -->
+<!--   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+ -->
+<!--   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+ -->
+<!--   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+ -->
+<!--   guides(colour="none") -->
+<!-- dev.off() -->
+
+<!-- # Boxplot of AUC -->
+<!-- png("Output/boxplot_model_auc.png",width=4,height=5,units="in",res=300) -->
+<!-- set.seed(1) -->
+<!-- ggplot(adata$adata)+ -->
+<!--   geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+ -->
+<!--   geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+ -->
+<!--   scale_x_continuous(breaks=c(1,2), -->
+<!--                      labels=levels(adata$adata$response2), -->
+<!--                      limits=c(0.5,2.5))+ -->
+<!--   theme_bw()+ -->
+<!--   labs(x="Response variable", -->
+<!--        y="Area under the curve (AUC)")+ -->
+<!--   theme(axis.text=element_text(size=10), -->
+<!--         axis.text.x=element_text(size=12), -->
+<!--         axis.title=element_text(size=12))+ -->
+<!--   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+ -->
+<!--   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+ -->
+<!--   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+ -->
+<!--   guides(colour="none") -->
+<!-- dev.off() -->
+
+<!-- ``` -->
 
 
 5. Model Predictions
@@ -2068,6 +2335,16 @@ for (i in 1:nrow(table_ts_comp)) {
 write.csv(table_ts_pcr, file='Output/table_thresholdmoving_pcr.csv')
 write.csv(table_ts_comp, file='Output/table_thresholdmoving_comp.csv')
 
+### INTERMISSION: Manuscript Table 1 ###
+# What is the sensitivity and specificity of the models when we fix threshold to 0.5?
+#Infection/PCR
+InformationValue::sensitivity(pred$PCR, pred$pred_pcr, threshold = 0.5)
+InformationValue::specificity(pred$PCR, pred$pred_pcr, threshold = 0.5)
+#Competence/virus isolation
+InformationValue::sensitivity(pred$competence, pred$pred_comp, threshold = 0.5)
+InformationValue::specificity(pred$competence, pred$pred_comp, threshold = 0.5)
+
+
 ### APPLY THRESHOLDS TO PREDICTIONS ###
 
 # Extract selected optimum threshold values from ts_pcr
@@ -2204,7 +2481,7 @@ bdata$label=bdata$treename
 bdata$Species=bdata$treename
 
 # Generate mean of pcr and comp predicted probabilities
-bdata <- bdata %>% mutate(pred_mean = rowMeans(across(pred_pcr:pred_comp), na.rm = TRUE))
+bdata <- bdata %>% dplyr:::mutate(pred_mean = rowMeans(across(pred_pcr:pred_comp), na.rm = TRUE))
 
 # Generate variable of whether OPV positivity was predicted based on threshold value
 bdata$pcr_rs0.8 <- ifelse(bdata$pred_pcr > ts_pcr_rs0.8$pred_pcr, 1, 0)
@@ -2470,14 +2747,12 @@ for(i in 1:nrow(pcrpred_pf_results)){
 }
 
 # Add predicted probabilities as bars colored based on host positivity
+library(awtools)
+cc=mpalette[2:4] 
+cc=rev(cc)
 p1=gg+
   geom_segment(data=samp,aes(x=x,y=y,xend=xend_pcr,yend=yend,colour=cat),linewidth=0.75)+
-  scale_colour_manual(values=cc)+
-  scale_fill_manual(values=cc)+
-  # guides(colour="none")
-  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
-                      guide=guide_legend(reverse=TRUE),
-                      name="Host positivity")
+  scale_colour_manual(values=c("#FDE725FF","gray60"), name="Host positivity")
 
 # Plot circular tree base and significant clades identified by phylofactorization on competence model results
 gg=pbase
@@ -2492,12 +2767,7 @@ for(i in 1:nrow(comppred_pf_results)){
 # Add predicted probabilities as bars colored based on host positivity
 p2=gg+
   geom_segment(data=samp,aes(x=x,y=y,xend=xend_comp,yend=yend,colour=cat),linewidth=0.75)+
-  scale_colour_manual(values=cc)+
-  scale_fill_manual(values=cc)+
-  # guides(colour="none")
-  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
-                      guide=guide_legend(reverse=TRUE),
-                      name="Host positivity")
+    scale_colour_manual(values=c("#FDE725FF","gray60"), name="Host positivity")
 
 # Combine plots based on different evidence types
 tree_pp_clades=p1+p2
@@ -2509,10 +2779,11 @@ tree_pp_clades=ggarrange(p1,p2,
 
 # Save and reformat tree plot
 png("Output/tree_pp_clades1.png",width=12,height=8,units="in",res=300)
+png("Output/tree_pp_clades1.png",width=12,height=8,units="in",res=300)
 tree_pp_clades
 dev.off()
 
-### VERSION 2  ###
+### VERSION 2  (MANUSCRIPT) ###
 # For each model evidence type and various threshold values, we plot the predicted probabilities of mammal genera as geom segments corresponding to the tips of a circular mammal tree; colored segments correspond to host positivity 
 
 # Make dataframe
@@ -2558,7 +2829,8 @@ p1=gg+
     data=samp_nopcr_rs0.8,
     mapping=aes(x=x,y=y,xend=xend_pcr,yend=yend,
                 alpha=factor_pcr_rs0.8),
-    color="gray", linewidth=0.75)+
+    # color="gray60", linewidth=0.75)+
+    color="tomato2", linewidth=0.75)+
   scale_alpha_discrete(range=c(1,1),name="No predicted links")+
   geom_segment(
     data=samp_pcr_rs0.8, 
@@ -2574,7 +2846,8 @@ p2=gg+
     data=samp_nopcr_mss3,
     mapping=aes(x=x,y=y,xend=xend_pcr,yend=yend,
                 alpha=factor_pcr_mss3),
-    color="gray", linewidth=0.75)+
+    # color="gray60", linewidth=0.75)+
+      color="tomato2", linewidth=0.75)+
   scale_alpha_discrete(range=c(1,1),name="No predicted links")+
   geom_segment(
     data=samp_pcr_mss3, 
@@ -2584,59 +2857,70 @@ p2=gg+
                       guide=guide_legend(reverse=TRUE),
                       name="Evidence type")
 
-# Competence
-gg=pbase
-for(i in 1:nrow(comppred_pf_results)){
-  gg=gg+
-    geom_hilight(node=comppred_pf_results$node[i],
-                 alpha=ifelse(comppred_pf_results$tips[i]/Ntip(cdata$phy)<0.5,0.5,0.25),
-                 fill="black")
-}
+# # Competence
+# gg=pbase
+# for(i in 1:nrow(comppred_pf_results)){
+#   gg=gg+
+#     geom_hilight(node=comppred_pf_results$node[i],
+#                  alpha=ifelse(comppred_pf_results$tips[i]/Ntip(cdata$phy)<0.5,0.5,0.25),
+#                  fill="black")
+# }
+# 
+# # Add preds to comp results based on rs0.8
+# p3=gg+
+#   geom_segment(
+#     data=samp_nocomp_rs0.8,
+#     mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+#                 alpha=factor_comp_rs0.8),
+#     color="gray", linewidth=0.75)+
+#   scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+#   geom_segment(
+#     data=samp_comp_rs0.8, 
+#     mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+#                 colour=factor(factor_comp_rs0.8)),linewidth=0.75,)+
+#   scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+#                       guide=guide_legend(reverse=TRUE),
+#                       name="Evidence type")
+# 
+# # Add preds to comp results based on mss3
+# p4=gg+
+#   geom_segment(
+#     data=samp_nocomp_mss3,
+#     mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+#                 alpha=factor_comp_mss3),
+#     color="gray", linewidth=0.75)+
+#   scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+#   geom_segment(
+#     data=samp_comp_mss3, 
+#     mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+#                 colour=factor(factor_comp_mss3)),linewidth=0.75,)+
+#   scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+#                       guide=guide_legend(reverse=TRUE),
+#                       name="Evidence type")
 
-# Add preds to comp results based on rs0.8
-p3=gg+
-  geom_segment(
-    data=samp_nocomp_rs0.8,
-    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
-                alpha=factor_comp_rs0.8),
-    color="gray", linewidth=0.75)+
-  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
-  geom_segment(
-    data=samp_comp_rs0.8, 
-    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
-                colour=factor(factor_comp_rs0.8)),linewidth=0.75,)+
-  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
-                      guide=guide_legend(reverse=TRUE),
-                      name="Evidence type")
+# pp_tree2=ggarrange(p1,p2,p3,p4,
+#               labels=c("(A) PCR ReqSens0.8: Th=0.38","(B) PCR MaxSensSpec: Th=0.36", "(C) Comp ReqSens0.8: Th=0.26", "(D) Comp MaxSensSpec: Th=0.22"),
+#               # font.label(size=10),
+#               hjust=-0.6,
+#               label.x=c(0.1,0.1,0.1,0.1),
+#               label.y=c(1,1,1,1),
+#               font.label=list(face="plain",size=13),
+#               ncol=2,nrow=2,
+#               common.legend = TRUE, legend="left")
 
-# Add preds to comp results based on mss3
-p4=gg+
-  geom_segment(
-    data=samp_nocomp_mss3,
-    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
-                alpha=factor_comp_mss3),
-    color="gray", linewidth=0.75)+
-  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
-  geom_segment(
-    data=samp_comp_mss3, 
-    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
-                colour=factor(factor_comp_mss3)),linewidth=0.75,)+
-  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
-                      guide=guide_legend(reverse=TRUE),
-                      name="Evidence type")
-
-pp_tree2=ggarrange(p1,p2,p3,p4,
-              labels=c("(A) PCR ReqSens0.8: Th=0.38","(B) PCR MaxSensSpec: Th=0.36", "(C) Comp ReqSens0.8: Th=0.26", "(D) Comp MaxSensSpec: Th=0.22"),
+pp_tree2=ggarrange(p1,p2,
+              labels=c("(A) PCR ReqSens0.8: Th=0.38","(B) PCR MaxSensSpec: Th=0.36"),
               # font.label(size=10),
-              hjust=-0.6,
-              label.x=c(0.1,0.1,0.1,0.1),
-              label.y=c(1,1,1,1),
+              # hjust=-0.6,
+              # label.x=c(0.1,0.1),
+              # label.y=c(1,1),
               font.label=list(face="plain",size=13),
-              ncol=2,nrow=2,
+              ncol=2,nrow=1,
               common.legend = TRUE, legend="left")
 
 #Save
-png("Output/tree_pp_clades2.png",width=12,height=8,units="in",res=300)
+# png("Output/tree_pp_clades2_gray.png",width=12,height=6,units="in",res=300)
+png("Output/tree_pp_clades2_red.png",width=12,height=6,units="in",res=600)
 pp_tree2
 dev.off()
 
@@ -2925,7 +3209,6 @@ Table: *table_ranks.csv*
 # Load model predictions
 pcr_brts <- readRDS("Output/pcr_brts.rds")
 comp_brts <- readRDS("Output/comp_brts.rds")
-pm_brts <- readRDS("Output/pm_brts.rds")
 
 # What was the relative importance/influence of each feature in the infection model? Get values.
 vinf=lapply(pcr_brts,function(x) x$rinf)
@@ -2986,20 +3269,51 @@ pcr_vinf=do.call(rbind,vinf)
 pcr_vinf <- pcr_vinf[which(pcr_vinf$var%in%keep_pcr),]
 pcr_vinf$rel.inf <- pcr_vinf$rel.inf/100
 
-# Relabel 'cites' to 'citations' for boxplots
-pcr_vinf$var <- ifelse(pcr_vinf$var=="cites", "citations", pcr_vinf$var)
+# Relabel trait names for boxplots
+pcr_vinf$var <- ifelse(pcr_vinf$var=="cites", "Citations", pcr_vinf$var)
+pcr_vinf$var <- ifelse(pcr_vinf$var=="max_longevity_d", "Maximum longevity (days)", pcr_vinf$var)
+pcr_vinf$var <- ifelse(pcr_vinf$var=="interbirth_interval_d", "Interbirth interval (days)", pcr_vinf$var)
+pcr_vinf$var <- ifelse(pcr_vinf$var=="upper_elevation_m", "Upper elevation limit (m)", pcr_vinf$var)
+pcr_vinf$var <- ifelse(pcr_vinf$var=="dispersal_km", "Dispersal (km)", pcr_vinf$var)
+pcr_vinf$var <- ifelse(pcr_vinf$var=="ed_equal", "Evolutionary distinctiveness", pcr_vinf$var)
+pcr_vinf$var <- ifelse(pcr_vinf$var=="gestation_length_d", "Gestation length (days)", pcr_vinf$var)
+pcr_vinf$var <- ifelse(pcr_vinf$var=="litters_per_year_n", "Litters per year", pcr_vinf$var)
+pcr_vinf$var <- ifelse(pcr_vinf$var=="adult_mass_g", "Adult mass (g)", pcr_vinf$var)
+pcr_vinf$var <- ifelse(pcr_vinf$var=="female_maturity_d", "Female maturity (days)", pcr_vinf$var)
 
+# Create grouping variable
+pcr_vinf$type <- NA
+pcr_vinf$type <- ifelse(pcr_vinf$var=="Citations", "Sampling effort", pcr_vinf$type)
+pcr_vinf$type <- ifelse(pcr_vinf$var=="Maximum longevity (days)", "Life history", pcr_vinf$type)
+pcr_vinf$type <- ifelse(pcr_vinf$var=="Interbirth interval (days)", "Life history", pcr_vinf$type)
+pcr_vinf$type <- ifelse(pcr_vinf$var=="Upper elevation limit (m)", "Life history", pcr_vinf$type)
+pcr_vinf$type <- ifelse(pcr_vinf$var=="Dispersal (km)", "Life history", pcr_vinf$type)
+pcr_vinf$type <- ifelse(pcr_vinf$var=="Evolutionary distinctiveness", "Phylogeny", pcr_vinf$type)
+pcr_vinf$type <- ifelse(pcr_vinf$var=="Gestation length (days)", "Life history", pcr_vinf$type)
+pcr_vinf$type <- ifelse(pcr_vinf$var=="Litters per year", "Life history", pcr_vinf$type)
+pcr_vinf$type <- ifelse(pcr_vinf$var=="Adult mass (g)", "Life history", pcr_vinf$type)
+pcr_vinf$type <- ifelse(pcr_vinf$var=="Female maturity (days)", "Life history", pcr_vinf$type)
+  
 # Boxplot relative feature importance for the infection model
+library(viridis)
+library(stringr)
 boxplot_trait_pcr <- ggplot(pcr_vinf) + ggtitle("(A) Host-trait infection model") +
-        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
+        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var, fill=type), width=0.7, alpha=0.85, linewidth=0.2) +
         theme_bw() +
         labs(x="Relative influence",
              y="Features") + 
-        theme(axis.text.y=element_text(size=16),
-              axis.text.x=element_text(size=16),
+        theme(axis.text.y=element_text(size=14),
+              axis.text.x=element_text(size=14),
               axis.title.x=element_text(size=20, margin=margin(t=10,r=0,b=0,l=0)),
               axis.title.y=element_text(size=20, margin=margin(t=0,r=10,b=0,l=0)),
-              strip.text=element_text(size=20))
+              strip.text=element_text(size=20)) +
+        scale_fill_manual(values=c("#482677FF","#55C667FF","#238A8DFF")) +
+        scale_y_discrete(labels = function(x) str_wrap(x, width = 16))
+
+# Save boxplots of relative feature importance
+png("Output/boxplot_trait_ranking_pcr.png",width=6.12,height=10,units="in",res=600)
+boxplot_trait_pcr
+dev.off()
 
 # Get the relative importance values for the top 10 features of the competence model
 vinf=lapply(comp_brts,function(x) x$rinf)
@@ -3007,25 +3321,48 @@ comp_vinf=do.call(rbind,vinf)
 comp_vinf <- comp_vinf[which(comp_vinf$var%in%keep_pcr),]
 comp_vinf$rel.inf <- comp_vinf$rel.inf/100
 
-# Relabel 'cites' to 'citations' for boxplots
-comp_vinf$var <- ifelse(comp_vinf$var=="cites", "citations", comp_vinf$var)
+# Relabel trait names for boxplots
+comp_vinf$var <- ifelse(comp_vinf$var=="cites", "Citations", comp_vinf$var)
+comp_vinf$var <- ifelse(comp_vinf$var=="dispersal_km", "Dispersal (km)", comp_vinf$var)
+comp_vinf$var <- ifelse(comp_vinf$var=="gestation_length_d", "Gestation length (days)", comp_vinf$var)
+comp_vinf$var <- ifelse(comp_vinf$var=="upper_elevation_m", "Upper elevation limit (m)", comp_vinf$var)
+comp_vinf$var <- ifelse(comp_vinf$var=="ed_equal", "Evolutionary distinctiveness", comp_vinf$var)
+comp_vinf$var <- ifelse(comp_vinf$var=="max_longevity_d", "Maximum longevity (days)", comp_vinf$var)
+comp_vinf$var <- ifelse(comp_vinf$var=="interbirth_interval_d", "Interbirth interval (days)", comp_vinf$var)
+comp_vinf$var <- ifelse(comp_vinf$var=="litters_per_year_n", "Litters per year", comp_vinf$var)
+comp_vinf$var <- ifelse(comp_vinf$var=="female_maturity_d", "Female maturity (days)", comp_vinf$var)
+comp_vinf$var <- ifelse(comp_vinf$var=="adult_mass_g", "Adult mass (g)", comp_vinf$var)
 
+# Create grouping variable
+comp_vinf$type <- NA
+comp_vinf$type <- ifelse(comp_vinf$var=="Citations", "Sampling effort", comp_vinf$type)
+comp_vinf$type <- ifelse(comp_vinf$var=="Dispersal (km)", "Life history", comp_vinf$type)
+comp_vinf$type <- ifelse(comp_vinf$var=="Gestation length (days)", "Life history", comp_vinf$type)
+comp_vinf$type <- ifelse(comp_vinf$var=="Upper elevation limit (m)", "Life history", comp_vinf$type)
+comp_vinf$type <- ifelse(comp_vinf$var=="Evolutionary distinctiveness", "Phylogeny", comp_vinf$type)
+comp_vinf$type <- ifelse(comp_vinf$var=="Maximum longevity (days)", "Life history", comp_vinf$type)
+comp_vinf$type <- ifelse(comp_vinf$var=="Interbirth interval (days)", "Life history", comp_vinf$type)
+comp_vinf$type <- ifelse(comp_vinf$var=="Litters per year", "Life history", comp_vinf$type)
+comp_vinf$type <- ifelse(comp_vinf$var=="Female maturity (days)", "Life history", comp_vinf$type)
+comp_vinf$type <- ifelse(comp_vinf$var=="Adult mass (g)", "Life history", comp_vinf$type)
+  
 # Boxplot relative feature importance for the competence model
+library(viridis)
 boxplot_trait_comp <- ggplot(comp_vinf) + ggtitle("(B) Host-trait competence model") +
-        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var), width=0.5, alpha=0.25) +
+        geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var, fill=type), width=0.7, alpha=0.85, linewidth=0.2) +
         theme_bw() +
         labs(x="Relative influence",
              y="Features") + 
-        theme(axis.text.y=element_text(size=16),
-              axis.text.x=element_text(size=16),
+        theme(axis.text.y=element_text(size=14),
+              axis.text.x=element_text(size=14),
               axis.title.x=element_text(size=20, margin=margin(t=10,r=0,b=0,l=0)),
               axis.title.y=element_text(size=20, margin=margin(t=0,r=10,b=0,l=0)),
-              strip.text=element_text(size=20))
+              strip.text=element_text(size=20)) +
+        scale_fill_manual(values=c("#482677FF","#55C667FF","#238A8DFF")) +
+        scale_y_discrete(labels = function(x) str_wrap(x, width = 16))
 
-# Combine boxplots of relative feature importance
-png("Output/boxplot_trait_ranking.png",width=10,height=10,units="in",res=300)
-ggarrange(boxplot_trait_pcr,boxplot_trait_comp,ncol=2,nrow=1,
-          font.label=list(face="plain",size=12))
+png("Output/boxplot_trait_ranking_comp.png",width=5.7,height=10,units="in",res=600)
+boxplot_trait_comp
 dev.off()
 
 rm(pcr_vinf,comp_vinf,vinf,boxplot_trait_pcr, keep_comp, keep_pcr, boxplot_trait_comp, vdata_comp,vdata_pcr, table_ranks)
