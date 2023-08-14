@@ -1213,6 +1213,9 @@ Figure: *boxplot_brt_tuning.png*
 
 ```{r brt_tuning_results}
 
+# Load model tuning results
+search=read.csv("Output/par_tuning_data_summary.csv")
+
 # Convert parameters to factor and relabel values
 search$shrinkage=factor(search$shrinkage)  #search=read.csv("Output/par_tuning_data_summary.csv")
 lvl=rev(sort(unique(search$shrinkage)))    #sorts unique shrinkage par from large to small
@@ -1282,8 +1285,8 @@ ggplot(search_long,aes(shrinkage,value,
         axis.title=element_text(size=12),
         strip.text=element_text(size=12))+
   theme(legend.position="top")+
-  scale_color_brewer(palette="Pastel2")+
-  scale_fill_brewer(palette="Pastel2")+
+  scale_color_viridis(discrete=TRUE,option="D")+
+  scale_fill_viridis(discrete=TRUE,option="D")+
   guides(colour=guide_legend(title="interaction depth"),
          fill=guide_legend(title="interaction depth"))+
   labs(y=NULL,
@@ -1508,9 +1511,9 @@ library(tidyr)
 library(ggplot2)
 # library(sciplot)
 library(fastDummies)
-# library(caper)
+library(caper)
 library(ape)
-# library(phylofactor)
+library(phylofactor)
 # library(treeio)
 # library(ggtree)
 library(plotrix) #std.error
@@ -1564,19 +1567,19 @@ pcr_cpreds=lapply(pcr_cpreds,function(x) select(x,c("pcr","cpred")))
 pcr_auc = lapply(pcr_cpreds, function(x) auc(x$pcr, x$cpred))
 mean = mean(sapply(pcr_auc,function(x) x))
 se = std.error(sapply(pcr_auc,function(x) x))
-pcr_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+pcr_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
 # Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
 pcr_sens = lapply(pcr_cpreds, function(x) InformationValue::sensitivity(x$pcr, x$cpred, threshold=0.5))
 mean = mean(sapply(pcr_sens,function(x) x))
 se = std.error(sapply(pcr_sens,function(x) x))
-pcr_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+pcr_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
 # Get specificity for each iteration and calculate mean specificity and standard error across iterations
 pcr_spec = lapply(pcr_cpreds, function(x) InformationValue::specificity(x$pcr, x$cpred, threshold=0.5))
 mean = mean(sapply(pcr_spec,function(x) x))
 se = std.error(sapply(pcr_spec,function(x) x))
-pcr_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+pcr_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
 ### COMPETENCE MODEL: Get model performance measures assuming 0.5 threshold ###
 
@@ -1588,19 +1591,19 @@ comp_cpreds=lapply(comp_cpreds,function(x) select(x,c("competence","cpred")))
 comp_auc = lapply(comp_cpreds, function(x) auc(x$comp, x$cpred))
 mean = mean(sapply(comp_auc,function(x) x))
 se = std.error(sapply(comp_auc,function(x) x))
-comp_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+comp_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
 # Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
 comp_sens = lapply(comp_cpreds, function(x) InformationValue::sensitivity(x$comp, x$cpred, threshold=0.5))
 mean = mean(sapply(comp_sens,function(x) x))
 se = std.error(sapply(comp_sens,function(x) x))
-comp_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+comp_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
-# Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
+# Get specificity for each iteration and calculate mean sensitivity and standard error across iterations
 comp_spec = lapply(comp_cpreds, function(x) InformationValue::specificity(x$comp, x$cpred, threshold=0.5))
 mean = mean(sapply(comp_spec,function(x) x))
 se = std.error(sapply(comp_spec,function(x) x))
-comp_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+comp_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
 # Clean environment; save performance metrics to create a table in the next section
 rm(comp_cpreds, pcr_cpreds, comp_keep, keep, pcr_keep, mean, se)
@@ -2027,6 +2030,10 @@ Table: *table_HostTraitModel_predictions.csv*
 pcr_brts <- readRDS("Output/pcr_brts.rds")
 comp_brts <- readRDS("Output/comp_brts.rds")
 
+# Keep only first 100 iterations
+pcr_brts=pcr_brts[1:100]
+comp_brts=comp_brts[1:100]
+
 # Load cleaned data file
 library(fastDummies)
 load("Output/HostTraitModel_CleanData.RData")
@@ -2133,76 +2140,76 @@ write.csv(preds,"Output/table_HostTraitModel_predictions.csv")
 
 ```
 
-### *Visualize how predicted probabilities are distributed*
-Figures: *plot_pp.png*
+<!-- ### *Visualize how predicted probabilities are distributed* -->
+<!-- Figures: *plot_pp.png* -->
 
-```{r pred_figure}
+<!-- ```{r pred_figure} -->
 
-# Load library for color palette; select and re-order colors
-remotes::install_github("awhstin/awtools")
-library(awtools)
-cc=mpalette[2:4] 
-cc=rev(cc)
+<!-- # Load library for color palette; select and re-order colors -->
+<!-- remotes::install_github("awhstin/awtools") -->
+<!-- library(awtools) -->
+<!-- cc=mpalette[2:4]  -->
+<!-- cc=rev(cc) -->
 
-# Density plot of predicted probabilities
-densityplot_pp=ggplot(apreds,aes(cpred))+
-  geom_density(aes(fill=cat,colour=cat),alpha=0.5)+
-  facet_wrap(~type2,ncol=1,strip.position='top',scales="free_y")+
-  theme_bw()+
-  theme(legend.position="top")+
-  labs(x=expression(paste("Predicted probability (",italic(P),") of hosting")))+
-  xlim(0,1)+
-  theme(axis.text=element_text(size=10),
-        axis.title=element_text(size=12),
-        legend.title=element_text(size=12),
-        legend.text=element_text(size=11),
-        strip.text=element_text(size=11),
-        legend.margin=margin(0,0,0,0),
-        legend.box.margin=margin(20,20,20,20))+
-  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
-  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
-  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
-  scale_colour_manual(values=cc)+
-  scale_fill_manual(values=cc)+
-  guides(colour=guide_legend(title="(a) Orthopoxvirus positivity"),
-         fill=guide_legend(title="(a) Orthopoxvirus positivity"))
-densityplot_pp
+<!-- # Density plot of predicted probabilities -->
+<!-- densityplot_pp=ggplot(apreds,aes(cpred))+ -->
+<!--   geom_density(aes(fill=cat,colour=cat),alpha=0.5)+ -->
+<!--   facet_wrap(~type2,ncol=1,strip.position='top',scales="free_y")+ -->
+<!--   theme_bw()+ -->
+<!--   theme(legend.position="top")+ -->
+<!--   labs(x=expression(paste("Predicted probability (",italic(P),") of hosting")))+ -->
+<!--   xlim(0,1)+ -->
+<!--   theme(axis.text=element_text(size=10), -->
+<!--         axis.title=element_text(size=12), -->
+<!--         legend.title=element_text(size=12), -->
+<!--         legend.text=element_text(size=11), -->
+<!--         strip.text=element_text(size=11), -->
+<!--         legend.margin=margin(0,0,0,0), -->
+<!--         legend.box.margin=margin(20,20,20,20))+ -->
+<!--   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+ -->
+<!--   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+ -->
+<!--   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+ -->
+<!--   scale_colour_manual(values=cc)+ -->
+<!--   scale_fill_manual(values=cc)+ -->
+<!--   guides(colour=guide_legend(title="(a) Orthopoxvirus positivity"), -->
+<!--          fill=guide_legend(title="(a) Orthopoxvirus positivity")) -->
+<!-- densityplot_pp -->
 
-# Scatterplot of predicted probabilities
-scatterplot_pp=ggplot(apreds2,aes(pred_pcr,pred_comp))+
-  geom_point(alpha=0.5,size=2,aes(colour=cat,fill=cat))+
-  geom_smooth(method='gam',colour="grey")+
-  labs(x=expression(paste(italic(P),' from RT-PCR models')),
-       y=expression(paste(italic(P),' from virus isolation models')))+
-  theme_bw()+
-  theme(axis.text=element_text(size=10),
-        axis.title=element_text(size=12),
-        legend.title=element_text(size=12),
-        legend.text=element_text(size=11),
-        strip.text=element_text(size=11),
-        legend.margin=margin(0,0,0,0),
-        legend.box.margin=margin(20,20,20,20))+
-  theme(legend.position="top")+
-  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
-  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
-  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
-  scale_colour_manual(values=cc)+
-  scale_fill_manual(values=cc)+
-  guides(colour=guide_legend(title="(a) Orthohantavirus positivity"),
-         fill=guide_legend(title="(a) Orthohantavirus positivity"))
-scatterplot_pp
+<!-- # Scatterplot of predicted probabilities -->
+<!-- scatterplot_pp=ggplot(apreds2,aes(pred_pcr,pred_comp))+ -->
+<!--   geom_point(alpha=0.5,size=2,aes(colour=cat,fill=cat))+ -->
+<!--   geom_smooth(method='gam',colour="grey")+ -->
+<!--   labs(x=expression(paste(italic(P),' from RT-PCR models')), -->
+<!--        y=expression(paste(italic(P),' from virus isolation models')))+ -->
+<!--   theme_bw()+ -->
+<!--   theme(axis.text=element_text(size=10), -->
+<!--         axis.title=element_text(size=12), -->
+<!--         legend.title=element_text(size=12), -->
+<!--         legend.text=element_text(size=11), -->
+<!--         strip.text=element_text(size=11), -->
+<!--         legend.margin=margin(0,0,0,0), -->
+<!--         legend.box.margin=margin(20,20,20,20))+ -->
+<!--   theme(legend.position="top")+ -->
+<!--   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+ -->
+<!--   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+ -->
+<!--   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+ -->
+<!--   scale_colour_manual(values=cc)+ -->
+<!--   scale_fill_manual(values=cc)+ -->
+<!--   guides(colour=guide_legend(title="(a) Orthohantavirus positivity"), -->
+<!--          fill=guide_legend(title="(a) Orthohantavirus positivity")) -->
+<!-- scatterplot_pp -->
 
-# Combine density plot with scatterplot of predicted probabilities; save
-png("Output/plot_pp.png",width=6.5,height=4,units="in",res=300)
-plot_pp=ggarrange(densityplot_pp,scatterplot_pp,common.legend=T)
-plot_pp
-dev.off()
+<!-- # Combine density plot with scatterplot of predicted probabilities; save -->
+<!-- png("Output/plot_pp.png",width=6.5,height=4,units="in",res=300) -->
+<!-- plot_pp=ggarrange(densityplot_pp,scatterplot_pp,common.legend=T) -->
+<!-- plot_pp -->
+<!-- dev.off() -->
 
-```
+<!-- ``` -->
 
 ### *Explore the effects of threshold moving on binary classification*
 We calculate various optimal threshold values and evaluate how threshold moving changes classification of OPV positive vs. negative mammal genera.
-Tables: *table_predicted_hosts_infection.xlsx*, *table_predicted_hosts_competence.xlsx*
+Tables: *table_thresholdmoving_pcr.csv*, *table_thresholdmoving_comp.csv*, *table_predicted_hosts_infection.xlsx*, *table_predicted_hosts_competence.xlsx*
 
 ```{r pred_threshold}
 
@@ -2334,16 +2341,6 @@ for (i in 1:nrow(table_ts_comp)) {
 # Save table of the effects of threshold moving
 write.csv(table_ts_pcr, file='Output/table_thresholdmoving_pcr.csv')
 write.csv(table_ts_comp, file='Output/table_thresholdmoving_comp.csv')
-
-### INTERMISSION: Manuscript Table 1 ###
-# What is the sensitivity and specificity of the models when we fix threshold to 0.5?
-#Infection/PCR
-InformationValue::sensitivity(pred$PCR, pred$pred_pcr, threshold = 0.5)
-InformationValue::specificity(pred$PCR, pred$pred_pcr, threshold = 0.5)
-#Competence/virus isolation
-InformationValue::sensitivity(pred$competence, pred$pred_comp, threshold = 0.5)
-InformationValue::specificity(pred$competence, pred$pred_comp, threshold = 0.5)
-
 
 ### APPLY THRESHOLDS TO PREDICTIONS ###
 
@@ -2481,7 +2478,7 @@ bdata$label=bdata$treename
 bdata$Species=bdata$treename
 
 # Generate mean of pcr and comp predicted probabilities
-bdata <- bdata %>% dplyr:::mutate(pred_mean = rowMeans(across(pred_pcr:pred_comp), na.rm = TRUE))
+bdata <- bdata %>% dplyr::mutate(pred_mean = rowMeans(dplyr::across(pred_pcr:pred_comp), na.rm = TRUE))
 
 # Generate variable of whether OPV positivity was predicted based on threshold value
 bdata$pcr_rs0.8 <- ifelse(bdata$pred_pcr > ts_pcr_rs0.8$pred_pcr, 1, 0)
@@ -2857,56 +2854,56 @@ p2=gg+
                       guide=guide_legend(reverse=TRUE),
                       name="Evidence type")
 
-# # Competence
-# gg=pbase
-# for(i in 1:nrow(comppred_pf_results)){
-#   gg=gg+
-#     geom_hilight(node=comppred_pf_results$node[i],
-#                  alpha=ifelse(comppred_pf_results$tips[i]/Ntip(cdata$phy)<0.5,0.5,0.25),
-#                  fill="black")
-# }
-# 
-# # Add preds to comp results based on rs0.8
-# p3=gg+
-#   geom_segment(
-#     data=samp_nocomp_rs0.8,
-#     mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
-#                 alpha=factor_comp_rs0.8),
-#     color="gray", linewidth=0.75)+
-#   scale_alpha_discrete(range=c(1,1),name="No predicted links")+
-#   geom_segment(
-#     data=samp_comp_rs0.8, 
-#     mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
-#                 colour=factor(factor_comp_rs0.8)),linewidth=0.75,)+
-#   scale_color_viridis(discrete=TRUE,option="D", direction=-1,
-#                       guide=guide_legend(reverse=TRUE),
-#                       name="Evidence type")
-# 
-# # Add preds to comp results based on mss3
-# p4=gg+
-#   geom_segment(
-#     data=samp_nocomp_mss3,
-#     mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
-#                 alpha=factor_comp_mss3),
-#     color="gray", linewidth=0.75)+
-#   scale_alpha_discrete(range=c(1,1),name="No predicted links")+
-#   geom_segment(
-#     data=samp_comp_mss3, 
-#     mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
-#                 colour=factor(factor_comp_mss3)),linewidth=0.75,)+
-#   scale_color_viridis(discrete=TRUE,option="D", direction=-1,
-#                       guide=guide_legend(reverse=TRUE),
-#                       name="Evidence type")
+# Competence
+gg=pbase
+for(i in 1:nrow(comppred_pf_results)){
+  gg=gg+
+    geom_hilight(node=comppred_pf_results$node[i],
+                 alpha=ifelse(comppred_pf_results$tips[i]/Ntip(cdata$phy)<0.5,0.5,0.25),
+                 fill="black")
+}
 
-# pp_tree2=ggarrange(p1,p2,p3,p4,
-#               labels=c("(A) PCR ReqSens0.8: Th=0.38","(B) PCR MaxSensSpec: Th=0.36", "(C) Comp ReqSens0.8: Th=0.26", "(D) Comp MaxSensSpec: Th=0.22"),
-#               # font.label(size=10),
-#               hjust=-0.6,
-#               label.x=c(0.1,0.1,0.1,0.1),
-#               label.y=c(1,1,1,1),
-#               font.label=list(face="plain",size=13),
-#               ncol=2,nrow=2,
-#               common.legend = TRUE, legend="left")
+# Add preds to comp results based on rs0.8
+p3=gg+
+  geom_segment(
+    data=samp_nocomp_rs0.8,
+    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+                alpha=factor_comp_rs0.8),
+    color="tomato2", linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(
+    data=samp_comp_rs0.8,
+    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+                colour=factor(factor_comp_rs0.8)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+                      guide=guide_legend(reverse=TRUE),
+                      name="Evidence type")
+
+# Add preds to comp results based on mss3
+p4=gg+
+  geom_segment(
+    data=samp_nocomp_mss3,
+    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+                alpha=factor_comp_mss3),
+    color="tomato2", linewidth=0.75)+
+  scale_alpha_discrete(range=c(1,1),name="No predicted links")+
+  geom_segment(
+    data=samp_comp_mss3,
+    mapping=aes(x=x,y=y,xend=xend_comp,yend=yend,
+                colour=factor(factor_comp_mss3)),linewidth=0.75,)+
+  scale_color_viridis(discrete=TRUE,option="D", direction=-1,
+                      guide=guide_legend(reverse=TRUE),
+                      name="Evidence type")
+
+pp_tree2=ggarrange(p1,p2,p3,p4,
+              labels=c("(A) PCR ReqSens0.8: Th=0.38","(B) PCR MaxSensSpec: Th=0.36", "(C) Comp ReqSens0.8: Th=0.26", "(D) Comp MaxSensSpec: Th=0.22"),
+              # font.label(size=10),
+              hjust=-0.6,
+              label.x=c(0.1,0.1,0.1,0.1),
+              label.y=c(1,1,1,1),
+              font.label=list(face="plain",size=13),
+              ncol=2,nrow=2,
+              common.legend = TRUE, legend="left")
 
 pp_tree2=ggarrange(p1,p2,
               labels=c("(A) PCR ReqSens0.8: Th=0.38","(B) PCR MaxSensSpec: Th=0.36"),
@@ -2919,7 +2916,6 @@ pp_tree2=ggarrange(p1,p2,
               common.legend = TRUE, legend="left")
 
 #Save
-# png("Output/tree_pp_clades2_gray.png",width=12,height=6,units="in",res=300)
 png("Output/tree_pp_clades2_red.png",width=12,height=6,units="in",res=600)
 pp_tree2
 dev.off()
