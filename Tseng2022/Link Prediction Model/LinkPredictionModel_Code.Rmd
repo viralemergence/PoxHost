@@ -306,8 +306,8 @@ text(screeplot_var, 0, y=relvar_per[1:10], label=relvar_per[1:10],cex=0.8, pos=3
 
 # Plot cumulative variance to show the proportion of variance explained with each add'l PC
 cumpro <- cumsum(pca$sdev^2 / sum(pca$sdev^2))
-png("Output/plot_cumvar_pca.png", width=4,height=4,units="in",res=600)
-plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance", main = "Cumulative variance plot")
+png("Output/plot_cumvar_pca.png", width=5,height=6,units="in",res=600)
+plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance")
 abline(v = 10, col="blue", lty=5)
 abline(h = 0.7, col="blue", lty=5)
 legend("topleft", legend=c("Cut-off @ PC10"), col=c("blue"), lty=5, cex=1)
@@ -1687,8 +1687,8 @@ ggplot(search2,aes(shrinkage,value,
         axis.title=element_text(size=12),
         strip.text=element_text(size=12))+
   theme(legend.position="top")+
-  scale_color_brewer(palette="Pastel2")+
-  scale_fill_brewer(palette="Pastel2")+
+  scale_color_viridis(discrete=TRUE,option="D")+
+  scale_fill_viridis(discrete=TRUE,option="D")+
   guides(colour=guide_legend(title="interaction depth"),
          fill=guide_legend(title="interaction depth"))+
   labs(y=NULL,
@@ -2074,19 +2074,19 @@ m1_cpreds=lapply(m1_cpreds,function(x) select(x,c("link","cpred")))
 m1_auc = lapply(m1_cpreds, function(x) auc(x$link, x$cpred))
 mean = mean(sapply(m1_auc,function(x) x))
 se = std.error(sapply(m1_auc,function(x) x))
-m1_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+m1_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
 # Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
 m1_sens = lapply(m1_cpreds, function(x) InformationValue::sensitivity(x$link, x$cpred, threshold=0.5))
 mean = mean(sapply(m1_sens,function(x) x))
 se = std.error(sapply(m1_sens,function(x) x))
-m1_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+m1_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
 # Get specificity for each iteration and calculate mean specificity and standard error across iterations
 m1_spec = lapply(m1_cpreds, function(x) InformationValue::specificity(x$link, x$cpred, threshold=0.5))
 mean = mean(sapply(m1_spec,function(x) x))
 se = std.error(sapply(m1_spec,function(x) x))
-m1_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+m1_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
 ### MODEL 2 (EXCL. VACCINIA LINKS): Get model performance measures assuming 0.5 threshold ###
 
@@ -2098,19 +2098,19 @@ m2_cpreds=lapply(m2_cpreds,function(x) select(x,c("link","cpred")))
 m2_auc = lapply(m2_cpreds, function(x) auc(x$link, x$cpred))
 mean = mean(sapply(m2_auc,function(x) x))
 se = std.error(sapply(m2_auc,function(x) x))
-m2_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+m2_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
 # Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
 m2_sens = lapply(m2_cpreds, function(x) InformationValue::sensitivity(x$link, x$cpred, threshold=0.5))
 mean = mean(sapply(m2_sens,function(x) x))
 se = std.error(sapply(m2_sens,function(x) x))
-m2_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+m2_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
 # Get specificity for each iteration and calculate mean specificity and standard error across iterations
 m2_spec = lapply(m2_cpreds, function(x) InformationValue::specificity(x$link, x$cpred, threshold=0.5))
 mean = mean(sapply(m2_spec,function(x) x))
 se = std.error(sapply(m2_spec,function(x) x))
-m2_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+m2_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
 
 # Clean environment; save performance metrics to create a table in the next section
 rm(m1_cpreds, m2_cpreds, keep1, keep2, mean, se)
