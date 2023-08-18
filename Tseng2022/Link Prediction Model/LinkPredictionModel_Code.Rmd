@@ -306,8 +306,8 @@ text(screeplot_var, 0, y=relvar_per[1:10], label=relvar_per[1:10],cex=0.8, pos=3
 
 # Plot cumulative variance to show the proportion of variance explained with each add'l PC
 cumpro <- cumsum(pca$sdev^2 / sum(pca$sdev^2))
-png("Output/plot_cumvar_pca.png", width=5,height=6,units="in",res=600)
-plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance")
+png("Output/plot_cumvar_pca.png", width=4,height=4,units="in",res=600)
+plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance", main = "Cumulative variance plot")
 abline(v = 10, col="blue", lty=5)
 abline(h = 0.7, col="blue", lty=5)
 legend("topleft", legend=c("Cut-off @ PC10"), col=c("blue"), lty=5, cex=1)
@@ -326,8 +326,8 @@ fviz_pca_ind(pca, geom.ind = "point", pointshape = 21, pointsize = 2,
 dev.off()
 
 # Plot sequences by virus species for dim 1 and 2
-png("Output/plot_scores_pca_dim1and2_byvirus.png", width=6,height=4,units="in",res=600)
-autoplot(pca, data = genes, colour = 'VirusSpecies') 
+png("Output/plot_scores_pca_dim1and4_byvirus.png", width=6,height=4,units="in",res=600)
+autoplot(pca, x=1, y=4, data = genes, colour = 'VirusSpecies') 
 # + ggtitle("Plot of Sequences by Virus Species")
 dev.off()
 
@@ -516,19 +516,32 @@ fviz_pca_ind(pca_bycluster, geom.ind = "point", pointshape = 21,
 dev.off()
   # + ggtitle("PCA Plot of Sequences by Cluster")
 
-# Biplot of sequences and gene loadings by cluster
-fviz_pca_biplot(pca_bycluster, geom.ind = "point", pointshape = 21, 
+### BEGIN INTERMISSION ###
+
+# Run PCA as before, but now grouping by species
+pca_byspecies <- prcomp(genes[,5:985])   
+
+# color-blind friendly palette:
+library(viridis)
+cbPalette1 <- c("#009292","#ff6db6","#ffb6db","#490092","#6db6ff","#db6d00")
+cbPalette <- viridis(12, alpha = 1, begin = 0, end = 1, direction = 1, option = "H")
+
+# Plot of sequences by cluster
+png("Output/plot_scores_pca_byspecies.png", width=8,height=5,units="in",res=600)
+fviz_pca_ind(pca_byspecies, axes=c(1,4), geom.ind = "point", pointshape = 21, 
              pointsize = 2, 
-             fill.ind = genes1$clusterCut,
-             col.ind = "black",
+             fill.ind = genes1$VirusSpecies, 
+             col.ind = "black", 
+             addEllipses = TRUE,
              label = "var",
+             col.var = "black",
              repel = TRUE,
              legend.title = "Cluster",
-             addEllipses = TRUE,
-             alpha.ind = 0,
-             labelsize=1,
-             col.var = "grey40")
-     # + ggtitle("PCA Biplot of Sequences and Gene Loadings by Cluster")
+             palette = cbPalette,
+             alpha.ind = 0.5)
+dev.off()
+
+### END INTERMISSION ###
 
 # Create a table of sequences by cluster
 db_cluster <- dplyr::select(genes1, Genome, VirusSpecies, HostGenus,clusterCut)
@@ -1687,8 +1700,8 @@ ggplot(search2,aes(shrinkage,value,
         axis.title=element_text(size=12),
         strip.text=element_text(size=12))+
   theme(legend.position="top")+
-  scale_color_viridis(discrete=TRUE,option="D")+
-  scale_fill_viridis(discrete=TRUE,option="D")+
+  scale_color_brewer(palette="Pastel2")+
+  scale_fill_brewer(palette="Pastel2")+
   guides(colour=guide_legend(title="interaction depth"),
          fill=guide_legend(title="interaction depth"))+
   labs(y=NULL,
@@ -2074,19 +2087,19 @@ m1_cpreds=lapply(m1_cpreds,function(x) select(x,c("link","cpred")))
 m1_auc = lapply(m1_cpreds, function(x) auc(x$link, x$cpred))
 mean = mean(sapply(m1_auc,function(x) x))
 se = std.error(sapply(m1_auc,function(x) x))
-m1_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
+m1_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
 # Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
 m1_sens = lapply(m1_cpreds, function(x) InformationValue::sensitivity(x$link, x$cpred, threshold=0.5))
 mean = mean(sapply(m1_sens,function(x) x))
 se = std.error(sapply(m1_sens,function(x) x))
-m1_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
+m1_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
 # Get specificity for each iteration and calculate mean specificity and standard error across iterations
 m1_spec = lapply(m1_cpreds, function(x) InformationValue::specificity(x$link, x$cpred, threshold=0.5))
 mean = mean(sapply(m1_spec,function(x) x))
 se = std.error(sapply(m1_spec,function(x) x))
-m1_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
+m1_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
 ### MODEL 2 (EXCL. VACCINIA LINKS): Get model performance measures assuming 0.5 threshold ###
 
@@ -2098,19 +2111,19 @@ m2_cpreds=lapply(m2_cpreds,function(x) select(x,c("link","cpred")))
 m2_auc = lapply(m2_cpreds, function(x) auc(x$link, x$cpred))
 mean = mean(sapply(m2_auc,function(x) x))
 se = std.error(sapply(m2_auc,function(x) x))
-m2_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
+m2_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
 # Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
 m2_sens = lapply(m2_cpreds, function(x) InformationValue::sensitivity(x$link, x$cpred, threshold=0.5))
 mean = mean(sapply(m2_sens,function(x) x))
 se = std.error(sapply(m2_sens,function(x) x))
-m2_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
+m2_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
 # Get specificity for each iteration and calculate mean specificity and standard error across iterations
 m2_spec = lapply(m2_cpreds, function(x) InformationValue::specificity(x$link, x$cpred, threshold=0.5))
 mean = mean(sapply(m2_spec,function(x) x))
 se = std.error(sapply(m2_spec,function(x) x))
-m2_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
+m2_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
 # Clean environment; save performance metrics to create a table in the next section
 rm(m1_cpreds, m2_cpreds, keep1, keep2, mean, se)
