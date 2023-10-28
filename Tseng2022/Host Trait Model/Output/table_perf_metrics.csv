@@ -1,6 +1,6 @@
-"","AUC (mean ± SE)","Sensitivity (mean ± SE)","Specificity (mean ± SE)"
-"Host-trait infection model","0.88 ± 2.2266e-03","0.50 ± 1.4187e-02","0.96 ± 2.6897e-03"
-"Host-trait competence model","0.87 ± 3.0232e-03","0.36 ± 1.3018e-02","0.99 ± 7.3086e-04"
-"t-test","1.01","7.44","-8.86"
-"p-val","0.3142","0.0000","0.0000"
-"Cohen's d","0.14","1.05","-1.25"
+,AUC (mean ± SE),Sensitivity (mean ± SE),Specificity (mean ± SE)
+Host exposure model,0.88 ± 2.2266e-03,0.50 ± 1.4187e-02,0.96 ± 2.6897e-03
+Susceptible host model,0.87 ± 3.0232e-03,0.36 ± 1.3018e-02,0.99 ± 7.3086e-04
+t-test,1.01,7.44,-8.86
+p-val,0.3142,0.0000,0.0000
+Cohen's d,0.14,1.05,-1.25

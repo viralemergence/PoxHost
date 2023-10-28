@@ -170,7 +170,7 @@ rm(list=setdiff(ls(), c("genes")))
 ```
 
 ### *PCA of viral accessory genes*
-Using principal components analysis, can we distill the variables down to their most important features? Which genes contribute the most to each feature?
+Using principal components analysis, can we distill the variables down to their most important features? Which genes contribute the most to each feature? Let's plot the loadings and also color them by functional role
 Figure: *histogram_loadings.png*
 Table: *table_pca_importance.csv*, *table_ranked_loadings.csv*
 
@@ -178,85 +178,93 @@ Table: *table_pca_importance.csv*, *table_ranked_loadings.csv*
 
 # Apply PCA using stats::prcomp 
 pca <- prcomp(genes[,5:985])      #scaling/centering not appropriate
-relvar <- pca$sdev^2 / sum(pca$sdev^2)
-relvar_per <- round(relvar*100,1)
+# relvar <- pca$sdev^2 / sum(pca$sdev^2)
+# relvar_per <- round(relvar*100,1)
 
 # View summary results
 summary(pca)
 View(pca$x) #sequence (individuals)
 View(pca$rotation) #genes (variables)
 
-# Table of importance of components: Eigenvalue (variance explained by each PC), SD, proportion of variance, and cumulative proportion
+# Get table of importance of components: eigenvalue (variance explained by each PC), SD, proportion of variance, and cumulative proportion
 importance <- as.data.frame(t(summary(pca)$importance))
 importance$Eigenvalue <- importance$`Standard deviation`^2
 importance <- importance %>% dplyr::relocate(Eigenvalue) 
 importance <- importance[c(1:12),]
 write.csv(importance,"Output/table_pca_importance.csv")
+rm(importance)
 
-# Table of loadings: Rotation is the matrix of variable loadings where columns are eigenvectors
+# Get table of loadings: rotation is the matrix of variable loadings where columns are eigenvectors
 loadings <- as.data.frame(pca$rotation)
 loadings <- loadings[,c(1:10)]
 # loadings <- abs(loadings) #get absolute values; why are some loadings > |1|? Loading is the covariances/correlations b/w original vars and unit-scaled components)
 
-### Create a dataframe of ranked loadings with corresponding gene names for each PC1-PC10)
+### Create a df of ranked loadings and their gene names for each PC ###
 
-# For each PC/dimension, create a dataframe of gene loadings named after the PC
-for(i in 1:ncol(loadings)){
-  assign(colnames(loadings)[i], data.frame(loadings[,i]))
-}
+  # For each PC, create a df of gene loadings named after the PC
+  for(i in 1:ncol(loadings)){
+    assign(colnames(loadings)[i], data.frame(loadings[,i]))
+  }
+  
+  # Create a list of PC df names
+  list <- colnames(loadings)    
+  
+  # Combine the dfs into a single list; drop PC dfs
+  list_df = lapply(list, get)
+  rm(list = ls()[grepl("PC", ls())])
 
-# Create a list of PC dataframe names, and using lapply, combine the dataframes of PC loadings into a single list
-list <- colnames(loadings)       
-list_df = lapply(list, get)
-
-# To each dataframe in that list, add corresponding gene name and sort in descending order (genes with highest load value to smallest load value)
-for (i in 1:length(list)) {
-  colnames(list_df[[i]]) <- "Loadings"
-  list_df[[i]]$Gene <- rownames(loadings)
-  list_df[[i]]=list_df[[i]][order(-list_df[[i]]$Loadings),]
-}
-
-# Create df of just ranked genes by first dropping loadings from the list
-genes_df <- list_df
-for(i in 1:length(list)) {
-  genes_df[[i]]$Loadings=NULL
-}
-
-# Next, create an empty matrix with PCs as column names
-rank_genes <- data.frame(matrix(ncol=ncol(loadings), nrow=nrow(loadings)))
-colnames(rank_genes) <- colnames(loadings)
-
-# To each column of the matrix, add the ranked genes for each PC, and set column names
-for(i in 1:length(list)) {
-  rank_genes[,i] = genes_df[[i]]
-}
-rank_genes <- setNames(rank_genes, paste0(names(loadings), '_', 'Gene'))
-
-# Create df of just ranked loadings by first dropping gene names from the list
-loadings_df <- list_df
-for(i in 1:length(list)) {
-  loadings_df[[i]]$Gene=NULL
-}
-
-# Next, create an empty matrix with PCs as column names
-rank_loadings <- data.frame(matrix(ncol=ncol(loadings), nrow=nrow(loadings)))
-colnames(rank_loadings) <- colnames(loadings)
-
-# To each column of the matrix, add the ranked loadings for each PC, and set column names
-for(i in 1:length(list)) {
-  rank_loadings[,i] = loadings_df[[i]]
-}
-rank_loadings <- setNames(rank_loadings, paste0(names(loadings), '_', 'Loadings'))
-
-# Now, combine dfs of ranked genes and loadings
-rank_PC <- cbind(rank_genes, rank_loadings)
-rank_PC <- rank_PC[,order(colnames(rank_PC))] 
-
-# Reorder the columns
-rank_PC <- rank_PC %>% relocate(c("PC10_Gene","PC10_Loadings"), .after = last_col())
-
-# Save table of PCA Loadings Ranked
-write.csv(rank_PC, "Output/table_ranked_loadings.csv")
+  # To each list df, add corresponding gene name; sort in descending order
+  for (i in 1:length(list)) {
+    colnames(list_df[[i]]) <- "Loadings"
+    list_df[[i]]$Gene <- rownames(loadings)
+    list_df[[i]]=list_df[[i]][order(-list_df[[i]]$Loadings),]
+  }
+  
+  # Create df of just ranked genes by first dropping loadings from the list
+  genes_df <- list_df
+  for(i in 1:length(list)) {
+    genes_df[[i]]$Loadings=NULL
+  }
+  
+  # Create an empty matrix with PCs as column names
+  rank_genes <- data.frame(matrix(ncol=ncol(loadings), nrow=nrow(loadings)))
+  colnames(rank_genes) <- colnames(loadings)
+  
+  # To each matrix column, add the ranked genes for each PC
+  for(i in 1:length(list)) {
+    rank_genes[,i] = genes_df[[i]]
+  }
+  
+  # Set column names
+  rank_genes <- setNames(rank_genes, paste0(names(loadings), '_', 'Gene'))
+  
+  # Create df of just ranked loadings by first dropping gene names from the list
+  loadings_df <- list_df
+  for(i in 1:length(list)) {
+    loadings_df[[i]]$Gene=NULL
+  }
+  
+  # Create an empty matrix with PCs as column names
+  rank_loadings <- data.frame(matrix(ncol=ncol(loadings), nrow=nrow(loadings)))
+  colnames(rank_loadings) <- colnames(loadings)
+  
+  # To each column of the matrix, add the ranked loadings for each PC
+  for(i in 1:length(list)) {
+    rank_loadings[,i] = loadings_df[[i]]
+  }
+  
+  # Set column names
+  rank_loadings <- setNames(rank_loadings, paste0(names(loadings), '_', 'Loadings'))
+  
+  # Combine dfs of ranked genes and loadings
+  rank_PC <- cbind(rank_genes, rank_loadings)
+  rank_PC <- rank_PC[,order(colnames(rank_PC))] 
+  
+  # Reorder columns
+  rank_PC <- rank_PC %>% relocate(c("PC10_Gene","PC10_Loadings"), .after = last_col())
+  
+  # Save table of PCA Loadings Ranked
+  write.csv(rank_PC, "Output/table_ranked_loadings.csv")
 
 # Distribution of loadings for each PC (particularly PC1, PC3, PC4, PC9)
 loadings <- as.data.frame(pca$rotation)
@@ -278,8 +286,11 @@ wgs_PCs <- genes[,1:4]
 wgs_PCs <- cbind(wgs_PCs, pca$x[,1:10])
 save(wgs_PCs, file='Output/wgs_PCs.RData')
 
+# Clean up environment
+# rm(rank_genes, rank_loadings, genes_df, loadings, loadings_df, list_df, list)
+
 # Clean environment
-rm(list=setdiff(ls(), c("genes","pca","relvar","relvar_per")))
+rm(list=setdiff(ls(), c("genes","pca","relvar","relvar_per", "rank_PC")))
 
 ```
 
@@ -315,49 +326,127 @@ dev.off()
 
 ### Vizualize individuals/scores
 
-# Plot sequences on dim 1 and 2 (with ellipses)
-png("Output/plot_scores_pca_dim1and2_ellipses.png", width=6, height=6, units="in", res=600)
+# Style 1: Plot sequences on dim 1 and 2 (with single ellipses)
 fviz_pca_ind(pca, geom.ind = "point", pointshape = 21, pointsize = 2, 
              col.ind = "black", addEllipses = TRUE, label = "var",
              col.var = "black", repel = TRUE,
              alpha.ind = 0.7) +
              ggtitle("PCA Plot of Sequences") +
              theme(plot.title = element_text(hjust = 0.5))
-dev.off()
 
-# Plot sequences by virus species for dim 1 and 2
-png("Output/plot_scores_pca_dim1and4_byvirus.png", width=6,height=4,units="in",res=600)
+# Style 2: Plot sequences by virus species for dim 1 and 2
 autoplot(pca, x=1, y=4, data = genes, colour = 'VirusSpecies') 
-# + ggtitle("Plot of Sequences by Virus Species")
-dev.off()
+
+# Style 3: Plot sequences by virus species w/ viridis
+
+  ## Color-blind friendly palette:
+  library(viridis)
+  cbPalette <- viridis(12, alpha = 1, begin = 0, end = 1, direction = 1, option = "H")
+
+  ## Dim 1 and 2
+  scores_dim12 <- fviz_pca_ind(pca, axes=c(1,2), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette,
+                  alpha.ind = 0.5) +
+                  theme(legend.position="none")
+  
+  ## Dim 3 and 4
+  scores_dim34 <- fviz_pca_ind(pca, axes=c(3,4), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette,
+                  alpha.ind = 0.5) +
+                  theme(legend.position="none")
+  
+  ## Dim 5 and 6
+  scores_dim56 <- fviz_pca_ind(pca, axes=c(5,6), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette,
+                  alpha.ind = 0.5) +
+                  theme(legend.position="none")
+  
+  ## Dim 7 and 8
+  scores_dim78 <- fviz_pca_ind(pca, axes=c(7,8), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette,
+                  alpha.ind = 0.5) +
+                  theme(legend.position="none")
+
+  ## Dim 9 and 10
+  scores_dim910 <- fviz_pca_ind(pca, axes=c(9,10), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette,
+                  alpha.ind = 0.5) +
+                  theme(legend.position="none")
+
+  ## Get legend only
+  legend <- cowplot::get_legend(fviz_pca_ind(pca, axes=c(9,10),
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  legend.title = "OPV species",
+                  palette = cbPalette,
+                  alpha.ind = 0.5)
+                  
+  ## Combine plots and save
+  library(cowplot)
+  pdf("Output/plot_pca_scoresbyspecies.pdf", width=8,height=8)
+  plot_grid(scores_dim12, scores_dim34, scores_dim56, scores_dim78, scores_dim910, legend, ncol=3, nrow=2, scale=c(0.8), labels = c('A','B','C','D','E',''))  
+  dev.off()
 
 ### Vizualize variables/loadings (biplots)
 
-# Plot gene loadings for dim 1 and 2
-png("Output/plot_loadins_pca_dim1and2.png", width=6,height=4,units="in",res=600)
-fviz_pca_var(pca, 
-             col.var = "contrib", # Color by contributions to the PC
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE,     # Avoid text overlapping
-             # select.var=list(contrib=50),   # modify the number of loadings to include
-             labelsize=1,
-             label = c("ind", "ind.sup", "quali", "var", "quanti.sup"))
-             # + ggtitle("Plot of Gene Loadings for Dimensions 1 and 2")
-dev.off()
-### Here we see PC1 has large positive associations with a number of AGs like ADZ29556.1, SNB51281.1, and AGZ01283.1 that point in the same direction as PC1. PC2 has some moderately positive associations with AGs like BDQ10560.1
-### QKE61192.1 - hypothetical protein [Vaccinia virus]
-### QNP13375.1 - MPXV Viral membrane assembly proteins (VMAP) (Cop-A 30.5L)"
+# Style 1: Plot gene loadings only
+ 
+  ## Dim 1 and 2
+  png("Output/plot_loadings_pca_dim1and2.png", width=6,height=4,units="in",res=600)
+  fviz_pca_var(pca, 
+               col.var = "contrib", # Color by contributions to the PC
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,     # Avoid text overlapping
+               # select.var=list(contrib=50),   # modify the number of loadings to include
+               labelsize=1,
+               label = c("ind", "ind.sup", "quali", "var", "quanti.sup"))
+               # + ggtitle("Plot of Gene Loadings for Dimensions 1 and 2")
+  dev.off()
+    ### Here we see PC1 has large positive associations with a number of AGs like ADZ29556.1, SNB51281.1, and AGZ01283.1 that point in the same direction as PC1. PC2 has some moderately positive associations with AGs like BDQ10560.1
+    ### QKE61192.1 - hypothetical protein [Vaccinia virus]
+    ### QNP13375.1 - MPXV Viral membrane assembly proteins (VMAP) (Cop-A 30.5L)"
 
-# Plot gene loadings for dim 3 and 4
-png("Output/plot_loadings_pca_dim3and4.png", width=6,height=4,units="in",res=600)
-fviz_pca_var(pca, axes = c(3, 4),
-             col.var = "contrib",
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE,
-             # select.var=list(contrib=50),   # modify the number of loadings to include
-             labelsize=1)
-             # + ggtitle("Plot of Gene Loadings for Dimensions 3 and 4")
-dev.off()
+  ## Dim 3 and 4
+  png("Output/plot_loadings_pca_dim3and4.png", width=6,height=4,units="in",res=600)
+  fviz_pca_var(pca, axes = c(3, 4),
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               # select.var=list(contrib=50),   # modify the number of loadings to include
+               labelsize=1)
+               # + ggtitle("Plot of Gene Loadings for Dimensions 3 and 4")
+  dev.off()
+
+  
+# Style 2: Plot gene loadings by functional group
+  
+  ## Dim 1 and 2
+  png("Output/plot_loadings_pca_dim1and2.png", width=6,height=4,units="in",res=600)
+  fviz_pca_var(pca, axes = c(1, 2),
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               # select.var=list(contrib=50),   # modify the number of loadings to include
+               labelsize=1)
+               # + ggtitle("Plot of Gene Loadings for Dimensions 3 and 4")
+  dev.off()
+
 
 # Biplot sequences and gene loadings
 png("Output/biplot_pca_dim1and2.png", width=6,height=4,units="in",res=600)
@@ -376,6 +465,439 @@ fviz_pca_biplot(pca, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800"
              # + ggtitle("Biplot of Top 20 Contributing Sequences and Gene Loadings")
 dev.off()
 
+### BEGIN INTERMISSION ###
+
+### Merge dfs of highly contributing gene loadings w/ functional roles ###
+
+# Read in data
+ 
+  # PC1 positive loadings: read in data, rename columns, and merge
+  pc1_fnx_pos <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC1")[,1:3]
+
+  # PC1 negative loadings: read in data, rename columns, and merge
+  pc1_fnx_neg <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC1")[,c(7,9,10)]
+
+  # PC3 positive loadings: read in data, rename columns, and merge
+  pc3_fnx_pos <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC3")[,1:3]
+
+  # PC3 negative loadings: read in data, rename columns, and merge
+  pc3_fnx_neg <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC3")[,7:8]
+  pc3_fnx_neg$role <- NA
+
+  # PC4 positive loadings: read in data, rename columns, and merge
+  pc4_fnx_pos <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC4")[,1:3]
+
+  # PC4 negative loadings: read in data, rename columns, and merge
+  pc4_fnx_neg <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC4")[,8:10]
+
+  # PC9 positive loadings: read in data, rename columns, and merge
+  pc9_fnx_pos <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC9")[,1:3]
+
+  # PC1 negative loadings: read in data, rename columns, and merge
+  pc9_fnx_neg <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC9")[,7:9]
+
+# Clean dataframes of loadings and combine into sinl
+  # Create a list of the positive and legative loadings
+  # list_df <- ls()[grepl("_fnx", ls())]
+  # list_df = lapply(list_df, get)
+  list_df <- list(pc1_fnx_pos=data.frame(pc1_fnx_pos), pc1_fnx_neg=data.frame(pc1_fnx_neg),
+                  pc3_fnx_pos=data.frame(pc3_fnx_pos), pc3_fnx_neg=data.frame(pc3_fnx_neg),
+                  pc4_fnx_pos=data.frame(pc4_fnx_pos), pc4_fnx_neg=data.frame(pc4_fnx_neg),
+                  pc9_fnx_pos=data.frame(pc9_fnx_pos), pc9_fnx_neg=data.frame(pc9_fnx_neg))
+
+  # For each object in the list, rename columns and remove NAs
+  for (i in seq_along(list_df)){
+      colnames(list_df[[i]]) <- c("gene","protein","role")
+      list_df[[i]] <- list_df[[i]] %>% filter(!is.na(list_df[[i]]$gene))
+  }    
+  
+  # For each object in the list, get the names of each unique functional role to identify mistakes in spelling 
+  list_names <- list()
+  for(i in seq_along(list_df)) {
+       list_names[[i]] <- unique(list_df[[i]]$role)
+  }
+  list_names <- unlist(list_names)
+  unique(list_names)
+  
+  # Correct naming of functional roles
+  list_names <- list()
+  for(i in seq_along(list_df)) {
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Viron/Membrane", "Virion (in an infectious virus particle)", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Kelch-Like Protein", "Kelch-like protein", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="DNA Replication", "DNA replication", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Cell death/ cell cycle regulation", "Cell death/cell cycle regulation", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="RNA/Transcription/Translation", "RNA/transcription/translation", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Addaptive immunity/Anitibody", "Adaptive immunity/antibody", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Cytokine/chemokine regulation", "Chemokine/cytokine regulation", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Virus Entry", "Virus entry", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Ckemokine/cytokine regulation", "Chemokine/cytokine regulation", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Virion/Membrane", "Virion (in an infectious virus particle)", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Addaptive Immunity", "Adaptive immunity/antibody", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Adaptive immunity/ Antibody", "Adaptive immunity/antibody", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Adaptive immunity/Anitibody", "Adaptive immunity/antibody", list_df[[i]]$role)
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Addaptive immunity/ Antibody", "Adaptive immunity/antibody", list_df[[i]]$role)  
+      list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Kelch-like Protein", "Kelch-like protein", list_df[[i]]$role)
+      list_names[[i]] <- unique(list_df[[i]]$role)
+  }
+  
+  list_names <- unlist(list_names)
+  unique(list_names)
+
+# Unlist and merge all rows of data
+gene_roles <- rbind(list_df[[1]], list_df[[2]], list_df[[3]], list_df[[4]], list_df[[5]], list_df[[6]], list_df[[7]], list_df[[8]])
+gene_roles <- gene_roles[order(gene_roles$gene),]
+
+# Remove duplicate rows
+gene_roles <- gene_roles %>% distinct()
+
+# Identify genes with conflicting roles
+dup <- gene_roles$gene[duplicated(gene_roles$gene)]
+gene_roles_dup <- gene_roles[dup,]
+gene_roles_dup <- gene_roles[gene_roles$gene %in% dup,]
+write.csv(gene_roles_dup, "Output/gene_roles_dup.csv")
+
+# For now, we drop duplicates and try plotting loadings by functional role
+gene_roles_temp <- gene_roles[!duplicated(gene_roles$gene),]
+fviz_pca_var(pca, axes = c(1, 2),
+               # col.var = "contrib", #change to functional role
+               fill.var = gene_roles_temp$role,
+               # gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               # palette = cbPalette,
+               repel = TRUE,
+               labelsize=1,
+               select.var=list(name=pc1_sd))   #character vector of vars to be drawn
+  
+### For each PC, extract the genes that are within the top 1.5*SD and the bottom 1.5*SD
+
+  # PC1 loadings
+  pc1 <- rank_PC[,1:2]
+  colnames(pc1) <- c("gene", "loading")
+  sd <- sd(pc1$loading)
+  pc1_pos <- pc1 %>% filter(loading >= (max(pc1$loading)-1.5*sd))
+  pc1_neg <- pc1 %>% filter(loading <= (min(pc1$loading)+1.5*sd))
+  pc1_gene <- c(pc1_pos$gene, pc1_neg$gene)
+  # pc1_pos_alt <- pc1 %>% filter(loading > (mean(pc1$loading)+1.5*sd))
+  # pc1_neg_alt <- pc1 %>% filter(loading < (mean(pc1$loading)-1.5*sd))
+
+    # PC2 loadings
+  pc2 <- rank_PC[,3:4]
+  colnames(pc2) <- c("gene", "loading")
+  sd <- sd(pc2$loading)
+  pc2_pos <- pc2 %>% filter(loading >= (max(pc2$loading)-1.5*sd))
+  pc2_neg <- pc2 %>% filter(loading <= (min(pc2$loading)+1.5*sd))
+  pc2_gene <- c(pc2_pos$gene, pc2_neg$gene)
+
+  # PC3 loadings
+  pc3 <- rank_PC [,5:6]
+  colnames(pc3) <- c("gene", "loading")
+  sd <- sd(pc3$loading)
+  pc3_pos <- pc3 %>% filter(loading >= (max(pc3$loading)-1.5*sd))
+  pc3_neg <- pc3 %>% filter(loading <= (min(pc3$loading)+1.5*sd))
+  pc3_gene <- c(pc3_pos$gene, pc3_neg$gene)
+  
+  # PC4 loadings
+  pc4 <- rank_PC [,7:8]
+  colnames(pc4) <- c("gene", "loading")
+  sd <- sd(pc4$loading)
+  pc4_pos <- pc4 %>% filter(loading >= (max(pc4$loading)-1.5*sd))
+  pc4_neg <- pc4 %>% filter(loading <= (min(pc4$loading)+1.5*sd))
+  pc4_gene <- c(pc4_pos$gene, pc4_neg$gene)
+
+  # PC5 loadings
+  pc5 <- rank_PC [,9:10]
+  colnames(pc5) <- c("gene", "loading")
+  sd <- sd(pc5$loading)
+  pc5_pos <- pc5 %>% filter(loading >= (max(pc5$loading)-1.5*sd))
+  pc5_neg <- pc5 %>% filter(loading <= (min(pc5$loading)+1.5*sd))
+  pc5_gene <- c(pc5_pos$gene, pc5_neg$gene)
+  
+  # PC6 loadings
+  pc6 <- rank_PC [,11:12]
+  colnames(pc6) <- c("gene", "loading")
+  sd <- sd(pc6$loading)
+  pc6_pos <- pc6 %>% filter(loading >= (max(pc6$loading)-1.5*sd))
+  pc6_neg <- pc6 %>% filter(loading <= (min(pc6$loading)+1.5*sd))
+  pc6_gene <- c(pc6_pos$gene, pc6_neg$gene)
+  
+  # PC7 loadings
+  pc7 <- rank_PC [,13:14]
+  colnames(pc7) <- c("gene", "loading")
+  sd <- sd(pc7$loading)
+  pc7_pos <- pc7 %>% filter(loading >= (max(pc7$loading)-1.5*sd))
+  pc7_neg <- pc7 %>% filter(loading <= (min(pc7$loading)+1.5*sd))
+  pc7_gene <- c(pc7_pos$gene, pc7_neg$gene)
+ 
+  # PC8 loadings
+  pc8 <- rank_PC [,15:16]
+  colnames(pc8) <- c("gene", "loading")
+  sd <- sd(pc8$loading)
+  pc8_pos <- pc8 %>% filter(loading >= (max(pc8$loading)-1.5*sd))
+  pc8_neg <- pc8 %>% filter(loading <= (min(pc8$loading)+1.5*sd))
+  pc8_gene <- c(pc8_pos$gene, pc8_neg$gene)
+ 
+  # PC9 loadings
+  pc9 <- rank_PC [,17:18]
+  colnames(pc9) <- c("gene", "loading")
+  sd <- sd(pc9$loading)
+  pc9_pos <- pc9 %>% filter(loading >= (max(pc9$loading)-1.5*sd))
+  pc9_neg <- pc9 %>% filter(loading <= (min(pc9$loading)+1.5*sd))
+  pc9_gene <- c(pc9_pos$gene, pc9_neg$gene)
+
+  # PC10 loadings
+  pc10 <- rank_PC [,19:20]
+  colnames(pc10) <- c("gene", "loading")
+  sd <- sd(pc10$loading)
+  pc10_pos <- pc10 %>% filter(loading >= (max(pc10$loading)-1.5*sd))
+  pc10_neg <- pc10 %>% filter(loading <= (min(pc10$loading)+1.5*sd))
+  pc10_gene <- c(pc10_pos$gene, pc10_neg$gene)
+
+### Create loading plots including only the most influential genes for each PC
+  
+  # PC1 and PC2
+  pc12_gene <- unique(c(pc1_gene, pc2_gene))
+  plot_pc12 <- fviz_pca_var(pca, axes = c(1, 2),
+               col.var = "contrib", #change to functional role
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               labelsize=1,
+               label="none",
+               select.var=list(name=pc12_gene)) +
+               theme(legend.position="none")
+  
+  # PC3 and PC4
+  pc34_gene <- unique(c(pc3_gene, pc4_gene))
+  plot_pc34 <- fviz_pca_var(pca, axes = c(3, 4),
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               labelsize=1,
+               label="none",
+               select.var=list(name=pc34_gene)) +
+               theme(legend.position="none") 
+ 
+  # PC5 and PC6
+  pc56_gene <- unique(c(pc5_gene, pc6_gene))
+  plot_pc56 <- fviz_pca_var(pca, axes = c(5, 6),
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               labelsize=1,
+               label="none",
+               select.var=list(name=pc56_gene)) +
+               theme(legend.position="none")
+  
+  # PC7 and PC8
+  pc78_gene <- unique(c(pc7_gene, pc8_gene))
+  plot_pc78 <- fviz_pca_var(pca, axes = c(7, 8),
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               labelsize=1,
+               label="none",
+               select.var=list(name=pc78_gene)) +
+               theme(legend.position="none")
+  
+  # PC9 and PC10
+  pc910_gene <- unique(c(pc9_gene, pc10_gene))
+  plot_pc910 <- fviz_pca_var(pca, axes = c(9, 10),
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               labelsize=1,
+               label="none",
+               select.var=list(name=pc910_gene)) +
+               theme(legend.position="none")
+  
+  ## Get legend only
+  legend <- cowplot::get_legend(fviz_pca_var(pca, axes = c(9, 10),
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               labelsize=1,
+               select.var=list(name=pc910_gene)))
+               
+  ## Combine biplots and save
+  library(cowplot)
+  pdf("Output/plot_pca_loadings_nolabels.pdf", width=8,height=8)
+  plot_grid(plot_pc12, plot_pc34, plot_pc56, plot_pc78, plot_pc910, legend, ncol=3, nrow=2, scale=c(0.8), labels = c('A','B','C','D','E',''))  
+  dev.off()
+
+### Create biplots including only the most influential genes for each PC
+
+    ## Color-blind friendly palette:
+  library(viridis)
+  cbPalette <- viridis(12, alpha = 1, begin = 0, end = 1, direction = 1, option = "H")
+
+  # PC1 and PC2
+  pc12_gene <- unique(c(pc1_gene, pc2_gene))
+  biplot_pc12 <- fviz_pca_biplot(pca, axes=c(1,2), geom.ind="point", 
+                                 pointshape=21, pointsize=1, 
+                  fill.ind=genes$VirusSpecies, col.ind="black", addEllipses=TRUE, 
+                  palette=cbPalette, alpha.ind=0.5, 
+                  col.var = "contrib", 
+                  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                  label="none",
+                  select.var=list(name=pc12_gene)) +
+                  theme(legend.position="none")
+  
+  # PC3 and PC4
+  pc34_gene <- unique(c(pc3_gene, pc4_gene))
+  biplot_pc34 <- fviz_pca_biplot(pca, axes=c(3,4), geom.ind="point", 
+                                 pointshape=21, pointsize=1, 
+                  fill.ind=genes$VirusSpecies, col.ind="black", addEllipses=TRUE, 
+                  palette=cbPalette, alpha.ind=0.5, 
+                  col.var = "contrib", 
+                  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                  label="none",
+                  select.var=list(name=pc34_gene)) +
+                  theme(legend.position="none")
+  
+  # PC5 and PC6
+  pc56_gene <- unique(c(pc5_gene, pc6_gene))
+  biplot_pc56 <- fviz_pca_biplot(pca, axes=c(5,6), geom.ind="point", 
+                                 pointshape=21, pointsize=1, 
+                  fill.ind=genes$VirusSpecies, col.ind="black", addEllipses=TRUE, 
+                  palette=cbPalette, alpha.ind=0.5, 
+                  col.var = "contrib", 
+                  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                  label="none",
+                  select.var=list(name=pc56_gene)) +
+                  theme(legend.position="none")
+  
+  # PC7 and PC8
+  pc78_gene <- unique(c(pc7_gene, pc8_gene))
+  biplot_pc78 <- fviz_pca_biplot(pca, axes=c(7,8), geom.ind="point", 
+                                 pointshape=21, pointsize=1, 
+                  fill.ind=genes$VirusSpecies, col.ind="black", addEllipses=TRUE, 
+                  palette=cbPalette, alpha.ind=0.5, 
+                  col.var = "contrib", 
+                  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                  label="none",
+                  select.var=list(name=pc78_gene)) +
+                  theme(legend.position="none")
+  
+  # PC9 and PC10
+  pc910_gene <- unique(c(pc9_gene, pc10_gene))
+  biplot_pc910 <- fviz_pca_biplot(pca, axes=c(9,10), geom.ind="point", 
+                                 pointshape=21, pointsize=1, 
+                  fill.ind=genes$VirusSpecies, col.ind="black", addEllipses=TRUE, 
+                  palette=cbPalette, alpha.ind=0.5, 
+                  col.var = "contrib", 
+                  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                  label="none",
+                  select.var=list(name=pc910_gene)) +
+                  theme(legend.position="none")
+
+  ## Get legend only
+  legend <- cowplot::get_legend(fviz_pca_biplot(pca, axes=c(9,10), geom.ind="point", 
+                                 pointshape=21, pointsize=1, 
+                  fill.ind=genes$VirusSpecies, col.ind="black", addEllipses=TRUE, 
+                  palette=cbPalette, alpha.ind=0.5, 
+                  col.var = "contrib", 
+                  gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                  label="none",
+                  select.var=list(name=pc910_gene))
+                  )
+                  
+  ## Combine biplots and save
+  library(cowplot)
+  pdf("Output/biplot_pca_nature.pdf", width=8,height=8)
+  plot_grid(biplot_pc12, biplot_pc34, biplot_pc56, biplot_pc78, biplot_pc910, legend, ncol=3, nrow=2, scale=c(0.8), labels = c('A','B','C','D','E',''))  
+  dev.off()
+  
+### For each PC, extract the genes that are greater than 1.5*sd and less than -1.5*sd
+
+  # PC1 loadings
+  pc1 <- rank_PC[,1:2]
+  colnames(pc1) <- c("gene", "loading")
+  sd <- sd(pc1$loading)
+  pc1_pos <- pc1 %>% filter(loading > (mean(pc1$loading)+1.5*sd))
+  pc1_neg <- pc1 %>% filter(loading < (mean(pc1$loading)-1.5*sd))
+  pc1_gene <- c(pc1_pos$gene, pc1_neg$gene)
+
+  # PC2 loadings
+  pc2 <- rank_PC[,3:4]
+  colnames(pc2) <- c("gene", "loading")
+  sd <- sd(pc2$loading)
+  pc2_pos <- pc2 %>% filter(loading > (mean(pc2$loading)+1.5*sd))
+  pc2_neg <- pc2 %>% filter(loading < (mean(pc2$loading)-1.5*sd))
+  pc2_gene <- c(pc2_pos$gene, pc2_neg$gene)
+
+  # PC3 loadings
+  pc3 <- rank_PC [,5:6]
+  colnames(pc3) <- c("gene", "loading")
+  sd <- sd(pc3$loading)
+  pc3_pos <- pc3 %>% filter(loading > (mean(pc3$loading)+1.5*sd))
+  pc3_neg <- pc3 %>% filter(loading < (mean(pc3$loading)-1.5*sd))
+  pc3_gene <- c(pc3_pos$gene, pc3_neg$gene)
+  
+  # PC4 loadings
+  pc4 <- rank_PC [,7:8]
+  colnames(pc4) <- c("gene", "loading")
+  sd <- sd(pc4$loading)
+  pc4_pos <- pc4 %>% filter(loading > (mean(pc4$loading)+1.5*sd))
+  pc4_neg <- pc4 %>% filter(loading < (mean(pc4$loading)-1.5*sd))
+  pc4_gene <- c(pc4_pos$gene, pc4_neg$gene)
+
+  # PC5 loadings
+  pc5 <- rank_PC [,9:10]
+  colnames(pc5) <- c("gene", "loading")
+  sd <- sd(pc5$loading)
+  pc5_pos <- pc5 %>% filter(loading > (mean(pc5$loading)+1.5*sd))
+  pc5_neg <- pc5 %>% filter(loading < (mean(pc5$loading)-1.5*sd))
+  pc5_gene <- c(pc5_pos$gene, pc5_neg$gene)
+  
+  # PC6 loadings
+  pc6 <- rank_PC [,11:12]
+  colnames(pc6) <- c("gene", "loading")
+  sd <- sd(pc6$loading)
+  pc6_pos <- pc6 %>% filter(loading > (mean(pc6$loading)+1.5*sd))
+  pc6_neg <- pc6 %>% filter(loading < (mean(pc6$loading)-1.5*sd))
+  pc6_gene <- c(pc6_pos$gene, pc6_neg$gene)
+  
+  # PC7 loadings
+  pc7 <- rank_PC [,13:14]
+  colnames(pc7) <- c("gene", "loading")
+  sd <- sd(pc7$loading)
+  pc7_pos <- pc7 %>% filter(loading > (mean(pc7$loading)+1.5*sd))
+  pc7_neg <- pc7 %>% filter(loading < (mean(pc7$loading)-1.5*sd))
+  pc7_gene <- c(pc7_pos$gene, pc7_neg$gene)
+ 
+  # PC8 loadings
+  pc8 <- rank_PC [,15:16]
+  colnames(pc8) <- c("gene", "loading")
+  sd <- sd(pc8$loading)
+  pc8_pos <- pc8 %>% filter(loading > (mean(pc8$loading)+1.5*sd))
+  pc8_neg <- pc8 %>% filter(loading < (mean(pc8$loading)-1.5*sd))
+  pc8_gene <- c(pc8_pos$gene, pc8_neg$gene)
+ 
+  # PC9 loadings
+  pc9 <- rank_PC [,17:18]
+  colnames(pc9) <- c("gene", "loading")
+  sd <- sd(pc9$loading)
+  pc9_pos <- pc9 %>% filter(loading > (mean(pc9$loading)+1.5*sd))
+  pc9_neg <- pc9 %>% filter(loading < (mean(pc9$loading)-1.5*sd))
+  pc9_gene <- c(pc9_pos$gene, pc9_neg$gene)
+
+  # PC10 loadings
+  pc10 <- rank_PC [,19:20]
+  colnames(pc10) <- c("gene", "loading")
+  sd <- sd(pc10$loading)
+  pc10_pos <- pc10 %>% filter(loading > (mean(pc10$loading)+1.5*sd))
+  pc10_neg <- pc10 %>% filter(loading < (mean(pc10$loading)-1.5*sd))
+  pc10_gene <- c(pc10_pos$gene, pc10_neg$gene)
+
+  
+#   # Combine loadings of top contributing genes
+#   list_df <- ls()[grepl("_sd", ls())]
+#   top_pcgenes <- rbind(pc1_pos_sd,pc1_neg_sd,pc3_pos_sd,pc3_neg_sd,pc4_pos_sd,pc4_neg_sd,pc9_pos_sd,pc9_neg_sd)
+# 
+#   # Clean environment
+#   rm(list = ls()[grepl("pc1|pc3|pc4|pc9", ls())])
+
+### END INTERMISSION ###
+  
+  
 # Clean environment
 rm(list=setdiff(ls(), c("genes","pca")))
 
@@ -515,33 +1037,6 @@ fviz_pca_ind(pca_bycluster, geom.ind = "point", pointshape = 21,
              alpha.ind = 0.5)
 dev.off()
   # + ggtitle("PCA Plot of Sequences by Cluster")
-
-### BEGIN INTERMISSION ###
-
-# Run PCA as before, but now grouping by species
-pca_byspecies <- prcomp(genes[,5:985])   
-
-# color-blind friendly palette:
-library(viridis)
-cbPalette1 <- c("#009292","#ff6db6","#ffb6db","#490092","#6db6ff","#db6d00")
-cbPalette <- viridis(12, alpha = 1, begin = 0, end = 1, direction = 1, option = "H")
-
-# Plot of sequences by cluster
-png("Output/plot_scores_pca_byspecies.png", width=8,height=5,units="in",res=600)
-fviz_pca_ind(pca_byspecies, axes=c(1,4), geom.ind = "point", pointshape = 21, 
-             pointsize = 2, 
-             fill.ind = genes1$VirusSpecies, 
-             col.ind = "black", 
-             addEllipses = TRUE,
-             label = "var",
-             col.var = "black",
-             repel = TRUE,
-             legend.title = "Cluster",
-             palette = cbPalette,
-             alpha.ind = 0.5)
-dev.off()
-
-### END INTERMISSION ###
 
 # Create a table of sequences by cluster
 db_cluster <- dplyr::select(genes1, Genome, VirusSpecies, HostGenus,clusterCut)
@@ -3907,7 +4402,7 @@ dev.off()
 
 ```
 
-### *Generate maps of host distribution for manuscript*
+### *Generate maps of host distribution for manuscript and supplementary info*
 Figures: 
 
 ```{r map_manuscript}
@@ -3917,7 +4412,9 @@ library(PresenceAbsence)
 
 set.seed(12345)
 
-#### Host only model ####
+#################################################################
+#### Supplementary Info: Map of host trait model predictions ####
+#################################################################
 
 # Load file
 pred <- read.csv("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Trait Model/Output/table_HostTraitModel_predictions.csv")
@@ -3956,7 +4453,61 @@ pred %>% filter(competence==1|PCR==1) %>% dplyr::pull(treename) %>% gsub("_"," "
 pred %>% filter(bin_comp==1|bin_pcr==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred.pcrcomp #n=299
 sort(pred.pcrcomp[!(pred.pcrcomp %in% known)]) -> unknown #235
 
-#### Link prediction model ####
+#### Create Map ####
+
+# Load shape file of mammal geographic range
+iucn <- sf::st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/MAMMALS/MAMMALS.shp", layer='MAMMALS')
+
+# Make a blank raster (must be connected to wifi for the disaggregate function)
+r <- raster::disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
+
+# Create two layers
+iucn$treename=sapply(strsplit(iucn$binomial,' '),function(x) paste(x[1],sep=' '))
+
+iucn_known <- iucn[iucn$treename %in% known,]
+iucn_pred <- iucn[iucn$treename %in% pred.pcrcomp,]
+
+map_known <- (fasterize(iucn_known, r, fun="sum"))
+map_pred <- (fasterize(iucn_pred, r, fun="sum"))
+
+# Add zeros for the continental area 
+fix <- function(x) {sum(x,r,na.rm=TRUE)+r}
+
+map_known <- fix(map_known)
+map_pred <- fix(map_pred)
+
+raster::stack(map_known, map_pred) %>% raster::trim() -> maps_host #alternatively, can use tera package
+
+names(maps_host) <- c('Host trait model - known', 'Host trait model - pred0.9')
+
+# Generate the actual visualization
+library(rasterVis)
+library(RColorBrewer)
+
+mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
+mycolors[1] <- "#C0C0C0"
+
+map_host_rs0.9_supplementary <- rasterVis::levelplot(maps_hostlink,  
+                     col.regions = mycolors,
+                     alpha = 0.5, 
+                     scales=list(alternating=FALSE),
+                     par.strip.text=list(cex=0),
+                     xlab = NULL, ylab = NULL,
+                     labels = labels,
+                     maxpixels = 5e6)
+
+png("Output/Nature/map_host_rs0.9_supplementary.png",width=6,height=8,units="in",res=600)
+map_host_rs0.9_supplementary
+dev.off()
+
+pdf("Output/Nature/map_host_rs0.9_supplementary.pdf",width=6,height=8)
+map_host_rs0.9_supplementary
+dev.off()
+
+
+#############################################################
+#### Main Text: Map of link prediction model predictions ####
+#############################################################
 
 #load link prediction file
 pred1 <- read.csv("Output/table_LinkPredictionModel1_predictions.csv")
@@ -3985,7 +4536,7 @@ pred1 %>% filter(bin_rs0.9==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> 
 #() Pull out the relevant lists of predicted unknown hosts for all OPVs
 pred.1_unk_rs0.9 <- pred.1_rs0.9[!(pred.1_rs0.9 %in% known.1)] #n=1844
 
-#### CREATE MAP ####
+#### Create Map ####
 
 # Load shape file of mammal geographic range
 iucn <- sf::st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/MAMMALS/MAMMALS.shp", layer='MAMMALS')
@@ -3993,27 +4544,24 @@ iucn <- sf::st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/M
 # Make a blank raster (must be connected to wifi for the disaggregate function)
 r <- raster::disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
 
-# Create four layers
+# Create two layers
 iucn$treename=sapply(strsplit(iucn$binomial,' '),function(x) paste(x[1],sep=' '))
 
-iucn_known <- iucn[iucn$treename %in% known,] #n=1676
-iucn_pcrcomp <- iucn[iucn$treename %in% pred.pcrcomp,] #n=1908
+iucn_known <- iucn[iucn$treename %in% known.1,] #n=1676
 iucn_link <- iucn[iucn$treename %in% pred.1_rs0.9,] #n=1699
 
 map_known <- (fasterize(iucn_known, r, fun="sum"))
-map_pcrcomp <- (fasterize(iucn_pcrcomp, r, fun="sum"))
 map_link <- (fasterize(iucn_link, r, fun="sum"))
 
 # Add zeros for the continental area 
 fix <- function(x) {sum(x,r,na.rm=TRUE)+r}
 
 map_known <- fix(map_known)
-map_pcrcomp <- fix(map_pcrcomp)
 map_link <- fix(map_link)
 
-raster::stack(map_known, map_pcrcomp, map_link) %>% raster::trim() -> maps_hostlink #alternatively, can use tera package
+raster::stack(map_known, map_link) %>% raster::trim() -> maps_link #alternatively, can use tera package
 
-names(maps_hostlink) <- c('Host traits model - known', 'Host traits model - pred', 'Link prediction model - pred')
+names(maps_link) <- c('Link prediction model - known', 'Link prediction model - pred0.9')
 
 # Generate the actual visualization
 library(rasterVis)
@@ -4022,17 +4570,146 @@ library(RColorBrewer)
 mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
 mycolors[1] <- "#C0C0C0"
 
-# png("Output/map_hostlink_rs0.9_manuscript.png",width=10,height=12,units="in",res=300)
-pdf("Output/map_hostlink_rs0.9_manuscript.pdf",width=10,height=12)
-rasterVis::levelplot(maps_hostlink,  
+map_link_rs0.9_manuscript <- rasterVis::levelplot(maps_link,  
                      col.regions = mycolors,
-                     #at = seq(0, 15, 1),
                      alpha = 0.5, 
                      scales=list(alternating=FALSE),
                      par.strip.text=list(cex=0),
                      xlab = NULL, ylab = NULL,
                      labels = labels,
                      maxpixels = 5e6)
+
+png("Output/map_link_rs0.9_manuscript.png",width=6,height=8,units="in",res=600)
+map_link_rs0.9_manuscript
+dev.off()
+
+pdf("Output/map_link_rs0.9_manuscript.pdf",width=6,height=8)
+map_link_rs0.9_manuscript
+dev.off()
+
+#############################################
+##### Main Text: OPV Susceptibility Map #####
+#############################################
+
+fig1sf <- readRDS("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/mpx_landscape/data/world-estimates-vaxxed-sf.RDS")
+
+fig1sf$perc_unvaxxed <- 100-fig1sf$perc_vaxxed
+
+r <- raster::disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
+map_vaccinated <- (fasterize(fig1sf, r, field = "perc_vaxxed", fun="max"))
+map_susceptible <- (fasterize(fig1sf, r, field = "perc_unvaxxed", fun="max"))
+ 
+# fig1sf_us <- subset(fig1sf, COUNTRYNM == "united states of america")
+# head(fig1sf_us)
+fig1sf_au <- subset(fig1sf, COUNTRYNM == "australia")
+
+# Add zeros for the continental area
+fix <- function(x) {sum(x,r,na.rm=TRUE)+r}
+
+# map_vaccinated <- fix(map_vaccinated)
+map_susceptible <- fix(map_susceptible)
+
+# Generate the actual visualization
+library(rasterVis)
+library(RColorBrewer)
+
+mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
+mycolors[1] <- "#C0C0C0"
+
+# #alternative palette
+# library(MetBrewer)
+# mycolors <- met.brewer("VanGogh3",50)
+
+map_susceptible_manuscript <- rasterVis::levelplot(map_susceptible,  
+                     col.regions = mycolors,
+                     margin=F, #no marginal graphs
+                     ylim = c(-60,90), #extend yaxis
+                     alpha = 0.5, 
+                     scales=list(alternating=FALSE), #prevents axis labels from alternating from one side of group of panels to the other
+                     par.strip.text=list(cex=0),
+                     xlab = NULL, ylab = NULL,
+                     maxpixels=5e6
+                     )
+
+png("Output/map_susceptible_manuscript.png",width=6,height=4,units="in",res=600)
+map_susceptible_manuscript
+dev.off()
+
+pdf("Output/map_susceptible_manuscript.pdf",width=6,height=4)
+map_susceptible_manuscript
+dev.off()
+
+#####################################################################################
+##### Main Text: Arranging link prediction and susceptiblity maps in one figure #####
+#####################################################################################
+
+##### Link Predictions #####
+
+# Load shape file of mammal geographic range
+iucn <- sf::st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/MAMMALS/MAMMALS.shp", layer='MAMMALS')
+
+# Make a blank raster (must be connected to wifi for the disaggregate function)
+r <- raster::disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
+
+# Create two layers
+iucn$treename=sapply(strsplit(iucn$binomial,' '),function(x) paste(x[1],sep=' '))
+
+iucn_known <- iucn[iucn$treename %in% known.1,] #n=1676
+iucn_link <- iucn[iucn$treename %in% pred.1_rs0.9,] #n=1699
+
+map_known <- (fasterize(iucn_known, r, fun="sum"))
+map_link <- (fasterize(iucn_link, r, fun="sum"))
+
+# Add zeros for the continental area 
+fix <- function(x) {sum(x,r,na.rm=TRUE)+r}
+
+map_known <- fix(map_known)
+map_link <- fix(map_link)
+
+##### Human Susceptibility: https://github.com/bansallab/mpx_landscape #####
+
+fig1sf <- readRDS("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/mpx_landscape/data/world-estimates-vaxxed-sf.RDS")
+
+# Generate variable of unvaxxed (susceptible) from perc_vaxxed
+fig1sf$perc_unvaxxed <- 100-fig1sf$perc_vaxxed
+
+# Create additional layer
+  #map_vaccinated <- (fasterize(fig1sf, r, field = "perc_vaxxed", fun="max"))
+map_susceptible <- (fasterize(fig1sf, r, field = "perc_unvaxxed", fun="max"))
+ 
+  # fig1sf_us <- subset(fig1sf, COUNTRYNM == "united states of america")
+  # head(fig1sf_us)
+
+# Add zeros for the continental area
+map_susceptible <- fix(map_susceptible)
+
+# Combine link prediction and susceptiblity maps
+raster::stack(map_known, map_link, map_susceptible) %>% raster::trim() -> maps #alternatively, can use tera package
+names(maps) <- c('Link prediction model - observed', 'Link prediction model - predicted0.9', 'Human susceptibility')
+
+# Create color palette for maps
+library(rasterVis)
+library(RColorBrewer)
+
+mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
+mycolors[1] <- "#C0C0C0"
+  
+# Alternative palette
+  # library(MetBrewer)
+  # mycolors <- met.brewer("VanGogh3",50)
+
+# Generate the actual visualizations
+maps_nature <- rasterVis::levelplot(maps,  
+                     col.regions = mycolors,
+                     alpha = 0.5, 
+                     scales=list(alternating=FALSE), #prevents axis labels from alternating from one side of group of panels to the other
+                     par.strip.text=list(cex=0),
+                     xlab = NULL, ylab = NULL,
+                     labels = labels,
+                     maxpixels = 5e6)
+
+png("Output/Nature/maps_nature.png",width=8,height=12,units="in",res=600)
+maps_nature
 dev.off()
 
 ```
@@ -4075,14 +4752,27 @@ Tables: *table_ranks_model1*, *table_ranks_model2*
 
 ```{r feat_rank}
 
-# Load Model 1 predictions
+# Get data from Model 1
 load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model1/Output/brts_Model1.RData")
 brts1=brts
 rm(brts)
 
+# Get data from Model 2
 load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model2/Output/brts_Model2.RData")
 brts2=brts
 rm(brts)
+
+# Index non-missing
+keep1=which(!is.na(sapply(brts1,function(x) x$testAUC)))
+keep2=which(!is.na(sapply(brts2,function(x) x$testAUC)))
+
+# Trim, keeping only those that are non-missing
+brts1=brts1[keep1]
+brts2=brts2[keep2]
+
+# Check number of iterations
+length(keep1)
+length(keep2)
 
 # What was the relative importance/influence of each feature in Model 1? Get values.
 vinf=lapply(brts1,function(x) x$rinf)
@@ -4532,4 +5222,1133 @@ rm(pdp_agg, pdp_plot, a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,
    b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,
    m1_pdp_plots, m2_pdp_plots)
 
+```
+
+
+8. Nature Micro: Model Performance Figures
+===========================
+
+### Load required packages and set system
+
+```{r perf_load, echo=FALSE}
+
+#(1) Libraries for BRT figures
+library(tidyr)
+library(ggplot2)
+library(sciplot)
+library(fastDummies)
+library(caper)
+library(ape)
+library(treeio)
+library(ggtree)
+library(plotrix)
+library(rstatix)
+library(ggrepel)
+library(ggpubr)
+library(plyr)
+library(pROC)
+
+#(2) Clean environment
+rm(list=ls()) 
+graphics.off()
+
+```
+
+### *Get performance measures for link prediction models*
+
+```{r perf_link}
+
+# Set working directory for reading in link prediction model results
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Link Prediction Model")
+
+# Get data from Link Prediction Model 1
+load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model1/Output/brts_Model1.RData")
+brts1=brts
+rm(brts)
+
+# Get data from Link Prediction Model 2
+load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model2/Output/brts_Model2.RData")
+brts2=brts
+rm(brts)
+
+# Index non-missing
+keep1=which(!is.na(sapply(brts1,function(x) x$testAUC)))
+keep2=which(!is.na(sapply(brts2,function(x) x$testAUC)))
+
+# Trim, keeping only those that are non-missing
+brts1=brts1[keep1]
+brts2=brts2[keep2]
+
+# Check number of iterations
+length(keep1)
+length(keep2)
+
+### MODEL 1 (INCL. VACCINIA LINKS): Get model performance measures assuming 0.5 threshold ###
+
+# Get predicted probabilities for each iteration
+m1_cpreds=lapply(brts1,function(x) x$predict)
+m1_cpreds=lapply(m1_cpreds,function(x) select(x,c("link","cpred")))
+
+# Get AUC, sens, and spec for each iteration and calculate mean AUC and standard error across iterations
+m1_auc = lapply(m1_cpreds, function(x) auc(x$link, x$cpred))
+m1_sens = lapply(m1_cpreds, function(x) InformationValue::sensitivity(x$link, x$cpred, threshold=0.5))
+m1_spec = lapply(m1_cpreds, function(x) InformationValue::specificity(x$link, x$cpred, threshold=0.5))
+
+### MODEL 2 (EXCL. VACCINIA LINKS): Get model performance measures assuming 0.5 threshold ###
+
+# Get predicted probabilities for each iteration
+m2_cpreds=lapply(brts2,function(x) x$predict)
+m2_cpreds=lapply(m2_cpreds,function(x) select(x,c("link","cpred")))
+
+# Get AUC, sens, and spec for each iteration and calculate mean AUC and standard error across iterations
+m2_auc = lapply(m2_cpreds, function(x) auc(x$link, x$cpred))
+m2_sens = lapply(m2_cpreds, function(x) InformationValue::sensitivity(x$link, x$cpred, threshold=0.5))
+m2_spec = lapply(m2_cpreds, function(x) InformationValue::specificity(x$link, x$cpred, threshold=0.5))
+
+# Get auc values for model 1
+adata_m1=data.frame(y=c(sapply(m1_auc, function(x) x)))
+adata_m1$seed = 1:nrow(adata_m1)
+adata_m1$response = "model1"
+
+# Get auc values for model 2
+adata_m2=data.frame(y=c(sapply(m2_auc, function(x) x)))
+adata_m2$seed = 1:nrow(adata_m2)
+adata_m2$response = "model2"
+adata_auc_link=rbind(adata_m1, adata_m2)
+
+# Transform 'response' to factor
+adata_auc_link$response=factor(adata_auc_link$response,levels=c('model1','model2'))
+ 
+# Get sensitivity values for model 1 
+adata_m1=data.frame(y=c(sapply(m1_sens, function(x) x)))
+adata_m1$seed = 1:nrow(adata_m1)
+adata_m1$response = "model1"
+
+# Get sensitivity values for model 2
+adata_m2=data.frame(y=c(sapply(m2_sens, function(x) x)))
+adata_m2$seed = 1:nrow(adata_m2)
+adata_m2$response = "model2"
+adata_sens_link=rbind(adata_m1, adata_m2)
+
+# Transform 'response' to factor
+adata_sens_link$response=factor(adata_sens_link$response,levels=c('model1','model2'))
+ 
+# Get sensitivity values for model 1 
+adata_m1=data.frame(y=c(sapply(m1_spec, function(x) x)))
+adata_m1$seed = 1:nrow(adata_m1)
+adata_m1$response = "model1"
+
+# Get sensitivity values for model 2
+adata_m2=data.frame(y=c(sapply(m2_spec, function(x) x)))
+adata_m2$seed = 1:nrow(adata_m2)
+adata_m2$response = "model2"
+adata_spec_link=rbind(adata_m1, adata_m2)
+
+# Transform 'response' to factor
+adata_spec_link$response=factor(adata_spec_link$response,levels=c('model1','model2'))
+ 
+# Clean environment
+rm(list=setdiff(ls(), c("brts1", "brts2", 
+                        "adata_auc_link", "adata_sens_link", "adata_spec_link")))
+
+```
+
+### *Get performance measures for host-trait models*
+
+```{r perf_host}
+
+# Set working directory for reading in host-trait model results
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Trait Model")
+
+# Load data
+pcr_brts <- readRDS("Output/pcr_brts.rds") #101 elements
+comp_brts <- readRDS("Output/comp_brts.rds") #101 elements
+
+# Index and save non-missing BRT iterations
+pcr_keep=which(!is.na(sapply(pcr_brts,function(x) x$testAUC)))
+comp_keep=which(!is.na(sapply(comp_brts,function(x) x$testAUC)))
+keep=intersect(pcr_keep,comp_keep)
+
+# Check number of iterations (only keep 100)
+length(keep)
+keep=keep[!keep==101]
+
+# Trim, keeping only 100 iterations that are non-missing 
+pcr_brts=pcr_brts[keep]
+comp_brts=comp_brts[keep]
+
+### INFECTION MODEL: Get model performance measures assuming 0.5 threshold ###
+
+# Get predicted probabilities from infection model for each iteration
+pcr_cpreds=lapply(pcr_brts,function(x) x$predict)
+pcr_cpreds=lapply(pcr_cpreds,function(x) select(x,c("pcr","cpred")))
+
+# Get AUC, sens, and spec for each iteration and calculate mean AUC and standard error across iterations
+pcr_auc = lapply(pcr_cpreds, function(x) auc(x$pcr, x$cpred))
+pcr_sens = lapply(pcr_cpreds, function(x) InformationValue::sensitivity(x$pcr, x$cpred, threshold=0.5))
+pcr_spec = lapply(pcr_cpreds, function(x) InformationValue::specificity(x$pcr, x$cpred, threshold=0.5))
+
+### COMPETENCE MODEL: Get model performance measures assuming 0.5 threshold ###
+
+# Get predicted probabilities from competence model for each iteration
+comp_cpreds=lapply(comp_brts,function(x) x$predict)
+comp_cpreds=lapply(comp_cpreds,function(x) select(x,c("competence","cpred")))
+
+# Get AUC, sens, and spec for each iteration
+comp_auc = lapply(comp_cpreds, function(x) auc(x$comp, x$cpred))
+comp_sens = lapply(comp_cpreds, function(x) InformationValue::sensitivity(x$comp, x$cpred, threshold=0.5))
+comp_spec = lapply(comp_cpreds, function(x) InformationValue::specificity(x$comp, x$cpred, threshold=0.5))
+
+# Get auc values for infection model
+adata_pcr=data.frame(y=c(sapply(pcr_auc, function(x) x)))
+adata_pcr$seed = 1:nrow(adata_pcr)
+adata_pcr$response = "infection"
+
+# Get auc values for competence model
+adata_comp=data.frame(y=c(sapply(comp_auc, function(x) x)))
+adata_comp$seed = 1:nrow(adata_comp)
+adata_comp$response = "competence"
+adata_auc_host=rbind(adata_pcr, adata_comp)
+
+# Transform 'response' to factor
+adata_auc_host$response=factor(adata_auc_host$response,levels=c('infection','competence'))
+ 
+# Get sensitivity values for infection model
+adata_pcr=data.frame(y=c(sapply(pcr_sens, function(x) x)))
+adata_pcr$seed = 1:nrow(adata_pcr)
+adata_pcr$response = "infection"
+
+# Get specificity values for competence model
+adata_comp=data.frame(y=c(sapply(comp_sens, function(x) x)))
+adata_comp$seed = 1:nrow(adata_comp)
+adata_comp$response = "competence"
+adata_sens_host=rbind(adata_pcr, adata_comp)
+
+# Transform 'response' to factor
+adata_sens_host$response=factor(adata_sens_host$response,levels=c('infection','competence'))
+ 
+# Get specificity values for infection model
+adata_pcr=data.frame(y=c(sapply(pcr_spec, function(x) x)))
+adata_pcr$seed = 1:nrow(adata_pcr)
+adata_pcr$response = "infection"
+
+# Get specificity values for competence model
+adata_comp=data.frame(y=c(sapply(comp_spec, function(x) x)))
+adata_comp$seed = 1:nrow(adata_comp)
+adata_comp$response = "competence"
+adata_spec_host=rbind(adata_pcr, adata_comp)
+
+# Transform 'response' to factor
+adata_spec_host$response=factor(adata_spec_host$response,levels=c('infection','competence'))
+
+# Clean
+rm(list=setdiff(ls(), c("brts1", "brts2", 
+                        "adata_auc_link", "adata_sens_link", "adata_spec_link",
+                        "pcr_brts", "comp_brts", 
+                        "adata_auc_host", "adata_sens_host", "adata_spec_host")))
+```
+
+### *Generate boxplot of model performance*
+Figures: *boxplot_model_senspec.png*, *boxplot_model_auc.png*
+
+```{r perf_boxplot}
+
+# Set working directory
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Link Prediction Model")
+
+# Combine link prediction with host trait model perfs
+adata_auc <- rbind(adata_auc_link, adata_auc_host)
+adata_sens <- rbind(adata_sens_link, adata_sens_host)
+adata_spec <- rbind(adata_spec_link, adata_spec_host)
+
+# Check factor levels of the response variable
+levels(adata_auc$response)
+levels(adata_sens$response)
+levels(adata_spec$response)
+
+# Clean environment
+rm(adata_auc_link, adata_auc_host, adata_sens_link, adata_sens_host, adata_spec_link, adata_spec_host)
+
+# Create list of dataframes
+list_dfs <- list(adata_auc, adata_sens, adata_spec)
+
+# Generate additional variables needed for plotting model performance
+for (i in 1:length(list_dfs)){
+  
+  ## make jitter position to spread out points along the x-coordinate
+  list_dfs[[i]]$x=as.numeric(factor(list_dfs[[i]]$response))
+  set.seed(1)
+  list_dfs[[i]]$xj=jitter(list_dfs[[i]]$x,0.5)
+  
+  # ## fix response
+  # list_dfs[[i]]$respond2=plyr::revalue(list_dfs[[i]]$response,c("model1"="Host-virus links","model2"="Host-virus links excludin VACV"))
+}
+
+# Unlist
+df_auc <- as.data.frame(list_dfs[[1]])
+df_sens <- as.data.frame(list_dfs[[2]])
+df_spec <- as.data.frame(list_dfs[[3]])
+
+# Add type variable
+df_auc$type="auc"
+df_sens$type="sensitivity"
+df_spec$type="specificity"
+
+# Aggregate sens and spec datasets
+sdata=rbind.data.frame(df_sens, df_spec)
+
+# Boxplot of AUC
+png("Output/boxplot_model_auc_nature.png",width=6,height=6,units="in",res=600)
+set.seed(1)
+ggplot(df_auc)+
+  geom_boxplot(aes(x=x,y=y,group=x),width=0.7,alpha=0.25,outlier.alpha=0)+
+  geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
+  scale_x_continuous(breaks=c(1,2,3,4),
+  labels=c("Host-virus links","Host-virus links \n excluding VACV", "RT-PCR \n positivity", "Virus isolation"),
+  limits=c(0.5,4.5))+
+  theme_bw()+
+  labs(x="Response variable",
+       y="Area under the curve (AUC)")+
+  theme(axis.text=element_text(size=10),
+        axis.text.x=element_text(size=4),
+        axis.title=element_text(size=12))+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  guides(colour="none")
+dev.off()
+
+# Boxplot of sensitivity and specificity
+png("Output/boxplot_model_senspec_nature.png",width=6,height=6,units="in",res=300)
+set.seed(1)
+ggplot(sdata) +
+  geom_boxplot(aes(x=x,y=y,group=x),width=0.7,alpha=0.25,outlier.alpha=0)+
+  geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
+  scale_x_continuous(breaks=c(1,2,3,4),
+                     labels=c("Host-virus links","Host-virus links \n excluding VACV", "RT-PCR \n positivity", "Virus isolation"),
+                     limits=c(0.5,4.5))+
+  theme_bw()+
+  facet_wrap(~type,scales="free_y",strip.position="left",ncol=1)+
+  theme(strip.placement="outside",
+        strip.background=element_blank())+
+  labs(x="Response variable",
+       y=NULL)+
+  theme(axis.text.y=element_text(size=10),
+        axis.text.x=element_text(size=4),
+        axis.title=element_text(size=12),
+        strip.text=element_text(size=12))+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  guides(colour="none")
+dev.off()
+
+```
+
+9. Nature Micro: PCA Figures
+============================================
+
+### *Load required packages and set system*
+
+```{r dim_load, message=FALSE, warning=FALSE}
+
+# Libraries for preparing data for analysis
+library(ape)
+library(dplyr)
+library(nlme)
+library(tidyverse)
+library(vroom) 
+library(readxl)
+library(ggplot2)
+
+# Libraries for PCA (principal components analysis)
+library(vegan)
+library(factoextra) #fviz_eig
+library(ggfortify)
+
+# Libraries for MCA
+library(FactoMineR)
+library(dplyr)
+library(factoextra) #fviz_eig
+
+# Library for exporting/saving data
+library(openxlsx)
+
+# Clean environment
+rm(list=ls()) 
+graphics.off()
+
+# Set working directory
+setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Link Prediction Model")
+
+```
+
+### *Prepare genomic data for PCA*
+
+```{r dim_genes}
+
+# Load genome annotations and trim
+genes <- read_xlsx("OPVnew_nowwithVirus.xlsx", sheet="PoxHost")
+
+# Rename variables and exclude unnecessary variables
+genes <- plyr::rename(genes, c("Virus"="VirusSpecies","Host Genus"="HostGenus","Host Species"="HostSpecies"))
+genes <- subset(genes, select=-c(HostSpecies))
+
+# Correct sequence MT903347_1 - 'HostGenus' var lists Family name instead of Genus
+genes$HostGenus <- ifelse(genes$HostGenus=="Gliridae","Graphiurus",genes$HostGenus)
+
+# Add unique identifier
+genes$rownames <- rownames(genes)
+genes$Sequence <- paste(genes$Genome,genes$VirusSpecies,genes$HostGenus,sep="_",genes$rownames)
+genes$rownames=NULL
+genes <- genes %>% dplyr::select(Sequence, everything())
+
+```
+
+### *PCA of viral accessory genes*
+
+```{r dim_pca}
+
+# Apply PCA using stats::prcomp 
+pca <- prcomp(genes[,5:985])      #scaling/centering not appropriate
+
+# Get table of loadings: rotation is the matrix of variable loadings where columns are eigenvectors
+loadings <- as.data.frame(pca$rotation)
+loadings <- loadings[,c(1:10)]
+
+### Create a df of ranked loadings and their gene names for each PC ###
+
+  # For each PC, create a df of gene loadings named after the PC
+  for(i in 1:ncol(loadings)){
+    assign(colnames(loadings)[i], data.frame(loadings[,i]))
+  }
+  
+  # Create a list of PC df names
+  list <- colnames(loadings)    
+  
+  # Combine the dfs into a single list; drop PC dfs
+  list_df = lapply(list, get)
+  rm(list = ls()[grepl("PC", ls())])
+
+  # To each list df, add corresponding gene name; sort in descending order
+  for (i in 1:length(list)) {
+    colnames(list_df[[i]]) <- "Loadings"
+    list_df[[i]]$Gene <- rownames(loadings)
+    list_df[[i]]=list_df[[i]][order(-list_df[[i]]$Loadings),]
+  }
+  
+  # Create df of just ranked genes by first dropping loadings from the list
+  genes_df <- list_df
+  for(i in 1:length(list)) {
+    genes_df[[i]]$Loadings=NULL
+  }
+  
+  # Create an empty matrix with PCs as column names
+  rank_genes <- data.frame(matrix(ncol=ncol(loadings), nrow=nrow(loadings)))
+  colnames(rank_genes) <- colnames(loadings)
+  
+  # To each matrix column, add the ranked genes for each PC
+  for(i in 1:length(list)) {
+    rank_genes[,i] = genes_df[[i]]
+  }
+  
+  # Set column names
+  rank_genes <- setNames(rank_genes, paste0(names(loadings), '_', 'Gene'))
+  
+  # Create df of just ranked loadings by first dropping gene names from the list
+  loadings_df <- list_df
+  for(i in 1:length(list)) {
+    loadings_df[[i]]$Gene=NULL
+  }
+  
+  # Create an empty matrix with PCs as column names
+  rank_loadings <- data.frame(matrix(ncol=ncol(loadings), nrow=nrow(loadings)))
+  colnames(rank_loadings) <- colnames(loadings)
+  
+  # To each column of the matrix, add the ranked loadings for each PC
+  for(i in 1:length(list)) {
+    rank_loadings[,i] = loadings_df[[i]]
+  }
+  
+  # Set column names
+  rank_loadings <- setNames(rank_loadings, paste0(names(loadings), '_', 'Loadings'))
+  
+  # Combine dfs of ranked genes and loadings
+  rank_PC <- cbind(rank_genes, rank_loadings)
+  rank_PC <- rank_PC[,order(colnames(rank_PC))] 
+  
+  # Reorder columns
+  rank_PC <- rank_PC %>% relocate(c("PC10_Gene","PC10_Loadings"), .after = last_col())
+  
+# Clean environment
+rm(list=setdiff(ls(), c("genes","pca","rank_PC")))
+
+```
+
+### *Figure of PCA sequences with three color schemes*
+Figures: */Nature/plot_pca_scoresbyspecies_v1.pdf*, */Nature/plot_pca_scoresbyspecies_v2.pdf*
+ 
+```{r dim_pca_viz}
+
+# Choose color palette
+
+  ## Load library
+  library(viridis) 
+
+  ## Color-blind friendly palette: viridis w/ gray (#D3D3D3) instead of lime green
+  demoplot(c("#30123BFF", "#4454C4FF", "#4490FEFF", "#1FC8DEFF", "#29EFA2FF", 
+             "#C1F334FF", "#D3D3D3", "#F1CA3AFF", "#FE922AFF","#EA4F0DFF", 
+             "#BE2102FF", "#7A0403FF"), type="bar")
+  cbPalette <- c("#30123BFF", "#4454C4FF", "#4490FEFF", "#1FC8DEFF", "#29EFA2FF", 
+             "#C1F334FF", "#D3D3D3", "#F1CA3AFF", "#FE922AFF","#EA4F0DFF", 
+             "#BE2102FF", "#7A0403FF")
+ 
+# Generate individual scatterplots 
+    
+  ## Dim 1 and 2
+  scores_dim12 <- fviz_pca_ind(pca, axes=c(1,2), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  mean.point=FALSE, #drop centroid
+                  label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette) +
+                  xlim(-9, 9) + ylim(-5,5) +
+                  theme(legend.position="none")
+  
+  ## Dim 3 and 4
+  scores_dim34 <- fviz_pca_ind(pca, axes=c(3,4), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  mean.point=FALSE, #drop centroid
+                  label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette) +
+                  xlim(-11, 11) + ylim(-4,4) +
+                  theme(legend.position="none")
+  
+  ## Dim 5 and 6
+  scores_dim56 <- fviz_pca_ind(pca, axes=c(5,6), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  mean.point=FALSE, #drop centroid
+                  label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette) +
+                  xlim(-6, 6) + ylim(-8,8) +
+                  theme(legend.position="none")
+  
+  ## Dim 7 and 8
+  scores_dim78 <- fviz_pca_ind(pca, axes=c(7,8), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  mean.point=FALSE, #drop centroid
+                  label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette) +
+                  xlim(-4, 4) + ylim(-4,4) +
+                  theme(legend.position="none")
+
+  ## Dim 9 and 10
+  scores_dim910 <- fviz_pca_ind(pca, axes=c(9,10), title = "",
+                   geom.ind = "point", pointshape = 21, pointsize = 2, 
+                   fill.ind = genes$VirusSpecies, col.ind = "black", 
+                   mean.point=FALSE, #drop centroid
+                   label = "var", col.var = "black",repel = TRUE,
+                   palette = cbPalette) +
+                   xlim(-4, 4) + ylim(-4,4) +
+                   theme(legend.position="none")
+
+  ## Get legend only
+  legend <- cowplot::get_legend(fviz_pca_ind(pca, axes=c(9,10),
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  legend.title = "OPV species",
+                  palette = cbPalette))
+  
+# Combine plots and save
+  library(cowplot)
+  pdf("Output/Nature/plot_pca_scoresbyspecies.pdf", width=8,height=8)
+  plot_grid(scores_dim12, scores_dim34, scores_dim56, scores_dim78, scores_dim910, legend, ncol=3, nrow=2, scale=c(0.9), labels = c('A','B','C','D','E',''))  
+  dev.off()
+
+```
+
+### *Combine genes and their loadings with their predicted functional roles*
+
+```{r dim_pca_viz}
+
+# Read in function data (compiled by H.)
+ 
+    # For PC1 positive and negative loadings: read in data, rename columns, and merge
+    pc1_fnx_pos <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC1")[,1:3]
+    pc1_fnx_neg <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC1")[,c(7,9,10)]
+  
+    # For PC3 positive and negative loadings: read in data, rename columns, and merge
+    pc3_fnx_pos <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC3")[,1:3]
+    pc3_fnx_neg <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC3")[,7:8]
+    pc3_fnx_neg$role <- NA
+  
+    # For PC4 positive and negative loadings: read in data, rename columns, and merge
+    pc4_fnx_pos <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC4")[,1:3]
+    pc4_fnx_neg <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC4")[,8:10]
+  
+    # For PC9 positive and negative loadings: read in data, rename columns, and merge
+    pc9_fnx_pos <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC9")[,1:3]
+    pc9_fnx_neg <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC9")[,7:9]
+
+# Correct names of gene functions
+  
+    # Create a list of the positive and negative loadings
+    list_df <- list(pc1_fnx_pos=data.frame(pc1_fnx_pos), pc1_fnx_neg=data.frame(pc1_fnx_neg),
+                    pc3_fnx_pos=data.frame(pc3_fnx_pos), pc3_fnx_neg=data.frame(pc3_fnx_neg),
+                    pc4_fnx_pos=data.frame(pc4_fnx_pos), pc4_fnx_neg=data.frame(pc4_fnx_neg),
+                    pc9_fnx_pos=data.frame(pc9_fnx_pos), pc9_fnx_neg=data.frame(pc9_fnx_neg))
+  
+    # For each object in the list, rename columns and remove NAs
+    for (i in seq_along(list_df)){
+        colnames(list_df[[i]]) <- c("gene","protein","role")
+        list_df[[i]] <- list_df[[i]] %>% filter(!is.na(list_df[[i]]$gene))
+    }    
+    
+    # For each object in the list, get the names of each unique function
+    list_names <- list()
+    for(i in seq_along(list_df)) {
+         list_names[[i]] <- unique(list_df[[i]]$role)
+    }
+    
+    # Unlist names and view to identify mistakes in spelling
+    list_names <- unlist(list_names)
+    unique(list_names)
+    
+    # Correct naming of functions
+    list_names <- list()
+    for(i in seq_along(list_df)) {
+        list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Viron/Membrane"|list_df[[i]]$role =="Virion/Membrane", 
+                                    "Virus structure", list_df[[i]]$role)
+        list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Cytokine/chemokine regulation"|list_df[[i]]$role =="Ckemokine/cytokine regulation", 
+                                    "Chemokine/cytokine regulation", list_df[[i]]$role)
+        list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Ckemokine/cytokine regulation", 
+                                    "Chemokine/cytokine regulation", list_df[[i]]$role)
+        list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Virus Entry", "Virus entry", list_df[[i]]$role)
+        list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Cell death/ cell cycle regulation", 
+                                    "Cell death/cell cycle regulation", list_df[[i]]$role)
+        list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Kelch-Like Protein"|list_df[[i]]$role =="Kelch-like Protein", 
+                                    "Kelch-like protein", list_df[[i]]$role)
+        list_df[[i]]$role <- ifelse(list_df[[i]]$role =="DNA Replication", 
+                                    "DNA replication", list_df[[i]]$role)
+        list_df[[i]]$role <- ifelse(list_df[[i]]$role =="RNA/Transcription/Translation", 
+                                    "RNA/transcription/translation", list_df[[i]]$role)
+        list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Addaptive immunity/Anitibody"|list_df[[i]]$role =="Addaptive Immunity"|list_df[[i]]$role =="Adaptive immunity/ Antibody"|list_df[[i]]$role =="Adaptive immunity/Anitibody"|list_df[[i]]$role =="Addaptive immunity/ Antibody", 
+                                    "Antagonizing host adaptive immunity", list_df[[i]]$role)
+        list_df[[i]]$role <- ifelse(list_df[[i]]$role =="Unknown", 
+                                    "Unknown function", list_df[[i]]$role)
+        list_names[[i]] <- unique(list_df[[i]]$role)
+    }
+  
+    # Check names of each function again
+    list_names <- unlist(list_names)
+    unique(list_names)
+
+# Remove identical rows of data
+    
+    # Combine list of dfs into a single df
+    gene_roles <- rbind(list_df[[1]], list_df[[2]], list_df[[3]], list_df[[4]], list_df[[5]], list_df[[6]], list_df[[7]], list_df[[8]])
+    
+    # Reorder rows by gene name
+    gene_roles <- gene_roles[order(gene_roles$gene),]
+    
+    # Remove identical rows
+    gene_roles <- gene_roles %>% distinct()
+
+# Identify and resolve genes with conflicting classified functions
+    
+    # Identify genes with conflicting roles
+    dup <- gene_roles$gene[duplicated(gene_roles$gene)]
+    gene_roles_dup <- gene_roles[dup,]
+    gene_roles_dup <- gene_roles[gene_roles$gene %in% dup,]
+    
+    # Save and send to H. Koehler for corrections
+    # write.csv(gene_roles_dup, "Output/gene_roles_dup.csv")  
+    
+    # Resolve conflicting functions for 18 genes
+    gene_roles$role = ifelse(gene_roles$gene=="ABH08089.1" & gene_roles$role=="Unknown function", 
+                             "Chemokine/cytokine regulation", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="ADZ29284.1" & gene_roles$role=="Chemokine/cytokine regulation", 
+                             "Pathogen recognition", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="ADZ29296.1" & gene_roles$role=="Pathogen recognition", 
+                             "Chemokine/cytokine regulation", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="ADZ29950.1" & gene_roles$role=="Kelch-like protein", 
+                             "Unknown function", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="AGF36812.1" & is.na(gene_roles$role), 
+                             "Unknown function", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="AGR34497.1" & gene_roles$role=="Unknown function", 
+                             "RNA/transcription/translation", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="AGY97404.1" & gene_roles$role=="Unknown function", 
+                             "Chemokine/cytokine regulation", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="AIF30225.1" & gene_roles$role=="Unknown function", 
+                             "Virus entry", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="ATB56114.1" & gene_roles$role=="Unknown function", 
+                             "Cell death/cell cycle regulation", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="AZY89837.1" & gene_roles$role=="Unknown function", 
+                             "Virus structure", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="QNP12344.1" & gene_roles$role=="Unknown function", 
+                             "Kelch-like protein", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="QQA05182.1" & is.na(gene_roles$role), 
+                             "Virus structure", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="QQA05677.1" & gene_roles$role=="Pathogen recognition", 
+                             "Chemokine/cytokine regulation", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="SNB48439.1" & gene_roles$role=="Unknown function", 
+                             "DNA replication", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="SNB50617.1" & gene_roles$role=="Virion (in an infectious virus particle)", 
+                             "Unknown function", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="SNB57100.1" & is.na(gene_roles$role), 
+                             "Unknown function", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="SNB63702.1" & gene_roles$role=="Chemokine/cytokine regulation", 
+                             "Antagonizing host adaptive immunity", gene_roles$role)
+    gene_roles$role = ifelse(gene_roles$gene=="SPN68081.1" & gene_roles$role=="RNA/transcription/translation", 
+                             "Unknown function", gene_roles$role)
+
+    # Drop duplicates (18 rows)
+    gene_roles <- gene_roles[!duplicated(gene_roles$gene),]
+
+# Merge df <gene_roles> with all genes
+    
+    # Create new df <genes_df> and get all gene names into a single column
+    genes_df <- as.data.frame(colnames(genes))
+    genes_df <- as.data.frame(genes_df[-(1:4),])
+    colnames(genes_df) <- c('gene')
+    
+    # Merge using 'join' function to keep the original order of the genes
+    genes_df <- plyr::join(genes_df, gene_roles)
+    
+    # Replace NA with 'Not classified'
+    genes_df$role <- ifelse(is.na(genes_df$role),"Not classified",genes_df$role)
+
+```
+
+### *Extract influential genes based on loading values*
+
+```{r}
+
+# For each PC, extract the genes that are greater than (mean+1.5*sd) and less than (mean-1.5*sd)
+
+# PC1 loadings
+pc1 <- rank_PC[,1:2]
+colnames(pc1) <- c("gene", "loading")
+sd <- sd(pc1$loading)
+pc1_pos <- pc1 %>% filter(loading > (mean(pc1$loading)+1.5*sd))
+pc1_neg <- pc1 %>% filter(loading < (mean(pc1$loading)-1.5*sd))
+pc1_gene <- c(pc1_pos$gene, pc1_neg$gene)
+
+# PC2 loadings
+pc2 <- rank_PC[,3:4]
+colnames(pc2) <- c("gene", "loading")
+sd <- sd(pc2$loading)
+pc2_pos <- pc2 %>% filter(loading > (mean(pc2$loading)+1.5*sd))
+pc2_neg <- pc2 %>% filter(loading < (mean(pc2$loading)-1.5*sd))
+pc2_gene <- c(pc2_pos$gene, pc2_neg$gene)
+
+# PC3 loadings
+pc3 <- rank_PC [,5:6]
+colnames(pc3) <- c("gene", "loading")
+sd <- sd(pc3$loading)
+pc3_pos <- pc3 %>% filter(loading > (mean(pc3$loading)+1.5*sd))
+pc3_neg <- pc3 %>% filter(loading < (mean(pc3$loading)-1.5*sd))
+pc3_gene <- c(pc3_pos$gene, pc3_neg$gene)
+
+# PC4 loadings
+pc4 <- rank_PC [,7:8]
+colnames(pc4) <- c("gene", "loading")
+sd <- sd(pc4$loading)
+pc4_pos <- pc4 %>% filter(loading > (mean(pc4$loading)+1.5*sd))
+pc4_neg <- pc4 %>% filter(loading < (mean(pc4$loading)-1.5*sd))
+pc4_gene <- c(pc4_pos$gene, pc4_neg$gene)
+
+# PC5 loadings
+pc5 <- rank_PC [,9:10]
+colnames(pc5) <- c("gene", "loading")
+sd <- sd(pc5$loading)
+pc5_pos <- pc5 %>% filter(loading > (mean(pc5$loading)+1.5*sd))
+pc5_neg <- pc5 %>% filter(loading < (mean(pc5$loading)-1.5*sd))
+pc5_gene <- c(pc5_pos$gene, pc5_neg$gene)
+
+# PC6 loadings
+pc6 <- rank_PC [,11:12]
+colnames(pc6) <- c("gene", "loading")
+sd <- sd(pc6$loading)
+pc6_pos <- pc6 %>% filter(loading > (mean(pc6$loading)+1.5*sd))
+pc6_neg <- pc6 %>% filter(loading < (mean(pc6$loading)-1.5*sd))
+pc6_gene <- c(pc6_pos$gene, pc6_neg$gene)
+
+# PC7 loadings
+pc7 <- rank_PC [,13:14]
+colnames(pc7) <- c("gene", "loading")
+sd <- sd(pc7$loading)
+pc7_pos <- pc7 %>% filter(loading > (mean(pc7$loading)+1.5*sd))
+pc7_neg <- pc7 %>% filter(loading < (mean(pc7$loading)-1.5*sd))
+pc7_gene <- c(pc7_pos$gene, pc7_neg$gene)
+
+# PC8 loadings
+pc8 <- rank_PC [,15:16]
+colnames(pc8) <- c("gene", "loading")
+sd <- sd(pc8$loading)
+pc8_pos <- pc8 %>% filter(loading > (mean(pc8$loading)+1.5*sd))
+pc8_neg <- pc8 %>% filter(loading < (mean(pc8$loading)-1.5*sd))
+pc8_gene <- c(pc8_pos$gene, pc8_neg$gene)
+
+# PC9 loadings
+pc9 <- rank_PC [,17:18]
+colnames(pc9) <- c("gene", "loading")
+sd <- sd(pc9$loading)
+pc9_pos <- pc9 %>% filter(loading > (mean(pc9$loading)+1.5*sd))
+pc9_neg <- pc9 %>% filter(loading < (mean(pc9$loading)-1.5*sd))
+pc9_gene <- c(pc9_pos$gene, pc9_neg$gene)
+
+# PC10 loadings
+pc10 <- rank_PC [,19:20]
+colnames(pc10) <- c("gene", "loading")
+sd <- sd(pc10$loading)
+pc10_pos <- pc10 %>% filter(loading > (mean(pc10$loading)+1.5*sd))
+pc10_neg <- pc10 %>% filter(loading < (mean(pc10$loading)-1.5*sd))
+pc10_gene <- c(pc10_pos$gene, pc10_neg$gene)
+
+## Reclassify gene functions to create fewer groups for plotting
+    
+# Get function names
+unique(genes_df$role)
+
+# Create new group 'Antagonizing host innate immunity'
+genes_df$role_simple <- genes_df$role
+genes_df$role_simple <- ifelse(genes_df$role_simple=="Cell death/cell cycle regulation"|
+                        genes_df$role_simple=="Chemokine/cytokine regulation"|
+                        genes_df$role_simple=="Pathogen recognition"|
+                        genes_df$role_simple=="Ankyrin"|
+                        genes_df$role_simple=="Kelch-like protein",
+                        "Antagonizing host innate immunity",genes_df$role_simple)
+
+# Create new group 'Replication/transcription'
+genes_df$role_simple <- ifelse(genes_df$role_simple=="DNA replication"|
+                        genes_df$role_simple=="RNA/transcription/translation",
+                        "Viral replication/transcription",genes_df$role_simple)
+
+# Check function names
+unique(genes_df$role_simple)
+   
+```
+
+### *Figure of PCA loadings*
+Figures: */Nature/plot_pca_scoresbyspecies_v1.pdf*, */Nature/plot_pca_scoresbyspecies_v2.pdf*
+ 
+```{r}
+ 
+# Create loading plots by gene function
+  
+  ## Create color-blind friendly palette based on number of roles excluding 'Not classified'
+      
+    # Get libraries
+    library(viridis)
+    library(rcartocolor)
+    library(colorspace) #demoplot
+    
+    # Create df of functional roles to which we will add a corresponding color/hex code
+    cbPalette <- as.data.frame(sort(unique(genes_df$role_simple)))
+    colnames(cbPalette) <- c("role")
+    
+    # Explore color palettes using <carto_pal>: add light-gray <#D3D3D3> for not classified and dark-gray <#6F7378> for unknown 
+    demoplot(carto_pal(6,"Bold"), type="bar")
+    print(carto_pal(6,"Bold"))
+    demoplot(c("#7F3C8D", "#11A579", "#D3D3D3", "#3969AC", "#6F7378", "#F2B701", "#E73F74"), type="bar")
+    
+    # Use Nature-ish color palette: https://nanx.me/ggsci/reference/pal_npg.html
+    demoplot(c("#E64B35FF", "#F2B701", "#D3D3D3", "#767676", "#00A087FF", "#87CFEE", "#F39B7FFF"), type="bar")
+    cbPalette$colors <- c("#E64B35FF", "#F2B701", "#D3D3D3", "#767676", "#00A087FF", "#87CFEE", "#F39B7FFF")
+
+  ## PC1 and PC2
+      
+    # get names of genes important to PC1 and PC2
+    pc12_gene <- unique(c(pc1_gene, pc2_gene))
+
+    # subset genes_df to include only those important to PC1 and PC2
+    genes_df_pc12 <- genes_df[genes_df$gene %in% pc12_gene,]
+
+    # are all 7 gene functions present for these dimensions? 
+    sort(unique(genes_df_pc12$role_simple))
+
+    # get hex codes from cbPalette specific to plotting PC1 and PC2
+    colors <- cbPalette[cbPalette$role!="Not classified",c("colors")]
+
+    # plot
+    plot_pc12 <- fviz_pca_var(pca, axes = c(1, 2),
+                 col.var = genes_df$role_simple,
+                 fill.var = genes_df$role_simple,
+                 palette = colors, title="",
+                 arrowsize = 0.3,
+                 repel = TRUE, labelsize=1,label="none",
+                 select.var=list(name=pc12_gene)) +
+                 xlim(-0.4, 0.4) + ylim(-0.45,0.45) +
+                 theme(legend.position="none")
+      
+  ## PC3 and PC4
+      
+    # get names of genes important to PC3 and PC4
+    pc34_gene <- unique(c(pc3_gene, pc4_gene))
+    
+    # subset genes_df to include only those important to PC3 and PC4
+    genes_df_pc34 <- genes_df[genes_df$gene %in% pc34_gene,]
+    
+    # are all 7 gene functios present for these dimensions? 
+    sort(unique(genes_df_pc34$role_simple))
+    
+    # get hex codes from cbPalette specific to plotting PC3 and PC4
+    colors <- cbPalette[,c("colors")]
+
+    # plot
+    plot_pc34 <- fviz_pca_var(pca, axes = c(3, 4),
+                 col.var = genes_df$role_simple,
+                 fill.var = genes_df$role_simple,
+                 palette = colors, title="",
+                 arrowsize = 0.3,
+                 repel = TRUE, labelsize=1, label="none",
+                 select.var=list(name=pc34_gene)) +
+                 xlim(-0.3, 0.3) + ylim(-0.4,0.4) +
+                 theme(legend.position="none")
+
+  ## PC5 and PC6
+      
+    # get names of genes important to PC5 and PC6
+    pc56_gene <- unique(c(pc5_gene, pc6_gene))
+    
+    # subset genes_df to include only those important to PC5 and PC6
+    genes_df_pc56 <- genes_df[genes_df$gene %in% pc56_gene,]
+    
+    # are all 7 gene functions present for these dimensions? 
+    sort(unique(genes_df_pc56$role_simple))
+    
+    # get hex codes from cbPalette specific to plotting PC5 and PC6
+    colors <- cbPalette[,c("colors")]
+
+    # plot
+    plot_pc56 <- fviz_pca_var(pca, axes = c(5, 6),
+                 col.var = genes_df$role_simple,
+                 fill.var = genes_df$role_simple,
+                 palette = colors, title="",
+                 arrowsize = 0.3,
+                 repel = TRUE, labelsize=1, label="none",
+                 select.var=list(name=pc56_gene)) +
+                 xlim(-0.25, 0.25) + ylim(-0.2,0.2) +
+                 theme(legend.position="none")
+    
+  ## PC7 and PC8
+      
+    # get names of genes important to PC7 and PC8
+    pc78_gene <- unique(c(pc7_gene, pc8_gene))
+    
+    # subset genes_df to include only those important to PC7 and PC8
+    genes_df_pc78 <- genes_df[genes_df$gene %in% pc78_gene,]
+    
+    # are all 7 gene functios present for these dimensions? 
+    sort(unique(genes_df_pc78$role_simple))
+    
+    # get hex codes from cbPalette specific to plotting PC7 and PC8
+    colors <- cbPalette[,c("colors")]
+
+    # plot
+    plot_pc78 <- fviz_pca_var(pca, axes = c(7, 8),
+                 col.var = genes_df$role_simple,
+                 fill.var = genes_df$role_simple,
+                 palette = colors, title="",
+                 arrowsize = 0.3,
+                 repel = TRUE, labelsize=1, label="none",
+                 select.var=list(name=pc78_gene)) +
+                 xlim(-0.3, 0.3) + ylim(-0.3,0.3) +
+                 theme(legend.position="none")
+
+  ## PC9 and PC10
+      
+    # get names of genes important to PC9 and PC10
+    pc910_gene <- unique(c(pc9_gene, pc10_gene))
+    
+    # subset genes_df to include only those important to PC9 and PC10
+    genes_df_pc910 <- genes_df[genes_df$gene %in% pc910_gene,]
+    
+    # are all 7 gene functios present for these dimensions? 
+    sort(unique(genes_df_pc910$role_simple))
+    
+    # get hex codes from cbPalette specific to plotting PC7 and PC8
+    colors <- cbPalette[,c("colors")]
+
+    # plot
+    plot_pc910 <- fviz_pca_var(pca, axes = c(9, 10),
+                  col.var = genes_df$role_simple,
+                  fill.var = genes_df$role_simple,
+                  palette = colors, title="",
+                  arrowsize = 0.3,
+                  repel = TRUE, labelsize=1, label="none",
+                  select.var=list(name=pc910_gene)) +
+                  xlim(-0.25, 0.25) + ylim(-0.2,0.2) +
+                  theme(legend.position="none")
+
+  ## Get legend only
+  legend <- cowplot::get_legend(fviz_pca_var(pca, axes = c(9, 10),
+               col.var = genes_df$role_simple,
+               arrowsize = 0.3,
+               repel = TRUE, labelsize=1, label="none",
+               select.var=list(name=pc910_gene)) +
+               scale_color_manual(name = "Gene predicted function", labels = c("Antagonizing host adaptive immunity", "Antagonizing host innate immunity", "Viral replication/transcription", "Virus entry", "Virus structure", "Unknown function", "Not classified"),
+                    values= c("#E64B35FF", "#F2B701", "#00A087FF", "#87CFEE", "#F39B7FFF", "#767676", "#D3D3D3")))
+             
+  ## Combine biplots and save
+  library(cowplot)
+  pdf("Output/Nature/plot_pca_loadingsbyrole.pdf", width=10,height=8)
+  plot_grid(plot_pc12, plot_pc34, plot_pc56, plot_pc78, plot_pc910, legend, 
+            ncol=3, nrow=2, 
+            scale=c(0.9), 
+            labels = c('A','B','C','D','E',''))  
+  dev.off()  
+
+### ALTERNATIVE PLOTS ###
+  
+  ## Create loading plots for the most influential genes for each PC
+  
+    # PC1 and PC2
+    pc12_gene <- unique(c(pc1_gene, pc2_gene))
+    plot_pc12 <- fviz_pca_var(pca, axes = c(1, 2),
+                 col.var = "contrib", #change to functional role
+                 gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                 repel = TRUE,
+                 labelsize=1,
+                 label="none",
+                 select.var=list(name=pc12_gene)) +
+                 theme(legend.position="none")
+    # etc. #
+
+  ## Create biplots including only the most influential genes for each PC
+
+    # Color-blind friendly palette:
+    library(viridis)
+    cbPalette <- viridis(12, alpha = 1, begin = 0, end = 1, direction = 1, option = "H")
+  
+    # PC1 and PC2
+    pc12_gene <- unique(c(pc1_gene, pc2_gene))
+    biplot_pc12 <- fviz_pca_biplot(pca, axes=c(1,2), geom.ind="point", 
+                                   pointshape=21, pointsize=1, 
+                    fill.ind=genes$VirusSpecies, col.ind="black", addEllipses=TRUE, 
+                    palette=cbPalette, alpha.ind=0.5, 
+                    col.var = "contrib", 
+                    gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                    label="none",
+                    select.var=list(name=pc12_gene)) +
+                    theme(legend.position="none")
+    
+      # etc. #
+
+# Clean environment
+rm(list=setdiff(ls(), c("genes","pca", "genes_df",
+                        "pc1_pos", "pc1_neg",
+                        "pc3_pos", "pc3_neg",
+                        "pc4_pos", "pc4_neg",
+                        "pc9_pos", "pc9_neg")))
+
+```
+
+9. Nature Micro: Proportions plots
+============================================
+
+```{r}
+
+# Save dataset of the most influential genes, their loadings, and their functional roles
+
+  ## Create list of lists of positive and negative loadings for most influential genes
+  list_df <- list(pc1_pos=data.frame(pc1_pos), pc1_neg=data.frame(pc1_neg),
+                  pc3_pos=data.frame(pc3_pos), pc3_neg=data.frame(pc3_neg),
+                  pc4_pos=data.frame(pc4_pos), pc4_neg=data.frame(pc4_neg),
+                  pc9_pos=data.frame(pc9_pos), pc9_neg=data.frame(pc9_neg))
+  
+  ## Join function data with loading data
+  for (i in seq_along(list_df)) {
+    list_df[[i]] <- left_join(list_df[[i]], genes_df, by = join_by(gene))
+    list_df[[i]]$rank = 1:nrow(list_df[[i]])
+    list_df[[i]] <- list_df[[i]][, c("rank", "gene", "loading", "protein", "role", "role_simple")]
+  }
+
+  ## Export
+  library(openxlsx)
+  write.xlsx(list_df, file='Output/Nature/table_rankedgenes.xlsx')
+
+# Create proportions/dot plots for gene functional roles
+
+  ## To each df in list_df, add column containing df's name
+  list_df <- Map(cbind, list_df, dimension = names(list_df))
+ 
+  ## Unlist and merge all rows of data
+  gene_roles <- rbind(list_df[[1]], list_df[[2]], list_df[[3]], list_df[[4]], list_df[[5]], list_df[[6]], list_df[[7]], list_df[[8]])
+
+    # Rename dimensions to combine positive and negative loadings
+    gene_roles$dimension <- ifelse(gene_roles$dimension=="pc1_pos"|gene_roles$dimension=="pc1_neg", "PC1",gene_roles$dimension)
+    gene_roles$dimension <- ifelse(gene_roles$dimension=="pc3_pos"|gene_roles$dimension=="pc3_neg", "PC3",gene_roles$dimension)
+    gene_roles$dimension <- ifelse(gene_roles$dimension=="pc4_pos"|gene_roles$dimension=="pc4_neg", "PC4",gene_roles$dimension)
+    gene_roles$dimension <- ifelse(gene_roles$dimension=="pc9_pos"|gene_roles$dimension=="pc9_neg", "PC9",gene_roles$dimension)
+
+# Create color palette
+    
+    # Create empty df 
+    # cbPalette <- sort(unique(gene_roles$role_simple))
+    # cbPalette <- as.data.frame(cbPalette[! cbPalette %in% c('Not classified')])
+    cbPalette <- as.data.frame(sort(unique(gene_roles$role_simple)))
+    colnames(cbPalette) <- c("role_simple")
+
+    # Color palette V2 for 6 functional groups: Nature-ish (https://nanx.me/ggsci/reference/pal_npg.html)
+    library(colorspace)
+    demoplot(c("#E64B35FF", "#F2B701", "#767676", "#00A087FF", "#87CFEE", "#F39B7FFF"), type="bar")
+    # cbPalette$colors <- c("#E64B35FF", "#F2B701", "#767676", "#00A087FF", "#87CFEE", "#F39B7FFF")
+    cbPalette$colors <- c("#E64B35FF", "#F2B701", "#5A5A5A", "#767676", "#00A087FF", "#87CFEE", "#F39B7FFF")
+
+# For reference, determine number of influential genes per PC and get proportions (and counts) by function
+length(which(gene_roles$dimension=="PC1"))
+length(which(gene_roles$dimension=="PC3"))
+length(which(gene_roles$dimension=="PC4"))
+length(which(gene_roles$dimension=="PC9"))
+props <- gene_roles %>% dplyr::group_by(dimension, role_simple) %>% summarise(n = n()) %>% mutate(freq = n/sum(n))
+
+# Plot proportions: size and group by x/y variables to have rows sum to 1
+p <- ggplot(gene_roles, aes(x = role_simple, y = dimension))
+prop_plot <- p + geom_count(aes(size = after_stat(prop), group = dimension, colour = role_simple)) +
+    scale_size_area(max_size = 20) +
+    scale_colour_manual(values = cbPalette$colors) +
+    scale_x_discrete(position = "top") +
+    theme(panel.background = element_blank(),
+          panel.grid.major.x = element_blank(), 
+          panel.grid.major.y = element_line(size=.5, color="gray" ),
+          axis.text.x=element_text(angle = 45, hjust = 0, vjust=0.5),
+          axis.ticks.x = element_blank(),
+          axis.title = element_blank()) +
+          guides(color = FALSE) 
+  
+## Save plot
+pdf("Output/Nature/plot_pca_proportionsbyrole.pdf", width=8,height=5)
+prop_plot 
+dev.off()  
+
+#### Plot a version dropping out "Not classified" genes ####
+
+# Plot proportions: size and group by x/y variables to have rows sum to 1
+which(gene_roles$role_simple=="Not classified")
+gene_roles_noNA <- gene_roles[gene_roles$role_simple != "Not classified",]
+cbPalette_noNA <- cbPalette[cbPalette$role_simple != "Not classified",]
+
+p <- ggplot(gene_roles_noNA, aes(x = role_simple, y = dimension))
+prop_plot <- p + geom_count(aes(size = after_stat(prop), group = dimension, colour = role_simple)) +
+    scale_size_area(max_size = 20) +
+    scale_colour_manual(values = cbPalette_noNA$colors) +
+    scale_x_discrete(position = "top") +
+    theme(panel.background = element_blank(),
+          panel.grid.major.x = element_blank(), 
+          panel.grid.major.y = element_line(size=.5, color="gray" ),
+          axis.text.x=element_text(angle = 45, hjust = 0, vjust=0.5),
+          axis.ticks.x = element_blank(),
+          axis.title = element_blank()) +
+          guides(color = FALSE) 
+  
+## Save plot
+pdf("Output/Nature/plot_pca_proportionsbyrole_noNA.pdf", width=8,height=5)
+prop_plot 
+dev.off()  
 ```
