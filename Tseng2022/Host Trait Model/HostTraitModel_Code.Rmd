@@ -17,7 +17,7 @@ editor_options:
 Introduction
 ============  
 
-The following code reproduces the analyses from <...>, pertaining to the host-trait model - the model trained on host traits alone. The code is subdivided into seven parts (see Table of Contents below). To reproduce the analyses pertaining to the link prediction model, please see the markdown file *LinkPrediction_Code.Rmd* located in the [PoxHost repository][1].
+The following code reproduces the analyses from <...>, pertaining to the host-trait model - the model trained on host traits alone based on two evidence types: PCR positivity vs. virus isolation. Please note that these models in the code are referred to as the infection vs. competence models, but in the manuscript, are referred to as the exposure vs. susceptible model, respectively.  The code is subdivided into seven parts (see Table of Contents below). To reproduce the analyses pertaining to the link prediction model, please see the markdown file *LinkPrediction_Code.Rmd* located in the [PoxHost repository][1].
 
 To run the following script, three files are required in your working directory:
 
@@ -731,6 +731,7 @@ hc_pf_results=pfsum(hc_pf)$results
 ```
 
 ### *Plot results of phylofactorization*
+Figure: *tree_phylofactor_raw.png*
 
 ```{r phylo_results}
 
@@ -1300,7 +1301,7 @@ search_nt15000 <- search[search$n.trees==15000,]
 search_nt5000_sh0.01 <- search_nt5000[search_nt5000$shrinkage==0.010,]  #subset models with shrinkage==0.010
 search_nt5000_sh0.001 <- search_nt5000[search_nt5000$shrinkage==0.001,]  #subset models with shrinkage==0.010
 
-# Plot best.iter by evidence type (pcr vs. competence) to see max number of trees to include
+# Plot best.iter by evidence type (pcr vs. virus isolation) to see max number of trees to include
 search_nt5000 %>%
   ggplot( aes(x=best, fill=type)) +
   geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
@@ -1544,6 +1545,10 @@ pcr_brts <- readRDS("Output/pcr_brts.rds") #101 elements
 comp_brts <- readRDS("Output/comp_brts.rds") #101 elements
 pm_brts <- readRDS("Output/pm_brts.rds") #100 elements
 
+# Did traits predict citation counts? 
+mean(sapply(pm_brts,function(x) x$testAUC))
+std.error(sapply(pm_brts,function(x) x$testAUC))
+
 # Index and save non-missing BRT iterations
 pcr_keep=which(!is.na(sapply(pcr_brts,function(x) x$testAUC)))
 comp_keep=which(!is.na(sapply(comp_brts,function(x) x$testAUC)))
@@ -1564,7 +1569,7 @@ pcr_cpreds=lapply(pcr_brts,function(x) x$predict)
 pcr_cpreds=lapply(pcr_cpreds,function(x) select(x,c("pcr","cpred")))
 
 # Get AUC for each iteration and calculate mean AUC and standard error across iterations
-pcr_auc = lapply(pcr_cpreds, function(x) auc(x$pcr, x$cpred))
+pcr_auc = lapply(pcr_cpreds, function(x) pROC::auc(x$pcr, x$cpred))
 mean = mean(sapply(pcr_auc,function(x) x))
 se = std.error(sapply(pcr_auc,function(x) x))
 pcr_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
@@ -1588,7 +1593,7 @@ comp_cpreds=lapply(comp_brts,function(x) x$predict)
 comp_cpreds=lapply(comp_cpreds,function(x) select(x,c("competence","cpred")))
 
 # Get AUC for each iteration and calculate mean AUC and standard error across iterations
-comp_auc = lapply(comp_cpreds, function(x) auc(x$comp, x$cpred))
+comp_auc = lapply(comp_cpreds, function(x) pROC::auc(x$comp, x$cpred))
 mean = mean(sapply(comp_auc,function(x) x))
 se = std.error(sapply(comp_auc,function(x) x))
 comp_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", formatC(se, format="e"))
@@ -1610,82 +1615,19 @@ rm(comp_cpreds, pcr_cpreds, comp_keep, keep, pcr_keep, mean, se)
 
 ```
 
-<!-- ### *Evaluate performance measures * -->
-<!-- How accurately did infection and competence BRT models distinguish OPV positive and negative species (assuming a threshold value of 0.5)? We evaluate the mean AUC, sensitivity, and specificity of our models, both combined (net) and independently. -->
-
-<!-- ```{r perf_auc} -->
-
-<!-- #### If needed, increase vector memory in R environment and reboot R before proceeding (https://stackoverflow.com/questions/51295402/r-on-macos-error-vector-memory-exhausted-limit-reached) -->
-
-<!-- # Load data -->
-<!-- pcr_brts <- readRDS("Output/pcr_brts.rds") -->
-<!-- comp_brts <- readRDS("Output/comp_brts.rds") -->
-<!-- pm_brts <- readRDS("Output/pm_brts.rds") -->
-
-<!-- # Index and save non-missing BRT iterations -->
-<!-- pcr_keep=which(!is.na(sapply(pcr_brts,function(x) x$testAUC))) -->
-<!-- comp_keep=which(!is.na(sapply(comp_brts,function(x) x$testAUC))) -->
-<!-- keep=intersect(pcr_keep,comp_keep) -->
-
-<!-- # Trim, keeping only those that are non-missing -->
-<!-- pcr_brts=pcr_brts[keep] -->
-<!-- comp_brts=comp_brts[keep] -->
-
-<!-- ### Get model performance measures from BRT results, whereby threshold value (THV) = 0.5 -->
-
-<!-- # Get net AUC -->
-<!-- mean(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC))) -->
-<!-- std.error(c(sapply(pcr_brts,function(x) x$testAUC),sapply(comp_brts,function(x) x$testAUC))) -->
-
-<!-- # Get net sensitivity -->
-<!-- mean(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen))) -->
-<!-- std.error(c(sapply(pcr_brts,function(x) x$sen),sapply(comp_brts,function(x) x$sen))) -->
-
-<!-- # Get net specificity -->
-<!-- mean(c(sapply(pcr_brts,function(x) x$spec),sapply(comp_brts,function(x) x$spec))) -->
-<!-- std.error(c(sapply(pcr_brts,function(x) x$spec),sapply(comp_brts,function(x) x$spec))) -->
-
-<!-- # Get net AUC for cites -->
-<!-- mean(sapply(pm_brts,function(x) x$testAUC)) -->
-<!-- std.error(sapply(pm_brts,function(x) x$testAUC)) -->
-
-<!-- # Clean environment -->
-<!-- rm(pm_brts) -->
-
-<!-- # Get independent AUC for PCR and Comp models -->
-<!-- mean(sapply(pcr_brts,function(x) x$testAUC)) -->
-<!-- std.error(sapply(pcr_brts,function(x) x$testAUC)) -->
-<!-- mean(sapply(comp_brts,function(x) x$testAUC)) -->
-<!-- std.error(sapply(comp_brts,function(x) x$testAUC)) -->
-
-<!-- # Get independent sensitivity for PCR and Comp models -->
-<!-- mean(sapply(pcr_brts,function(x) x$sen)) -->
-<!-- std.error(sapply(pcr_brts,function(x) x$sen)) -->
-<!-- mean(sapply(comp_brts,function(x) x$sen)) -->
-<!-- std.error(sapply(comp_brts,function(x) x$sen)) -->
-
-<!-- # Get independent specificity for PCR and Comp models -->
-<!-- mean(sapply(pcr_brts,function(x) x$spec)) -->
-<!-- std.error(sapply(pcr_brts,function(x) x$spec)) -->
-<!-- mean(sapply(comp_brts,function(x) x$spec)) -->
-<!-- std.error(sapply(comp_brts,function(x) x$spec)) -->
-
-<!-- ``` -->
-
-
-### *Compare performance between BRTs trained on infection vs. competence*
-Is model performance significantly different when training on infection vs. competence data? We create a function to perform an unpaired T-test on the AUC, sensitivity and specificity of the two models and determine the effect size (mean difference) via Cohen's d.
+### *Compare performance between BRTs trained on PCR vs. virus isolation data*
+Is model performance significantly different when training on PCR vs. virus isolation data? We create a function to perform an unpaired T-test on the AUC, sensitivity and specificity of the two models and determine the effect size (mean difference) via Cohen's d.
 
 ```{r perf_compare}
 
 ### T-test for AUC ###
 
-# Get auc values for infection model
+# Get auc values for PCR model
 adata_pcr=data.frame(y=c(sapply(pcr_auc, function(x) x)))
 adata_pcr$seed = 1:nrow(adata_pcr)
 adata_pcr$response = "infection"
 
-# Get auc values for competence model
+# Get auc values for virus isolatino model
 adata_comp=data.frame(y=c(sapply(comp_auc, function(x) x)))
 adata_comp$seed = 1:nrow(adata_comp)
 adata_comp$response = "competence"
@@ -1769,77 +1711,12 @@ table_perf_metrics <- data.frame(matrix(c(pcr_auc_mean, pcr_sens_mean, pcr_spec_
                                   ncol=3, byrow=TRUE))
 
 colnames(table_perf_metrics) <- c('AUC (mean \u00b1 SE)', 'Sensitivity (mean \u00b1 SE)', 'Specificity (mean \u00b1 SE)')
-rownames(table_perf_metrics) <- c('Host-trait infection model', 'Host-trait competence model', 't-test', 'p-val', "Cohen's d")
+rownames(table_perf_metrics) <- c('Host exposure model', 'Susceptible host model', 't-test', 'p-val', "Cohen's d")
 write.csv(table_perf_metrics, "Output/table_perf_metrics.csv")
 
 rm(list=setdiff(ls(), c("pcr_brts", "comp_brts", "pm_brts", 
                         "adata_auc", "adata_sens", "adata_spec")))
 ```
-
-<!-- ### *Compare performance between BRTs trained on infection vs. competence* -->
-<!-- Is model performance significantly different when training on infection vs. competence data? We create a function to perform an unpaired T-test on the AUC, sensitivity and specificity of the two models and determine the effect size (mean difference) via Cohen's d. -->
-
-<!-- ```{r perf_compare} -->
-
-<!-- # Function for extracting data, performing unpaired t-test and determining effect size via Cohen's d -->
-<!-- tfun=function(measure){ -->
-
-<!--   ## format data -->
-<!--   n=length(sapply(pcr_brts,function(x) x$testAUC)) -->
-<!--   adata=data.frame(y=c(sapply(pcr_brts,function(x) x[measure][[1]]), -->
-<!--                        sapply(comp_brts,function(x) x[measure][[1]])), -->
-<!--                    response=c(rep('infection',n),rep('competence',n)), -->
-<!--                    seed=c(sapply(pcr_brts,function(x) x$seed), -->
-<!--                           sapply(comp_brts,function(x) x$seed))) -->
-<!--   rm(n) -->
-
-<!--   ## factor -->
-<!--   adata$response=factor(adata$response,levels=c('infection','competence')) -->
-
-<!--   ## make jitter position -->
-<!--   adata$x=as.numeric(factor(adata$response)) -->
-<!--   set.seed(1) -->
-<!--   adata$xj=jitter(adata$x,0.5) -->
-
-<!--   ## fix response -->
-<!--   adata$response2=plyr::revalue(adata$response,c("infection"="RT-PCR", -->
-<!--                                            "competence"="virus isolation")) -->
-
-<!--   ## t-test -->
-<!--   tsum=t.test(y~response,data=adata, -->
-<!--               alternative='two.sided', -->
-<!--               var.equal=F,paired=F)   -->
-
-<!--   ## effect size -->
-<!--   csum=cohens_d(y~response,data=adata,paired=F,var.equal=F) -->
-
-<!--   ## return -->
-<!--   return(list(adata=adata,tsum=tsum,csum=csum)) -->
-<!-- } -->
-
-<!-- # Compare AUC w/ tfun function; extract t-stat & Cohen's d -->
-<!-- adata=tfun("testAUC") -->
-<!-- adata$tsum$statistic -->
-<!-- adata$csum$effsize -->
-
-<!-- # Compare sensitivity w/ tfun function; extract t-stat & Cohen's d -->
-<!-- sedata=tfun("sen") -->
-<!-- sedata$tsum$statistic -->
-<!-- sedata$csum$effsize -->
-
-<!-- # Compare specificity w/ tfun function; extract t-stat & Cohen's d -->
-<!-- spdata=tfun("spec") -->
-<!-- spdata$tsum$statistic -->
-<!-- spdata$csum$effsize -->
-
-<!-- # Adjust p-values w/ Benjamini Hochberg correction method -->
-<!-- ps=c(adata$tsum$p.value, -->
-<!--      sedata$tsum$p.value, -->
-<!--      spdata$tsum$p.value) -->
-<!-- round(p.adjust(ps,method="BH"),4)    #"BH" (aka "fdr") = Benjamini & Hochberg (1995) method control the false discovery rate, the expected proportion of false discoveries amongst the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate) -->
-
-<!-- ``` -->
-
 
 ### *Generate boxplot of model performance*
 Figure: *boxplot_model_senspec.png*, *boxplot_model_auc.png*
@@ -1872,6 +1749,10 @@ df_spec$type="specificity"
 # Aggregate sens and spec datasets
 sdata=rbind.data.frame(df_sens, df_spec)
 
+# Relabel response variable
+df_auc$response2=plyr::revalue(df_auc$response, c("infection"="RT-PCR positivity","competence"="Virus isolation"))
+sdata$response2=plyr::revalue(sdata$response, c("infection"="RT-PCR positivity","competence"="Virus isolation"))
+
 # Boxplot of AUC
 png("Output/boxplot_model_auc.png",width=4,height=5,units="in",res=300)
 set.seed(1)
@@ -1879,7 +1760,7 @@ ggplot(df_auc)+
   geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+
   geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
   scale_x_continuous(breaks=c(1,2),
-                     labels=levels("RT-PCR", "Virus isolation"),
+                     labels=levels(df_auc$response2),
                      limits=c(0.5,2.5))+
   theme_bw()+
   labs(x="Response variable",
@@ -1900,7 +1781,7 @@ ggplot(sdata)+
   geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+
   geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
   scale_x_continuous(breaks=c(1,2),
-                     labels=levels("RT-PCR","Virus isolation"),
+                     labels=levels(sdata$response2),
                      limits=c(0.5,2.5))+
   theme_bw()+
   facet_wrap(~type,scales="free_y",strip.position="left",ncol=1)+
@@ -1918,75 +1799,8 @@ ggplot(sdata)+
   guides(colour="none")
 dev.off()
 
-
 rm(df_auc, df_sens, df_spec)
 ```
-
-<!-- ### *Generate boxplot of model performance* -->
-<!-- Figure: *boxplot_model_senspec.png*, *boxplot_model_auc.png* -->
-
-<!-- ```{r perf_boxplot} -->
-
-<!-- # Extract sensitivity and specificity data; save as new dataframes -->
-<!-- data1=sedata$adata -->
-<!-- data2=spdata$adata -->
-
-<!-- # Group observations by type for plotting -->
-<!-- data1$type="sensitivity" -->
-<!-- data2$type="specificity" -->
-
-<!-- # Aggregate datasets -->
-<!-- sdata=rbind.data.frame(data1,data2) -->
-<!-- rm(data1,data2) -->
-
-<!-- # Boxplot model performance  -->
-<!-- png("Output/boxplot_model_senspec.png",width=4,height=5,units="in",res=300) -->
-<!-- set.seed(1) -->
-<!-- ggplot(sdata)+ -->
-<!--   #geom_violin(aes(x=x,y=auc,group=x),trim=T,scale="count",width=0.5)+ -->
-<!--   geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+ -->
-<!--   geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+ -->
-<!--   scale_x_continuous(breaks=c(1,2), -->
-<!--                      labels=levels(sdata$response2), -->
-<!--                      limits=c(0.5,2.5))+ -->
-<!--   theme_bw()+ -->
-<!--   facet_wrap(~type,scales="free_y",strip.position="left",ncol=1)+ -->
-<!--   theme(strip.placement="outside", -->
-<!--         strip.background=element_blank())+ -->
-<!--   labs(x="Response variable", -->
-<!--        y=NULL)+ -->
-<!--   theme(axis.text.y=element_text(size=10), -->
-<!--         axis.text.x=element_text(size=12), -->
-<!--         axis.title=element_text(size=12), -->
-<!--         strip.text=element_text(size=12))+ -->
-<!--   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+ -->
-<!--   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+ -->
-<!--   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+ -->
-<!--   guides(colour="none") -->
-<!-- dev.off() -->
-
-<!-- # Boxplot of AUC -->
-<!-- png("Output/boxplot_model_auc.png",width=4,height=5,units="in",res=300) -->
-<!-- set.seed(1) -->
-<!-- ggplot(adata$adata)+ -->
-<!--   geom_boxplot(aes(x=x,y=y,group=x),width=0.25,alpha=0.25,outlier.alpha=0)+ -->
-<!--   geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+ -->
-<!--   scale_x_continuous(breaks=c(1,2), -->
-<!--                      labels=levels(adata$adata$response2), -->
-<!--                      limits=c(0.5,2.5))+ -->
-<!--   theme_bw()+ -->
-<!--   labs(x="Response variable", -->
-<!--        y="Area under the curve (AUC)")+ -->
-<!--   theme(axis.text=element_text(size=10), -->
-<!--         axis.text.x=element_text(size=12), -->
-<!--         axis.title=element_text(size=12))+ -->
-<!--   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+ -->
-<!--   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+ -->
-<!--   theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+ -->
-<!--   guides(colour="none") -->
-<!-- dev.off() -->
-
-<!-- ``` -->
 
 
 5. Model Predictions
@@ -2057,7 +1871,7 @@ for(i in 1:ncol(dums)){
 data=merge(data,dums,by="fam",all.x=T)
 rm(dums)
 
-# Get predicted probabilities from infection model
+# Get predicted probabilities from PCR model
 pcr_apreds=lapply(pcr_brts,function(x) x$predict)
 pcr_apreds=do.call(rbind,pcr_apreds)
 
@@ -2067,10 +1881,10 @@ pcr_apreds=data.frame(aggregate(pred~treename,data=pcr_apreds,mean),
                       aggregate(pcr~treename,data=pcr_apreds,prod)["pcr"],
                       aggregate(competence~treename,data=pcr_apreds,prod)["competence"])
 
-# Generate variable of evidence type for infection model
+# Generate variable of evidence type for PCR model
 pcr_apreds$type='PCR'
 
-# Get predicted probabilities from competence model
+# Get predicted probabilities from virus isolation model
 comp_apreds=lapply(comp_brts,function(x) x$predict)
 comp_apreds=do.call(rbind,comp_apreds)
 
@@ -2080,7 +1894,7 @@ comp_apreds=data.frame(aggregate(pred~treename,data=comp_apreds,mean),
                        aggregate(pcr~treename,data=comp_apreds,prod)["pcr"],
                        aggregate(competence~treename,data=comp_apreds,prod)["competence"])
 
-# Generate variable of evidence type for competence model
+# Generate variable of evidence type for virus isolation model
 comp_apreds$type='competence'
 
 # Combine predictions from both model types
@@ -2222,7 +2036,7 @@ set.seed(12345)
 pred <- read.csv("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Trait Model/Output/table_HostTraitModel_predictions.csv")
 # pred <- read.csv("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost/Tseng2022/Host Trait Model/Output/PoxHost_predictions.csv")
 
-# For the infection model, let's calculate the opt. threshold values using different optimization methods (e.g., 80% sensitivity)
+# For the PCR model, let's calculate the opt. threshold values using different optimization methods (e.g., 80% sensitivity)
 ts_pcr <- optimal.thresholds(data.frame(pred[,c('treename','PCR','pred_pcr')]),
                            threshold = 10001,
                            opt.methods = c(2,3,4,5,10),
@@ -2250,7 +2064,7 @@ ts_pcr[nrow(ts_pcr) + 1,] <- optimal.thresholds(data.frame(pred[,c('treename','P
                            req.sens = 0.95,
                            na.rm = TRUE)
 
-# For the competence model, let's calculate the opt. threshold values using different optimization methods (e.g., 80% sensitivity)
+# For the virus isolation model, let's calculate the opt. threshold values using different optimization methods (e.g., 80% sensitivity)
 ts_comp <- optimal.thresholds(data.frame(pred[,c('treename','competence','pred_comp')]),
                            threshold = 10001,
                            opt.methods = c(2,3,4,5,10),
@@ -2278,14 +2092,14 @@ ts_comp[nrow(ts_comp) + 1,] <- optimal.thresholds(data.frame(pred[,c('treename',
                            req.sens = 0.95,
                            na.rm = TRUE)
 
-# For infection model, create function that sums the number of predicted obs (known and unknown) and just known obs; use sapply to view counts
+# For PCR model, create function that sums the number of predicted obs (known and unknown) and just known obs; use sapply to view counts
 cut_pcr1 <- function(x) {sum(pred$pred_pcr > x)}
 cut_pcr2 <- function(x) {sum(pred$pred_pcr[pred$PCR==0] > x)}
 sapply(unlist(ts_pcr[2]), cut_pcr1)
 sapply(unlist(ts_pcr[2]), cut_pcr2)
 sum(pred$PCR)
 
-# For competence model, create function that sums the number of predicted obs (known and unknown) and just known obs; use sapply to view counts
+# For virus isolation model, create function that sums the number of predicted obs (known and unknown) and just known obs; use sapply to view counts
 cut_comp1 <- function(x) {sum(pred$pred_comp > x)}
 cut_comp2 <- function(x) {sum(pred$pred_comp[pred$competence==0] > x)}
 sapply(unlist(ts_comp[2]), cut_comp1)
@@ -2322,7 +2136,7 @@ table_ts_comp$specificity <- NA
 table_ts_comp$n_predicted <- NA
 table_ts_comp$n_predicted_unknown <- NA
 
-# For infection model, get sensitivity, specificity, and number of predicted hosts based on various threshold values 
+# For PCR model, get sensitivity, specificity, and number of predicted hosts based on various threshold values 
 for (i in 1:nrow(table_ts_pcr)) {
   table_ts_pcr[i,3] <-  InformationValue::sensitivity(pred$PCR, pred$pred_pcr, threshold = table_ts_pcr[i,2])
   table_ts_pcr[i,4] <-  InformationValue::specificity(pred$PCR, pred$pred_pcr, threshold = table_ts_pcr[i,2])
@@ -2330,7 +2144,7 @@ for (i in 1:nrow(table_ts_pcr)) {
   table_ts_pcr[i,6] <- cut_pcr2(table_ts_pcr[i,2])
 }
 
-# For competence model, get sensitivity, specificity, and number of predicted hosts based on various threshold values
+# For virus isolation model, get sensitivity, specificity, and number of predicted hosts based on various threshold values
 for (i in 1:nrow(table_ts_comp)) {
   table_ts_comp[i,3] <-  InformationValue::sensitivity(pred$competence, pred$pred_comp, threshold = table_ts_comp[i,2])
   table_ts_comp[i,4] <-  InformationValue::specificity(pred$competence, pred$pred_comp, threshold = table_ts_comp[i,2])
@@ -2496,11 +2310,7 @@ bdata$pcrcomp_mss3 <- ifelse(bdata$pcr_mss3==1 & bdata$comp_mss3==1, "Both",
 bdata$pcrcomp_rs0.8 <- factor(bdata$pcrcomp_rs0.8,levels=c("PCR","Virus isolation","Both","Not predicted"))
 bdata$pcrcomp_mss3 <- factor(bdata$pcrcomp_mss3,levels=c("PCR","Virus isolation","Both","Not predicted"))
 
-# Merge phylogeny with predictions ensuring consistent structure  
-cdata=comparative.data(phy=mtree,data=bdata,names.col=treename,vcv=T,na.omit=F,warn.dropped=T)    #vcv=T indicates to include variance covariance array representing phylogeny within the comparative dataset
-### Returned error indicating missing values: Error in '.rowNamesDF<- '(x, value = value) : missing values in 'row.names' are not allowed
-
-# Identify which rows are NA
+# Check for rows that are NA
 which(is.na(bdata))
 
 # Subsetting only non-missing data
@@ -2674,8 +2484,8 @@ pcrpred_pf_results=pfsum(pcrpred_pf)$results  # runs pfsum fxn on PCR prediction
 comppred_pf_results=pfsum(comppred_pf)$results
 
 # Add model/evidence type
-pcrpred_pf_results$model="infection"
-comppred_pf_results$model="competence"
+pcrpred_pf_results$model="RT-PCR"
+comppred_pf_results$model="virus isolation"
 
 # Combine results of both models
 predpfs=rbind.data.frame(pcrpred_pf_results,comppred_pf_results)
@@ -3202,37 +3012,50 @@ Table: *table_ranks.csv*
 
 ```{r feat_rank}
 
-# Load model predictions
-pcr_brts <- readRDS("Output/pcr_brts.rds")
-comp_brts <- readRDS("Output/comp_brts.rds")
+# Load data
+pcr_brts <- readRDS("Output/pcr_brts.rds") #101 elements
+comp_brts <- readRDS("Output/comp_brts.rds") #101 elements
 
-# What was the relative importance/influence of each feature in the infection model? Get values.
+# Index and save non-missing BRT iterations
+pcr_keep=which(!is.na(sapply(pcr_brts,function(x) x$testAUC)))
+comp_keep=which(!is.na(sapply(comp_brts,function(x) x$testAUC)))
+keep=intersect(pcr_keep,comp_keep)
+
+# Check number of iterations (only keep 100)
+length(keep)
+keep=keep[!keep==101]
+
+# Trim, keeping only 100 iterations that are non-missing 
+pcr_brts=pcr_brts[keep]
+comp_brts=comp_brts[keep]
+
+# What was the relative importance/influence of each feature in the PCR model? Get values.
 vinf=lapply(pcr_brts,function(x) x$rinf)
 pcr_vinf=do.call(rbind,vinf)
 
-# What was the relative influence of each feature in the competence model? Get values.
+# What was the relative influence of each feature in the virus isolation model? Get values.
 vinf=lapply(comp_brts,function(x) x$rinf)
 comp_vinf=do.call(rbind,vinf)
 
-# What was the mean, standard error, and variance of feature relative influence in the infection model?
+# What was the mean, standard error, and variance of feature relative influence in the PCR model?
 vdata_pcr=data.frame(aggregate(rel.inf~var,data=pcr_vinf,mean),
                      aggregate(rel.inf~var,data=pcr_vinf,std.error)["rel.inf"],
                      aggregate(rel.inf~var,data=pcr_vinf,var)["rel.inf"])
 names(vdata_pcr)=c("var","rel.inf","rse","rvar")
 vdata_pcr=vdata_pcr[order(vdata_pcr$rel.inf,decreasing=T),]
 
-# What was the mean, standard error, and variance of feature relative influence in the competence model?
+# What was the mean, standard error, and variance of feature relative influence in the virus isolation model?
 vdata_comp=data.frame(aggregate(rel.inf~var,data=comp_vinf,mean),
                       aggregate(rel.inf~var,data=comp_vinf,std.error)["rel.inf"],
                       aggregate(rel.inf~var,data=comp_vinf,var)["rel.inf"])
 names(vdata_comp)=c("var","rel.inf","rse","rvar")
 vdata_comp=vdata_comp[order(vdata_comp$rel.inf,decreasing=T),]
 
-# How does the average variance compare between the infection and competence model?
+# How does the average variance compare between the PCR and virus isolation model?
 mean(vdata_pcr$rvar)
 mean(vdata_comp$rvar)
 
-# How does the variance of relative influence compare between the infection and competence model?
+# How does the variance of relative influence compare between the PCR and virus isolation model?
 var(vdata_pcr$rel.inf)
 var(vdata_comp$rel.inf)
 
@@ -3259,7 +3082,7 @@ write.csv(table_ranks,"Output/table_ranks.csv")
 keep_pcr <- ranks$var[which(ranks$pcr_rank<=10)]
 keep_comp <- ranks$var[which(ranks$comp_rank<=10)]
 
-# Get the relative importance values for the top 10 features of the infection model
+# Get the relative importance values for the top 10 features of the PCR model
 vinf=lapply(pcr_brts,function(x) x$rinf)
 pcr_vinf=do.call(rbind,vinf)
 pcr_vinf <- pcr_vinf[which(pcr_vinf$var%in%keep_pcr),]
@@ -3290,10 +3113,10 @@ pcr_vinf$type <- ifelse(pcr_vinf$var=="Litters per year", "Life history", pcr_vi
 pcr_vinf$type <- ifelse(pcr_vinf$var=="Adult mass (g)", "Life history", pcr_vinf$type)
 pcr_vinf$type <- ifelse(pcr_vinf$var=="Female maturity (days)", "Life history", pcr_vinf$type)
   
-# Boxplot relative feature importance for the infection model
+# Boxplot relative feature importance for the PCR model
 library(viridis)
 library(stringr)
-boxplot_trait_pcr <- ggplot(pcr_vinf) + ggtitle("(A) Host-trait infection model") +
+boxplot_trait_pcr <- ggplot(pcr_vinf) + ggtitle("(A) Host exposure model") +
         geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var, fill=type), width=0.7, alpha=0.85, linewidth=0.2) +
         theme_bw() +
         labs(x="Relative influence",
@@ -3311,7 +3134,7 @@ png("Output/boxplot_trait_ranking_pcr.png",width=6.12,height=10,units="in",res=6
 boxplot_trait_pcr
 dev.off()
 
-# Get the relative importance values for the top 10 features of the competence model
+# Get the relative importance values for the top 10 features of the virus isolation model
 vinf=lapply(comp_brts,function(x) x$rinf)
 comp_vinf=do.call(rbind,vinf)
 comp_vinf <- comp_vinf[which(comp_vinf$var%in%keep_pcr),]
@@ -3342,9 +3165,9 @@ comp_vinf$type <- ifelse(comp_vinf$var=="Litters per year", "Life history", comp
 comp_vinf$type <- ifelse(comp_vinf$var=="Female maturity (days)", "Life history", comp_vinf$type)
 comp_vinf$type <- ifelse(comp_vinf$var=="Adult mass (g)", "Life history", comp_vinf$type)
   
-# Boxplot relative feature importance for the competence model
+# Boxplot relative feature importance for the virus isolation model
 library(viridis)
-boxplot_trait_comp <- ggplot(comp_vinf) + ggtitle("(B) Host-trait competence model") +
+boxplot_trait_comp <- ggplot(comp_vinf) + ggtitle("(B) Susceptible host model") +
         geom_boxplot(aes(x=rel.inf, y=reorder(var,rel.inf), group=var, fill=type), width=0.7, alpha=0.85, linewidth=0.2) +
         theme_bw() +
         labs(x="Relative influence",
@@ -3396,7 +3219,7 @@ plot(ranks2$pcr_rank,ranks2$resid,
 ranks2$select=ifelse(ranks2$resid>18,"yes","no")
 which(ranks2$resid>20) # returns 5 values
 
-# Were any features consistenly high or low ranking across both infection and competence models? Flag.
+# Were any features consistenly high or low ranking across both PCR and virus isolation models? Flag.
 n=7
 ranks2$select=ifelse(ranks2$comp_rank<n & ranks2$pcr_rank<n,"yes",ranks2$select)
 ranks2$select=ifelse(ranks2$comp_rank%in%tail(1:nrow(ranks2),n) & ranks2$pcr_rank%in%tail(1:nrow(ranks2),n),"yes",ranks2$select)
@@ -3405,9 +3228,9 @@ ranks2$select=ifelse(ranks2$comp_rank%in%tail(1:nrow(ranks2),n) & ranks2$pcr_ran
 rset=ranks2
 rset$var=ifelse(rset$select=="yes",rset$var,"")
 
-# Plot feature ranking of infection model against competence model and label traits that were consistently important and unimportant
-set.seed(1)
+# Plot feature ranking of PCR model against virus isolation model and label traits that were consistently important and unimportant
 png("Output/scatterplot_trait_ranking.png",width=7,height=7,units="in",res=300)
+set.seed(1)
 ggplot(ranks2,aes(pcr_rank,comp_rank))+
   geom_text_repel(data=rset,aes(label=var),size=2,force=4,direction="both",
                   segment.size=0.5,segment.color="grey")+
@@ -3415,7 +3238,7 @@ ggplot(ranks2,aes(pcr_rank,comp_rank))+
   scale_y_reverse(limits=c(max(c(ranks2$comp_rank,ranks2$pcr_rank))+4,0))+
   scale_x_reverse(limits=c(max(c(ranks2$comp_rank,ranks2$pcr_rank))+4,0))+
   theme_bw()+
-  labs(x="Feature rank for infection model",y="Feature rank for competence model")+
+  labs(x="Feature rank for host exposure model",y="Feature rank for susceptible host model")+
   theme(axis.text=element_text(size=10),axis.title=element_text(size=12))+
   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
@@ -3637,7 +3460,7 @@ pdplot_pcr <- p1+p2+p3+p4+p5+p6+p7+p8+p9+p10+plot_layout(nrow=10,ncol=1,byrow=F)
 pdplot_comp <- c1+c2+c3+c4+c5+c6+c7+c8+c9+c10+plot_layout(nrow=10,ncol=1,byrow=F)
 png("Output/pdplot_trait_effect.png",width=4,height=10,units="in",res=300)
 ggarrange(pdplot_pcr,pdplot_comp,ncol=2,nrow=2,widths=c(4,4),heights=c(22,1),
-          labels=c("(A) Infection model","(B) Competence model"),
+          labels=c("(A) Host exposure model","(B) Susceptible host model"),
           label.x=c(0,-0.1), label.y=0.001,
           font.label=list(face="plain",size=12))
 dev.off()
