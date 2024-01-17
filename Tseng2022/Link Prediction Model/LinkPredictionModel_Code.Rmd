@@ -17,16 +17,19 @@ editor_options:
 Introduction
 ============
 
-The following code reproduces the analyses from <...>, pertaining to the link prediction model. The code is subdivided into five parts (see Table of Contents below). To reproduce the analyses pertaining to the host prediction model, please see the markdown file *HostTraitModel_Code.Rmd* located in the [PoxHost repository][1].
+The following code reproduces the analyses from *Viral genomic features predict orthopoxvirus reservoir hosts*, pertaining to the link prediction model. The code is subdivided into seven parts (see Table of Contents below). To reproduce the analyses pertaining to the host prediction model, please see the markdown file *HostTraitModel_Code.Rmd* located in the [PoxHost repository][1].
 
-To run the following script, four files are required in your working directory:
+To run the following script, four files are required in your working directory, in addition to an 'Output' folder:
 
 - *Data_raw.RData*: the raw data file
 - *OPVnew_nowwithVirus.xlsx*: the excel file of OPV genome annotations
-- *~/Output/*: folder where all output (e.g., cleaned datasets, model results, figures, and tables) will be saved 
+- *OPV_6Jan23.nexus*: the nexus file of viral tree data for visualizing clustering of OPV sequences on the phylogenetic tree
+    - This file is only needed in part one for hierarchical cluster analysis (optional): *Dimension Reduction* {r dim_tree}
 - *MAMMALS.shp*: the shape file of mammal geographical range 
     - Obtained[IUCN Red List Spatial Database][2]  
-    - This file (>1GB) is only required in part six: *Mapping Host Distribution*  
+    - This file (>1GB) is only required in part six: *Mapping Host Distribution*
+- *~/Output/*: folder where all output (e.g., cleaned datasets, model results, figures, and tables) will be saved 
+
 [1]: <https://github.com/viralemergence/PoxHost> "PoxHost"
 [2]: <https://www.iucnredlist.org/resources/spatial-data-download> "Spatial data download"
 
@@ -58,7 +61,7 @@ knitr::opts_chunk$set(eval=F)
 1. Dimension Reduction
 ======================
 
-In this section, we draw from our dataset of annotated OPV genomes (n=197 unique sequences; see genome annotation pipeline in methods section for more information), which compose our known host-OPV associations for incorporation in the link prediction model. Each sequence is classified by its source or virus species and its host, as well as the presence (1) or absence (0) of a suite of OPV accessory genes. Because our data consists of over 981 OPV accessory genes, the goal of this section is to reduce the number of viral predictors for incorporation in the link prediction model, while maintaining maximal variance. Using principal components analysis (PCA), a method of dimension reduction, we distill the variables down to their most important features. We also explore which sequences have the most similar values (aka, how do they group?) in the principal components using k-means clustering. Because we are analyzing presence/absence data (binary variables), we use multiple correspondence analysis (MCA) to further validate our results. Though similar to PCA, MCA is used to analyze datasets with multiple categorical variables. 
+In this section, we draw from our dataset of annotated Orthopoxvirus (OPV) genomes (n=197 unique sequences; see genome annotation pipeline in methods section for more information), which compose our known host-OPV associations for incorporation in the link prediction model. Each sequence is classified by its source or virus species and its host, as well as the presence (1) or absence (0) of a suite of OPV accessory genes. Because our data consists of over 981 OPV accessory genes, the goal of this section is to reduce the number of viral predictors for incorporation in the link prediction model, while maintaining maximal variance. Using principal components analysis (PCA), a method of dimension reduction, we distill the variables down to their most important features. We also explore which sequences have the most similar values (aka, how do they group?) in the principal components using k-means clustering. Because we are analyzing presence/absence data (binary variables), we use multiple correspondence analysis (MCA) to further validate our results. Though similar to PCA, MCA is used to analyze datasets with multiple categorical variables. 
 
 ### *Load required packages and set system*
 
@@ -170,7 +173,7 @@ rm(list=setdiff(ls(), c("genes")))
 ```
 
 ### *PCA of viral accessory genes*
-Using principal components analysis, can we distill the variables down to their most important features? Which genes contribute the most to each feature? Let's plot the loadings and also color them by functional role
+Using PCA, can we distill the variables down to their most important features? Which genes contribute the most to each feature? Let's plot the loadings and also color them by functional role
 Figure: *histogram_loadings.png*
 Table: *table_pca_importance.csv*, *table_ranked_loadings.csv*
 
@@ -296,7 +299,7 @@ rm(list=setdiff(ls(), c("genes","pca","relvar","relvar_per", "rank_PC")))
 
 ### *PCA visualizations*
 Which dimensions contribute the most?
-Figures: *screeplot_dim_pca.png*, *screeplot_var_pca.png*, *plot_cumvar_pca.png*, *plot_scores_pca_dim1and2_ellipses.png*, *plot_scores_pca_dim1and2_byvirus.png*, *plot_loadins_pca_dim1and2.png*, *plot_loadings_pca_dim3and4.png*, *biplot_pca_dim1and2.png*,
+Figures: *screeplot_dim_pca.png*, *screeplot_var_pca.png*, *plot_cumvar_pca.png*, *plot_pca_scoresbyspecies.pdf*, *plot_loadins_pca_dim1and2.png*, *plot_loadings_pca_dim3and4.png*, *biplot_pca_dim1and2.png*,
 *biplot_pca_dim1and2_top20.png*
 
 ```{r dim_pca_viz}
@@ -335,7 +338,7 @@ fviz_pca_ind(pca, geom.ind = "point", pointshape = 21, pointsize = 2,
              theme(plot.title = element_text(hjust = 0.5))
 
 # Style 2: Plot sequences by virus species for dim 1 and 2
-autoplot(pca, x=1, y=4, data = genes, colour = 'VirusSpecies') 
+autoplot(pca, x=1, y=2, data = genes, colour = 'VirusSpecies') 
 
 # Style 3: Plot sequences by virus species w/ viridis
 
@@ -465,7 +468,7 @@ fviz_pca_biplot(pca, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800"
              # + ggtitle("Biplot of Top 20 Contributing Sequences and Gene Loadings")
 dev.off()
 
-### BEGIN INTERMISSION ###
+##### BEGIN INTERMISSION #####
 
 ### Merge dfs of highly contributing gene loadings w/ functional roles ###
 
@@ -496,10 +499,9 @@ dev.off()
   # PC1 negative loadings: read in data, rename columns, and merge
   pc9_fnx_neg <- read_xlsx("PCA_Gene_contributions-classification.xlsx", sheet="PC9")[,7:9]
 
-# Clean dataframes of loadings and combine into sinl
-  # Create a list of the positive and legative loadings
-  # list_df <- ls()[grepl("_fnx", ls())]
-  # list_df = lapply(list_df, get)
+# Clean dataframes of loadings and combine into single dataframe
+  
+  # Create a list of the positive and negative loadings
   list_df <- list(pc1_fnx_pos=data.frame(pc1_fnx_pos), pc1_fnx_neg=data.frame(pc1_fnx_neg),
                   pc3_fnx_pos=data.frame(pc3_fnx_pos), pc3_fnx_neg=data.frame(pc3_fnx_neg),
                   pc4_fnx_pos=data.frame(pc4_fnx_pos), pc4_fnx_neg=data.frame(pc4_fnx_neg),
@@ -579,7 +581,7 @@ fviz_pca_var(pca, axes = c(1, 2),
   # pc1_pos_alt <- pc1 %>% filter(loading > (mean(pc1$loading)+1.5*sd))
   # pc1_neg_alt <- pc1 %>% filter(loading < (mean(pc1$loading)-1.5*sd))
 
-    # PC2 loadings
+  # PC2 loadings
   pc2 <- rank_PC[,3:4]
   colnames(pc2) <- c("gene", "loading")
   sd <- sd(pc2$loading)
@@ -904,6 +906,7 @@ rm(list=setdiff(ls(), c("genes","pca")))
 ```
 
 ### *PCA Hierarchical Cluster Analysis*
+Which sequences have the most similar values? How do they group based on k-means clustering
 Figures: *linegraph_optclusters_pca.png*, *clustree_pca.png*, *clustree_stability_pca.png*, *clustree_overpc1and2.png*, *cluster_dendogram.png*, *cluster_dendogram_rectangle.png*, *plot_scores_pca_bycluster.png*
 Tables: *table_scores_pca_bycluster.csv*
 
@@ -1051,7 +1054,7 @@ rm(list=setdiff(ls(), c("genes","genes1","mytable2", "pca")))
 
 ```
 
-### *Visualize clustering on viral phylogentic tree*
+### *Visualize clustering on viral phylogenetic tree*
 Figures: *virustree_barplot_cluster_pca.png*
 
 ```{r dim_tree}
@@ -2732,135 +2735,6 @@ rm(list=setdiff(ls(), c("brts1", "brts2",
                         "adata_auc", "adata_sens", "adata_spec")))
 
 ```
-
-<!-- ### *Evaluate performance measures for Model 1 (all links) and Model 2 (excluding Vaccinia)* -->
-<!-- How accurately did Model 1 and Model 2 distinguish host-virus links vs. non-links (assuming a threshold value of 0.5)? We evaluate the mean AUC, sensitivity, and specificity of our models. -->
-
-<!-- ```{r perf_auc} -->
-
-<!-- # Get data from Model 1 -->
-<!-- load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model1/Output/brts_Model1.RData") -->
-<!-- brts1=brts -->
-<!-- rm(brts) -->
-
-<!-- # Get data from Model 2 -->
-<!-- load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model2/Output/brts_Model2.RData") -->
-<!-- brts2=brts -->
-<!-- rm(brts) -->
-
-<!-- # Index non-missing -->
-<!-- keep1=which(!is.na(sapply(brts1,function(x) x$testAUC))) -->
-<!-- keep2=which(!is.na(sapply(brts2,function(x) x$testAUC))) -->
-
-<!-- # Trim, keeping only those that are non-missing -->
-<!-- brts1=brts1[keep1] -->
-<!-- brts2=brts2[keep2] -->
-
-<!-- # Get AUC for Model 1 -->
-<!-- auc1 <- paste0(round(mean(sapply(brts1,function(x) x$testAUC)),3), " (", round(std.error(sapply(brts1,function(x) x$testAUC)),4), ")") -->
-
-<!-- # Get sensitivity for Model 1 -->
-<!-- sens1 <- paste0(round(mean(sapply(brts1,function(x) x$sen)),3)," (", round(std.error(sapply(brts1,function(x) x$sen)),4), ")") -->
-
-<!-- # Get specificity for Model 1 -->
-<!-- spec1 <- paste0(round(mean(sapply(brts1,function(x) x$spec)),3), " (", round(std.error(sapply(brts1,function(x) x$spec)),4), ")") -->
-
-<!-- # Get AUC for Model 2 -->
-<!-- auc2 <- paste0(round(mean(sapply(brts2,function(x) x$testAUC)),3), " (", round(std.error(sapply(brts2,function(x) x$testAUC)),4), ")") -->
-
-<!-- # Get sensitivity for Model 2 -->
-<!-- sens2 <- paste0(round(mean(sapply(brts2,function(x) x$sen)),3), " (", round(std.error(sapply(brts2,function(x) x$sen)),4), ")") -->
-
-<!-- # Get specificity for Model 2 -->
-<!-- spec2 <- paste0(round(mean(sapply(brts2,function(x) x$spec)),3), " (", round(std.error(sapply(brts2,function(x) x$spec)),4), ")") -->
-
-<!-- # # Get AUC for Cites Model 1 -->
-<!-- # paste0(round(mean(sapply(pm_brts1,function(x) x$testAUC)),3), " (", round(std.error(sapply(pm_brts1,function(x) x$testAUC)),4), ")") -->
-
-<!-- # # Get AUC for Cites Model 2 -->
-<!-- # paste0(round(mean(sapply(pm_brts2,function(x) x$testAUC)),3), " (", round(std.error(sapply(pm_brts2,function(x) x$testAUC)),4), ")") -->
-
-<!-- # Clean environment -->
-<!-- rm(keep1, keep2)  -->
-
-<!-- ``` -->
-
-<!-- ### *Compare performance between BRTs trained on infection vs. competence* -->
-<!-- Is model performance significantly different when trained on all links (Model 1) vs. links excluding Vaccinia virus (Model 2)? We create a function to perform an unpaired T-test on the AUC, sensitivity and specificity of the two models and determine the effect size (mean difference) via Cohen's d. -->
-
-<!-- ```{r perf_compare} -->
-
-<!-- # Function for extracting data, performing unpaired t-test and determining effect size via Cohen's d -->
-<!-- tfun=function(measure){ -->
-
-<!--   ## format data -->
-<!--   n=length(sapply(brts1,function(x) x$measure)) -->
-<!--   adata=data.frame(y=c(sapply(brts1,function(x) x[measure][[1]]), -->
-<!--                        sapply(brts2,function(x) x[measure][[1]])), -->
-<!--                    response=c(rep('model1',n),rep('model2',n)), -->
-<!--                    seed=c(sapply(brts1,function(x) x$seed), -->
-<!--                           sapply(brts2,function(x) x$seed))) -->
-<!--   rm(n) -->
-
-<!--   ## factor -->
-<!--   adata$model=factor(adata$response,levels=c('model1','model2')) -->
-
-<!--   ## make jitter position -->
-<!--   adata$x=as.numeric(factor(adata$response)) -->
-<!--   set.seed(1) -->
-<!--   adata$xj=jitter(adata$x,0.5) -->
-
-<!--   ## fix response -->
-<!--   adata$response1=plyr::revalue(adata$response,c("model1"="Full Model", -->
-<!--                                            "model2"="Partial Model")) -->
-
-<!--   ## t-test -->
-<!--   tsum=t.test(y~response,data=adata, -->
-<!--               alternative='two.sided', -->
-<!--               var.equal=F,paired=F)   -->
-
-<!--   ## effect size -->
-<!--   csum=cohens_d(y~response,data=adata,paired=F,var.equal=F) -->
-
-<!--   ## return -->
-<!--   return(list(adata=adata,tsum=tsum,csum=csum)) -->
-<!-- } -->
-
-<!-- # Compare AUC between models; extract t-stat and Cohen's d -->
-<!-- adata=tfun("testAUC") -->
-<!-- adata$tsum$statistic -->
-<!-- adata$csum$effsize -->
-
-<!-- # Compare sensitivity between models; extract t-stat and Cohen's d -->
-<!-- sedata=tfun("sen") -->
-<!-- sedata$tsum$statistic -->
-<!-- sedata$csum$effsize -->
-
-<!-- # Compare specificity between models; extract t-stat and Cohen's d -->
-<!-- spdata=tfun("spec") -->
-<!-- spdata$tsum$statistic -->
-<!-- spdata$csum$effsize -->
-
-<!-- # Adjust p values w/ Benjamini Hochberg correction method -->
-<!-- ps=c(adata$tsum$p.value, sedata$tsum$p.value, spdata$tsum$p.value) -->
-<!-- ps_adjust <- round(p.adjust(ps,method="BH"),4)     -->
-<!-- ###"BH" (aka "fdr") = Benjamini & Hochberg (1995) method controls the false discovery rate, the expected proportion of false discoveries among the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate) -->
-
-<!-- # Create and save table of performance measures  -->
-<!-- ts4 <- data.frame(matrix(c(auc1, sens1, spec1,  -->
-<!--                 auc2, sens2, spec2,  -->
-<!--                 round(adata$tsum$statistic,2), round(sedata$tsum$statistic,2), round(spdata$tsum$statistic,2),  -->
-<!--                 ps_adjust,  -->
-<!--                 round(adata$csum$effsize,2), round(sedata$csum$effsize,2), round(spdata$csum$effsize,2)),  -->
-<!--             ncol=3, byrow=TRUE)) -->
-<!-- colnames(ts4) <- c('mean_AUC (SE)', 'mean_sens (SE)', 'mean_spec (SE)') -->
-<!-- rownames(ts4) <- c('Model 1', 'Model 2', 't-test', 'p-val', "Cohen's d") -->
-<!-- write.csv(ts4, "Output/table_perf_metrics.csv") -->
-
-<!-- # Clean environment -->
-<!-- rm(tfun, ts4, auc1, sens1, spec1, auc2, sens2, spec2, ps, ps_adjust) -->
-
-<!-- ``` -->
 
 ### How do performance measures change when we apply different optimal threshold values (e.g., based on maximizing sensitivity + specificity)?
 
