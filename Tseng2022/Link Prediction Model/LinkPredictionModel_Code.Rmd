@@ -1323,6 +1323,7 @@ rm(list=ls())
 ## recommend installing and loading rgl including 'options(rgl.useNULL=TRUE)' below before loading treespace
 library(rgl) # > install.packages("rgl"); > options(rgl.useNULL=TRUE)
 library(treespace) 
+library(dplyr)
 
 # Clean environment
 rm(list=ls()) 
@@ -1367,10 +1368,14 @@ rm(virion, wgs_PCs, vertlife, dryad, combine)
 
 ### Clean up Virion data ###
 
-# Exclude if host genus or virus is NA; exclude variola (smallpox) virus
+# Exclude if host genus or virus is NA
 poxdata <- poxdata[!is.na(poxdata$HostGenus),]
 poxdata <- poxdata[!is.na(poxdata$Virus),]
+
+# Exclude variola (smallpox) virus
 poxdata <- poxdata[!(poxdata$Virus=="variola virus"),]
+
+# Reclassify feline poxvirus as cowpox virus
 #In this model, we keep vaccinia virus!
 
 # Aggregate data at the host genus level
@@ -1799,12 +1804,13 @@ library(caper)
 # if (!requireNamespace("BiocManager", quietly = TRUE))
 #     install.packages("BiocManager")
 # BiocManager::install("ggtree")
-library(phylofactor)
+# library(phylofactor)
 library(ggtree)
 library(treeio)
 library(caret) 
 library(InformationValue)
 library(mgcv) #for beta regression on performance metrics
+# library(cowplot) #for combining plots of best.iter
 
 # Clean environment
 rm(list=ls()) 
@@ -1815,14 +1821,30 @@ setwd("~/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/
 
 ```
 
-### *Create variables of taxonomic family as predictors for the model*
+### *Reclassify (drop) feline poxvirus as cowpox virus ###
 
-```{r brt_taxo}
+```{r brt_}
 
 # Load data and clean environment
 load("Output/LinkPredictionModel_CleanData.RData")
 data <- linkdata
 rm(linkdata)
+
+# Identify known interactions between feline poxvirus and mammal genera
+data[data$virus=="feline poxvirus ita2_bc" & data$link==1, c('source','genus')]
+
+# Identify whether known interaction between cowpox virus and Homo exists
+data[data$virus=="cowpox virus" & data$link==1 & data$genus=="Homo", c('source','genus')]
+
+# Drop all feline poxvirus pairings since cowpoxvirus-homo link is already in our dataset
+nrow(data[data$virus=="feline poxvirus ita2_bc",])
+data <- data[data$virus!="feline poxvirus ita2_bc",]
+
+```
+
+### *Create variables of taxonomic family as predictors for the model*
+
+```{r brt_taxo}
 
 # Calculate number of pseudoabsences
 length(which(data$link==0))
@@ -1943,7 +1965,7 @@ str(set)
 # Remove vars not needed for BRT analysis
 data$source=NULL
 data$sequence=NULL
-save(data, file='Output/data_LinkBRT.RData')
+# save(data, file='Output/data_LinkBRT.RData')
 
 # Clean environment
 rm(keeps, mval, trait_coverage)
@@ -1960,7 +1982,7 @@ We prepare an alternative dataset that excludes vaccinia virus sequences (host a
 
 ```
 
-### *Tuning to asses model performance for each combination of tuning parameters*
+### *Tuning to assess model performance for each combination of tuning parameters*
 We create a hyperparameter 'grid' that represents different combinations of parameter values to which we tune the model. We then save a table of the resulting model performance measures for 'Model 1', where we predict on all possible host-virus combinations. If model tuning on the alternative dataset (see above), {r brt_alt}, we recommend you modify the results table name to *par...Model2.csv*.
 Table: *par_tuning_data_summary_Model1.csv*
 
@@ -2232,14 +2254,11 @@ p3 <- search_nt5000_sh0.01 %>%
   scale_fill_manual(values=c("#69b3a2", "#404080")) +
   ggtitle("(C) ntrees=5000 and shrinkage=0.01")
 
-# load library for combining plots
-library(cowplot)
-
-# Combine plots and save to output
-png("Output/histogram_brt_tuning_bestiter.png",width=12,height=4,units="in",res=600)
-plot_grid(p1,p2,p3) +
-  ggtitle("Histogram of best iteration")
-dev.off()
+# Combine plots and save to output - commenting out for HPC due to issues installing cowplot
+# png("Output/histogram_brt_tuning_bestiter.png",width=12,height=4,units="in",res=600)
+# plot_grid(p1,p2,p3) +
+#   ggtitle("Histogram of best iteration")
+# dev.off()
 
 # Clean
 rm(search,search2,hok,mod,search_nt5000,search_nt15000,search_nt5000_sh0.01,p1,p2,p3)
@@ -3018,6 +3037,7 @@ Table: *table_LinkPredictionModel1_predictions.csv*, *table_LinkPredictionModel2
 ```{r pred_save}
 
 # Load Model 1 predictions
+# load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak Results/brts_Model1.RData")
 load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model1/Output/brts_Model1.RData")
 brts1=brts
 rm(brts)
@@ -3098,10 +3118,10 @@ names(apreds2)=c("virus","treename","pred_Model1","pred_Model2","link1","link2")
 # Merge with data
 apreds2=merge(apreds2,data[c("virus","treename","source","ord","fam","genus")],by=c('virus','treename'),all.x=TRUE)
 
-# View(apreds2[duplicated(apreds2),]) #check 
+# View(apreds2[duplicated(apreds2),]) #check
 apreds2 <- apreds2[!duplicated(apreds2),]
 apreds=merge(apreds,data[c("virus","treename","source")],by=c('virus','treename'),all.x=TRUE)
-# View(apreds[duplicated(apreds),]) #check 
+# View(apreds[duplicated(apreds),]) #check
 apreds <- apreds[!duplicated(apreds),]
 
 # Fix source labels
@@ -3137,6 +3157,7 @@ preds2=preds[c("source","virus","treename","fam","ord","pred_Model2","link2")]
 write.csv(preds1,"Output/table_LinkPredictionModel1_predictions.csv")
 write.csv(preds2,"Output/table_LinkPredictionModel2_predictions.csv")
 
+###KATIE, CHECK THIS CODE###
 #(22) Print predicted links organized by virus and source for discussion
 preds1=preds1[order(preds1$virus,preds1$source,-preds1$pred_Model1),]
 paste0("Predicted links for Model 1 by virus and source")
@@ -3150,6 +3171,7 @@ paste0("Predicted links for Model 2 by virus and source")
 preds2[preds2$pred_Model2>0.5,]
 length(which(preds2$pred_Model2>0.5))
 length(which(preds2$pred_Model2>thv2_mss_mean))
+###KATIE, CHECK THIS CODE###
 
 # Clean environment
 rm(preds1, preds2)
@@ -3251,10 +3273,12 @@ set.seed(12345)
 pred1 <- read.csv("Output/table_LinkPredictionModel1_predictions.csv")
 pred1$virus_treename=paste0(pred1$virus, "%",pred1$treename)
 
+###KATIE DELETE THIS CODE CHUNK###
 ### Predictions with 'feline poxvirus ita2_bc' as known associations (i.e., with Homo) should have been classified as 'cowpox virus', but b/c cowpox virus already had a known association with Homo, we drop it out of these prediction instead.
 
 # Drop out 'feline poxvirus ita2_bc'
 pred1 <- pred1[!(pred1$virus=="feline poxvirus ita2_bc"),]
+###KATIE DELETE THIS CODE CHUNK###
 
 # Create table of optimal threshold values for 5 different methods
 ts1 <- optimal.thresholds(data.frame(pred1[,c('virus_treename','link1','pred_Model1')]),
@@ -3682,9 +3706,8 @@ bdata_sum <- rbind(bdata_sum, bdata_unclassified)
 bdata_sum <- aggregate(cbind(link1,link2,link1_rs0.8,link1_rs0.85,link1_rs0.9,link1_mss3) ~ treename + ord + fam + genus + label + Species, data=bdata_sum, sum)
 
 # Combine bdata_mean and bdata_sum
-bdata_agg <- merge(bdata_mean_model1, bdata_mean_model2, by=c("treename", "ord", "fam", "genus", "label", "Species"))
+bdata_agg <- bdata_mean_model1, bdata_mean_model2, by=c("treename", "ord", "fam", "genus", "label", "Species"))
 bdata_agg <- merge(bdata_agg, bdata_sum, by=c("treename", "ord", "fam", "genus", "label", "Species"))
-
 
 ### We take the mean of the predictions for visualizing the phylotree later b/c if the mean is >1 that means at least one host-virus link was positive within that host genera
 ### link1 and link2 represent known hosts; unknown_link1_ and unknown_link2_ represent unknown predicted hosts
@@ -4585,6 +4608,109 @@ maps_nature <- rasterVis::levelplot(maps,
 png("Output/Nature/maps_nature.png",width=8,height=12,units="in",res=600)
 maps_nature
 dev.off()
+
+
+#############################################################
+#### Main Text: Map of Mpox link prediction model predictions with susceptibility ####
+#############################################################
+
+#load link prediction file
+pred1 <- read.csv("Output/table_LinkPredictionModel1_predictions.csv")
+pred1$virus_treename=paste0(pred1$virus, "%",pred1$treename)
+
+#keep mpox predictions only
+unique(pred1$virus)
+pred1 <- pred1[pred1$virus=="monkeypox virus",]
+
+#() Add method applying 90% required sensitivity
+ts1_rs0.9 <- optimal.thresholds(data.frame(pred1[,c('virus_treename','link1','pred_Model1')]),
+                           threshold = 10001,
+                           opt.methods = c(10), 
+                           req.sens = 0.9,
+                           na.rm = TRUE)
+
+pred1$virus_treename=paste0(pred1$virus, "%",pred1$treename)
+  
+#(2) Threshold the results to binary outputs
+pred1 %>%
+  mutate(bin_rs0.9 = ifelse(pred_Model1 > ts1_rs0.9$pred_Model1, 1, 0)) -> pred1
+  
+#(7) Pull out the relevant lists of known hosts and predicted hosts
+pred1 %>% filter(link1==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> known.1 #n=19
+pred1 %>% filter(bin_rs0.9==1) %>% dplyr::pull(treename) %>% gsub("_"," ",.) -> pred.1_rs0.9 #n=19
+
+#() Pull out the relevant lists of predicted unknown hosts for all OPVs
+pred.1_unk_rs0.9 <- pred.1_rs0.9[!(pred.1_rs0.9 %in% known.1)] #n=31
+
+#### Create Map ####
+
+# Load shape file of mammal geographic range
+iucn <- sf::st_read(dsn = "/Users/katietseng/Fernandez Lab Dropbox/Katie Tseng/Mac/Desktop/PoxHost(copy)/data/raw/MAMMALS/MAMMALS.shp", layer='MAMMALS')
+
+# Make a blank raster (must be connected to wifi for the disaggregate function)
+r <- raster::disaggregate(getData("worldclim",var="alt",res=2.5)*0,2)
+
+# Create two layers
+iucn$treename=sapply(strsplit(iucn$binomial,' '),function(x) paste(x[1],sep=' '))
+
+iucn_known <- iucn[iucn$treename %in% known.1,] #n=1676
+iucn_link <- iucn[iucn$treename %in% pred.1_rs0.9,] #n=1699
+
+map_known <- (fasterize(iucn_known, r, fun="sum"))
+map_link <- (fasterize(iucn_link, r, fun="sum"))
+
+# Add zeros for the continental area 
+fix <- function(x) {sum(x,r,na.rm=TRUE)+r}
+
+map_known <- fix(map_known)
+map_link <- fix(map_link)
+
+##### Human Susceptibility: https://github.com/bansallab/mpx_landscape #####
+
+fig1sf <- readRDS("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/mpx_landscape/data/world-estimates-vaxxed-sf.RDS")
+
+# Generate variable of unvaxxed (susceptible) from perc_vaxxed
+fig1sf$perc_unvaxxed <- 100-fig1sf$perc_vaxxed
+
+# Create additional layer
+  #map_vaccinated <- (fasterize(fig1sf, r, field = "perc_vaxxed", fun="max"))
+map_susceptible <- (fasterize(fig1sf, r, field = "perc_unvaxxed", fun="max"))
+ 
+  # fig1sf_us <- subset(fig1sf, COUNTRYNM == "united states of america")
+  # head(fig1sf_us)
+
+# Add zeros for the continental area
+map_susceptible <- fix(map_susceptible)
+
+# Combine link prediction and susceptiblity maps
+raster::stack(map_known, map_link, map_susceptible) %>% raster::trim() -> maps #alternatively, can use tera package
+names(maps) <- c('Link prediction model - observed', 'Link prediction model - predicted0.9', 'Human susceptibility')
+
+# Create color palette for maps
+library(rasterVis)
+library(RColorBrewer)
+
+mycolors <- colorRampPalette(rev(brewer.pal(10,"Spectral")))(21)
+mycolors[1] <- "#C0C0C0"
+  
+# Alternative palette
+  # library(MetBrewer)
+  # mycolors <- met.brewer("VanGogh3",50)
+
+# Generate the actual visualizations
+maps_nature <- rasterVis::levelplot(maps,  
+                     col.regions = mycolors,
+                     alpha = 0.5, 
+                     scales=list(alternating=FALSE), #prevents axis labels from alternating from one side of group of panels to the other
+                     par.strip.text=list(cex=0),
+                     xlab = NULL, ylab = NULL,
+                     labels = labels,
+                     maxpixels = 5e6)
+
+png("Output/Nature/maps_nature_mpxv.png",width=8,height=12,units="in",res=600)
+maps_nature
+dev.off()
+
 
 ```
 
