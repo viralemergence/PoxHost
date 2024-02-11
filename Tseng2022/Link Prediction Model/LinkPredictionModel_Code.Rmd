@@ -2435,7 +2435,7 @@ smax=100
 brts=lapply(1:smax,function(x) brt_part(seed=x,response="link"))
 
 # Run wos brts
-pm_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="cites"))
+pm_brts=lapply(1:(smax),function(x) brt_part(seed=x,response="cites"))
 
 # Save results to working directory
 save(brts,pm_brts,file="Output/brts_Model1.RData")
