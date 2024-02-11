@@ -1971,13 +1971,20 @@ data$sequence=NULL
 rm(keeps, mval, trait_coverage)
 ```
 
-### *Alternative dataset excluding vaccinia virus sequences*
-We prepare an alternative dataset that excludes vaccinia virus sequences (host associations with vaccinia virus) from BRT analysis.
+### *Alternative datasets Models 2 (excluding vaccinia virus sequences) and Model 3 (host traits only)*
+For Model 2, we prepare an alternative dataset that excludes vaccinia virus sequences (host associations with vaccinia virus) from BRT analysis. For Model 3, we prepare an alternative dataset that excludes viral traits from BRT analysis and is trained only on host traits (includes vaccinia virus).
 
 ```{r brt_alt}
 
-# Subset data to exclude host-vaccinia virus links
+# Model 2: Subset data to exclude host-vaccinia virus links
 # data <- data[data$virus!="vaccinia virus",]
+# set <- subset(data,select=-c(fam, virus, genus, ord, gtip, treename))
+
+# Model 3: Subset data to exclude viral traits
+# We prepare an alternative dataset that excludes viral traits from BRT analysis so that model is trained only on host traits.
+# 
+# # Subset data to exclude viral traits
+# data <- subset(data,select=-c(PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10))
 # set <- subset(data,select=-c(fam, virus, genus, ord, gtip, treename))
 
 ```
