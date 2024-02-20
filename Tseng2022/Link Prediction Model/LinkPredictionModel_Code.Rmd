@@ -2485,7 +2485,7 @@ Figures: *plot_perf_mpxv_train.png*, *plot_perf_mpxv_test.png*, *plot_perf_mpxv_
 #### If needed, increase vector memory in R environment and reboot R before proceeding (https://stackoverflow.com/questions/51295402/r-on-macos-error-vector-memory-exhausted-limit-reached)
 
 # Get data from Model 1
-load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model1/Output/brts_Model1.RData")
+load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model1/brts_Model1.RData")
 brts1=brts
 rm(brts)
 
@@ -2574,34 +2574,48 @@ rm(cmat_test, cmat_train, ctest,ctrain, dat_test, dat_train, mdat_test, mdat_tra
 
 ```
 
-### *Evaluate performance measures for Model 1 (all links) and Model 2 (excluding Vaccinia)*
-How accurately did Model 1 and Model 2 distinguish host-virus links vs. non-links (assuming a threshold value of 0.5)? We evaluate the mean AUC, sensitivity, and specificity of our models.
+### *Evaluate performance measures for Model 1 (all links), Model 2 (excluding Vaccinia links), and Model 3 (all links; host traits only)*
+How accurately did the different models distinguish host-virus links from non-links (assuming a threshold value of 0.5)? We evaluate the mean AUC, sensitivity, and specificity of our models.
 
 ```{r perf_auc}
 
-# Get data from Model 1
-load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model1/Output/brts_Model1.RData")
-brts1=brts
-rm(brts)
+### LOAD DATA ###
 
-# Get data from Model 2
-load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model2/Output/brts_Model2.RData")
+# Get data from Model 1 - includes VACV links
+load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model1/brts_Model1.RData")
+brts1=brts
+# pm_brts1=pm_brts
+rm(brts, pm_brts)
+
+# Get data from Model 2 - excludes VACV links
+load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model2/brts_Model2.RData")
 brts2=brts
-rm(brts)
+# pm_brts2=pm_brts
+rm(brts, pm_brts)
+
+# Get data from Model 3 - includes host traits only (and VACV links); excludes viral/PC variables
+load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model3/brts_Model3.RData")
+brts3=brts
+# pm_brts3=pm_brts
+rm(brts, pm_brts)
 
 # Index non-missing
 keep1=which(!is.na(sapply(brts1,function(x) x$testAUC)))
 keep2=which(!is.na(sapply(brts2,function(x) x$testAUC)))
+keep3=which(!is.na(sapply(brts3,function(x) x$testAUC)))
 
 # Trim, keeping only those that are non-missing
 brts1=brts1[keep1]
 brts2=brts2[keep2]
+brts3=brts3[keep3]
 
 # Check number of iterations
 length(keep1)
 length(keep2)
+length(keep3)
 
-### MODEL 1 (INCL. VACCINIA LINKS): Get model performance measures assuming 0.5 threshold ###
+
+### MODEL 1 ### includes VACV links; get model performance measures assuming 0.5 threshold
 
 # Get predicted probabilities for each iteration
 m1_cpreds=lapply(brts1,function(x) x$predict)
@@ -2625,7 +2639,8 @@ mean = mean(sapply(m1_spec,function(x) x))
 se = std.error(sapply(m1_spec,function(x) x))
 m1_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
-### MODEL 2 (EXCL. VACCINIA LINKS): Get model performance measures assuming 0.5 threshold ###
+
+### MODEL 2 ### excludes VACV links; get model performance measures assuming 0.5 threshold
 
 # Get predicted probabilities for each iteration
 m2_cpreds=lapply(brts2,function(x) x$predict)
@@ -2649,116 +2664,229 @@ mean = mean(sapply(m2_spec,function(x) x))
 se = std.error(sapply(m2_spec,function(x) x))
 m2_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
 
+
+### MODEL 3 ### includes host traits only; get model performance measures assuming 0.5 threshold
+
+# Get predicted probabilities for each iteration
+m3_cpreds=lapply(brts3,function(x) x$predict)
+m3_cpreds=lapply(m3_cpreds,function(x) select(x,c("link","cpred")))
+
+# Get AUC for each iteration and calculate mean AUC and standard error across iterations
+m3_auc = lapply(m3_cpreds, function(x) auc(x$link, x$cpred))
+mean = mean(sapply(m3_auc,function(x) x))
+se = std.error(sapply(m3_auc,function(x) x))
+m3_auc_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+
+# Get sensitivity for each iteration and calculate mean sensitivity and standard error across iterations
+m3_sens = lapply(m3_cpreds, function(x) InformationValue::sensitivity(x$link, x$cpred, threshold=0.5))
+mean = mean(sapply(m3_sens,function(x) x))
+se = std.error(sapply(m3_sens,function(x) x))
+m3_sens_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+
+# Get specificity for each iteration and calculate mean specificity and standard error across iterations
+m3_spec = lapply(m3_cpreds, function(x) InformationValue::specificity(x$link, x$cpred, threshold=0.5))
+mean = mean(sapply(m3_spec,function(x) x))
+se = std.error(sapply(m3_spec,function(x) x))
+m3_spec_mean <- paste0(sprintf("%.2f",mean), " \u00b1 ", sprintf("%.3f",se))
+
 # Clean environment; save performance metrics to create a table in the next section
-rm(m1_cpreds, m2_cpreds, keep1, keep2, mean, se)
+rm(m1_cpreds, m2_cpreds, m3_cpreds, keep1, keep2, keep3, mean, se)
 
 ```
 
-### *Compare performance between BRTs trained on host-virus associations including and excluding vaccinia virus*
-Is model performance significantly different when trained on all links (Model 1) vs. links excluding Vaccinia virus (Model 2)? We create a function to perform an unpaired T-test on the AUC, sensitivity and specificity of the two models and determine the effect size (mean difference) via Cohen's d.
+### *Compare performance between BRTs trained on host and viral traits (Models 1 and 2) as opposed to host traits alone (Model 3)*
+Is model performance significantly different when trained on all links (Model 1) vs. links excluding VACV virus (Model 2)? Is model performance significantly different when trained on host AND viral traits (Model 1) as opposed to host traits alone (Model 3)? We create a function to perform an unpaired T-test on the AUC, sensitivity and specificity of the models being compared and determine the effect size (mean difference) via Cohen's d.
 
 ```{r perf_compare}
 
-### T-test for AUC ###
+### T-TEST FOR AUC ###
 
-# Get auc values for model 1
+# get auc values for model 1
 adata_m1=data.frame(y=c(sapply(m1_auc, function(x) x)))
 adata_m1$seed = 1:nrow(adata_m1)
 adata_m1$response = "model1"
 
-# Get auc values for model 2
+# get auc values for model 2
 adata_m2=data.frame(y=c(sapply(m2_auc, function(x) x)))
 adata_m2$seed = 1:nrow(adata_m2)
 adata_m2$response = "model2"
+
+# get auc values for model 3
+adata_m3=data.frame(y=c(sapply(m3_auc, function(x) x)))
+adata_m3$seed = 1:nrow(adata_m3)
+adata_m3$response = "model3"
+
+# combine auc values for models 1-3: will need this for later {r perf_boxplot}
+adata_auc123 = rbind(adata_m1, adata_m2, adata_m3)
+
+# combine auc values for models 1 and 2
 adata_auc=rbind(adata_m1, adata_m2)
 
-# Transform 'response' to factor
+# transform 'response' to factor
 adata_auc$response=factor(adata_auc$response,levels=c('model1','model2'))
  
-# T-test
-tsum_auc=t.test(y~response,data=adata_auc,
+# t-test
+tsum_auc12=t.test(y~response,data=adata_auc,
             alternative='two.sided',
             var.equal=F,paired=F)  
   
-# Effect size
-csum_auc=cohens_d(y~response,data=adata_auc,paired=F,var.equal=F)
+# effect size
+csum_auc12=cohens_d(y~response,data=adata_auc,paired=F,var.equal=F)
+
+# combine auc values for models 1 and 3
+adata_auc=rbind(adata_m1, adata_m3)
+
+# transform 'response' to factor
+adata_auc$response=factor(adata_auc$response,levels=c('model1','model3'))
+ 
+# t-test
+tsum_auc13=t.test(y~response,data=adata_auc,
+            alternative='two.sided',
+            var.equal=F,paired=F)  
+  
+# effect size
+csum_auc13=cohens_d(y~response,data=adata_auc,paired=F,var.equal=F)
 
 ### T-test for sensitivity ###
 
-# Get sensitivity values for model 1 
+# get sensitivity values for model 1 
 adata_m1=data.frame(y=c(sapply(m1_sens, function(x) x)))
 adata_m1$seed = 1:nrow(adata_m1)
 adata_m1$response = "model1"
 
-# Get sensitivity values for model 2
+# get sensitivity values for model 2
 adata_m2=data.frame(y=c(sapply(m2_sens, function(x) x)))
 adata_m2$seed = 1:nrow(adata_m2)
 adata_m2$response = "model2"
+
+# get sensitivity values for model 3
+adata_m3=data.frame(y=c(sapply(m3_sens, function(x) x)))
+adata_m3$seed = 1:nrow(adata_m3)
+adata_m3$response = "model3"
+
+# combine sensitivity values for models 1-3: will need this for later {r perf_boxplot}
+adata_sens123 = rbind(adata_m1, adata_m2, adata_m3)
+
+# combine sensitivity values for models 1 and 2
 adata_sens=rbind(adata_m1, adata_m2)
 
-# Transform 'response' to factor
+# transform 'response' to factor
 adata_sens$response=factor(adata_sens$response,levels=c('model1','model2'))
  
-# T-test
-tsum_sens=t.test(y~response,data=adata_sens,
+# t-test
+tsum_sens12=t.test(y~response,data=adata_sens,
             alternative='two.sided',
             var.equal=F,paired=F)  
   
-# Effect size
-csum_sens=cohens_d(y~response,data=adata_sens,paired=F,var.equal=F)
+# effect size
+csum_sens12=cohens_d(y~response,data=adata_sens,paired=F,var.equal=F)
+
+# combine sensitivity values for models 1 and 3
+adata_sens=rbind(adata_m1, adata_m3)
+
+# transform 'response' to factor
+adata_sens$response=factor(adata_sens$response,levels=c('model1','model3'))
+ 
+# t-test
+tsum_sens13=t.test(y~response,data=adata_sens,
+            alternative='two.sided',
+            var.equal=F,paired=F)  
+  
+# effect size
+csum_sens13=cohens_d(y~response,data=adata_sens,paired=F,var.equal=F)
 
 ### T-test for specificity ###
 
-# Get sensitivity values for model 1 
+# get specificity values for model 1 
 adata_m1=data.frame(y=c(sapply(m1_spec, function(x) x)))
 adata_m1$seed = 1:nrow(adata_m1)
 adata_m1$response = "model1"
 
-# Get sensitivity values for model 2
+# get specificity values for model 2
 adata_m2=data.frame(y=c(sapply(m2_spec, function(x) x)))
 adata_m2$seed = 1:nrow(adata_m2)
 adata_m2$response = "model2"
+
+# get specificity values for model 3
+adata_m3=data.frame(y=c(sapply(m3_spec, function(x) x)))
+adata_m3$seed = 1:nrow(adata_m3)
+adata_m3$response = "model3"
+
+# combine specificity values for models 1-3: will need this {r perf_boxplot}
+adata_spec123 = rbind(adata_m1, adata_m2, adata_m3)
+
+# combine specificity values for models 1 and 2
 adata_spec=rbind(adata_m1, adata_m2)
 
-# Transform 'response' to factor
-adata_spec$response=factor(adata_spec$response,levels=c('model1','model2'))
+# transform 'response' to factor
+adata_spec$response=factor(adata_spec$response,levels=c('model1', 'model2'))
  
-# T-test
-tsum_spec=t.test(y~response,data=adata_spec,
+# t-test
+tsum_spec12=t.test(y~response,data=adata_spec,
             alternative='two.sided',
             var.equal=F,paired=F)  
   
-# Effect size
-csum_spec=cohens_d(y~response,data=adata_spec,paired=F,var.equal=F)
+# effect size
+csum_spec12=cohens_d(y~response,data=adata_spec,paired=F,var.equal=F)
 
-# Adjust p-values w/ Benjamini Hochberg correction method
-ps=c(tsum_auc$p.value,
-     tsum_sens$p.value,
-     tsum_spec$p.value)
-ps_adjust <- sprintf("%.4f",p.adjust(ps,method="BH"))    #"BH" (aka "fdr") = Benjamini & Hochberg (1995) method control the false discovery rate, the expected proportion of false discoveries amongst the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate)
+# combine specificity values for models 1 and 3
+adata_spec=rbind(adata_m1, adata_m3)
 
-# Create and save table of performance measures 
+# transform 'response' to factor
+adata_spec$response=factor(adata_spec$response,levels=c('model1', 'model3'))
+ 
+# t-test
+tsum_spec13=t.test(y~response,data=adata_spec,
+            alternative='two.sided',
+            var.equal=F,paired=F)  
+  
+# effect size
+csum_spec13=cohens_d(y~response,data=adata_spec,paired=F,var.equal=F)
+
+### Create table of performance metrics ###
+
+# adjust p-values w/ Benjamini Hochberg correction method
+ps=c(tsum_auc12$p.value,
+     tsum_sens12$p.value,
+     tsum_spec12$p.value)
+ps_adjust12 <- sprintf("%.4f",p.adjust(ps,method="BH"))    #"BH" (aka "fdr") = Benjamini & Hochberg (1995) method control the false discovery rate, the expected proportion of false discoveries amongst the rejected hypotheses (false discovery rate is less stringent condition than family-wise error rate)
+
+ps=c(tsum_auc13$p.value,
+     tsum_sens13$p.value,
+     tsum_spec13$p.value)
+ps_adjust13 <- sprintf("%.4f",p.adjust(ps,method="BH")) 
+
+### combine performance measures ###
 table_perf_metrics <- data.frame(matrix(c(m1_auc_mean, m1_sens_mean, m1_spec_mean, 
                                           m2_auc_mean, m2_sens_mean, m2_spec_mean,
-                                          sprintf("%.2f", tsum_auc$statistic), 
-                                          sprintf("%.2f", tsum_sens$statistic), 
-                                          sprintf("%.2f", tsum_spec$statistic), 
-                                          ps_adjust, 
-                                          sprintf("%.2f", csum_auc$effsize), 
-                                          sprintf("%.2f", csum_sens$effsize), 
-                                          sprintf("%.2f", csum_spec$effsize)), 
+                                          sprintf("%.2f", tsum_auc12$statistic), 
+                                          sprintf("%.2f", tsum_sens12$statistic), 
+                                          sprintf("%.2f", tsum_spec12$statistic),
+                                          ps_adjust12, 
+                                          sprintf("%.2f", csum_auc12$effsize), 
+                                          sprintf("%.2f", csum_sens12$effsize), 
+                                          sprintf("%.2f", csum_spec12$effsize), 
+                                          
+                                          m3_auc_mean, m3_sens_mean, m3_spec_mean,
+                                          sprintf("%.2f", tsum_auc13$statistic), 
+                                          sprintf("%.2f", tsum_sens13$statistic), 
+                                          sprintf("%.2f", tsum_spec13$statistic),
+                                          ps_adjust13,
+                                          sprintf("%.2f", csum_auc13$effsize), 
+                                          sprintf("%.2f", csum_sens13$effsize), 
+                                          sprintf("%.2f", csum_spec13$effsize)), 
                                   ncol=3, byrow=TRUE))
 
-# Rename columns and rownames
+# rename columns and rownames
 colnames(table_perf_metrics) <- c('AUC (mean \u00b1 SE)', 'Sensitivity (mean \u00b1 SE)', 'Specificity (mean \u00b1 SE)')
-rownames(table_perf_metrics) <- c('Link prediction model', 'Link prediction model excluding VACV associations', 't-test', 'p-val', "Cohen's d")
+rownames(table_perf_metrics) <- c('Link prediction model', 'Link prediction model excluding VACV associations', 't-test (Model 1 vs. 2)', 'p-val (Model 1 vs. 2)', "Cohen's d (Model 1 vs. 2)", 'Link prediction model with host traits only', 't-test (Model 1 vs. 3)', 'p-val (Model 1 vs. 3)', "Cohen's d (Model 1 vs. 3)")
 
-# Save table
+# save table
 write.csv(table_perf_metrics, "Output/table_perf_metrics.csv")
 
-# Clean environment
-rm(list=setdiff(ls(), c("brts1", "brts2", 
-                        "adata_auc", "adata_sens", "adata_spec")))
+# clean environment
+rm(list=setdiff(ls(), c("brts1", "brts2", "brts3",
+                        "adata_auc123", "adata_sens123", "adata_spec123")))
 
 ```
 
@@ -2768,49 +2896,69 @@ rm(list=setdiff(ls(), c("brts1", "brts2",
 
 ### OPTION 1 ### Get optimized THV from the predicted probabilities of all 100 iterations
 
-# Row-bind predicted values of all iterations for Model 1
+# row-bind predicted values of all iterations for Model 1
 model1=lapply(brts1,function(x) x$predict)
 model1=do.call(rbind,model1)
 
-# Row-bind predicted values of all iterations for Model 2
+# row-bind predicted values of all iterations for Model 2
 model2=lapply(brts2,function(x) x$predict)
 model2=do.call(rbind,model2)
 
-# Build an ROC curve from the predicted probabilities of all iterations (and known links) for Model 1 and Model 2
+# row-bind predicted values of all iterations for Model 3
+model3=lapply(brts3,function(x) x$predict)
+model3=do.call(rbind,model3)
+
+# build an ROC curve from the predicted probabilities of all iterations (and known links) 
 roc1 <- roc(model1$link,model1$cpred, auc=TRUE, ci=TRUE)
 roc2 <- roc(model2$link,model2$cpred, auc=TRUE, ci=TRUE)
+roc3 <- roc(model3$link,model3$cpred, auc=TRUE, ci=TRUE)
 
-# Plot ROC curve for Model 1
+# plot ROC curve for Model 1
 png("Output/ROCcurve_thv0.5_model1.png",width=8,height=6,units="in",res=300)
 plot(roc1, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
   grid.col=c("gray", "gray"), max.auc.polygon=TRUE,
   auc.polygon.col="lightblue", print.thres=TRUE) #print.thres based on max(sens+spec)
 dev.off()
 
-# Plot ROC curve for Model 2
+# plot ROC curve for Model 2
+png("Output/ROCcurve_thv0.5_model2.png",width=8,height=6,units="in",res=300)
 plot(roc2, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
   grid.col=c("gray", "gray"), max.auc.polygon=TRUE,
   auc.polygon.col="lightblue", print.thres=TRUE)
+dev.off()
 
-# Get optimum THV by finding THV when sens+spec are maximized for Model 1
+# plot ROC curve for Model 3
+png("Output/ROCcurve_thv0.5_model3.png",width=8,height=6,units="in",res=300)
+plot(roc3, print.auc=TRUE, auc.polygon=TRUE, grid=c(0.1, 0.2),
+  grid.col=c("gray", "gray"), max.auc.polygon=TRUE,
+  auc.polygon.col="lightblue", print.thres=TRUE)
+dev.off()
+
+# get optimum THV by finding THV when sens+spec are maximized for Model 1
 tss <- cbind(roc1$thresholds, roc1$sensitivities + roc1$specificities)
 thv1_mss <- subset(tss, tss[,2]==max(tss[,2]))[,1]
 
-# Get optimum THV by finding THV when sens+spec are maximized for Model 2
+# get optimum THV by finding THV when sens+spec are maximized for Model 2
 tss <- cbind(roc2$thresholds, roc2$sensitivities + roc2$specificities)
 thv2_mss <- subset(tss, tss[,2]==max(tss[,2]))[,1] 
 
+# get optimum THV by finding THV when sens+spec are maximized for Model 3
+tss <- cbind(roc3$thresholds, roc3$sensitivities + roc3$specificities)
+thv3_mss <- subset(tss, tss[,2]==max(tss[,2]))[,1]
+
 ### OPTION 2 ### Get optimized THV averaged across all 100 model iterations based on predicted probs
 
-# Model 1: Build individual ROCs for each iteration; compile as a list
+## Model 1
+
+# build individual ROCs for each iteration; compile as a list
 roc1=lapply(brts1,function(x) roc(x$predict$link,x$predict$cpred, auc=TRUE,ci=TRUE))
 
-# Model 1: Calculate mean AUC from roc (thv=0.5)
+# calculate mean AUC from roc (thv=0.5)
 auc=unlist(lapply(roc1, function(x) x$auc))
 mean(auc)
 std.error(auc)
 
-# Model 1: Plot ROC curves
+# plot ROC curves
 png("Output/ROCcurve_thv0.5_model1_eachiter.png",width=8,height=6,units="in",res=300)
 plot(roc1[[1]])
 for (i in 2:length(roc1)) {
@@ -2819,24 +2967,24 @@ for (i in 2:length(roc1)) {
 }
 dev.off()
 
-# Model 1: For each iteration's ROC, extract the threshold value and the sum of sensitivity + specificity
+# for each iteration's ROC, extract the threshold value and the sum of sensitivity + specificity
 tss1=lapply(roc1, function(x) cbind(x$thresholds, x$sensitivities + x$specificities))
 
-# Model 1: For each iteration, extract the threshold value where sens+spec were maximized
+# for each iteration, extract the threshold value where sens+spec were maximized
 thv1_mss = lapply(tss1, function(x) subset(x, x[,2]==max(x[,2]))[,1])
 
-# Model 1: Get the mean and standard error of those threshold values; this is our calculated optimal threshold value
+# get the mean and standard error of those threshold values; this is our calculated optimal threshold value
 thv1_mss_mean = mean(sapply(thv1_mss, function(x) x))
 thv1_mss_se =se(sapply(thv1_mss, function(x) x))
 
-# Model 1: For each iteration, get the coordinates (sensitivity & specificity) of the ROC curve applying the mean threshold value
+# for each iteration, get the coordinates (sensitivity & specificity) of the ROC curve applying the mean threshold value
 coords1 = lapply(roc1, function(x) coords(x, thv1_mss_mean, input="threshold"))
 
-# Model 1: Extract sens and spec values from coordinate points
+# extract sens and spec values from coordinate points
 coords1_sens = unlist(lapply(coords1, function(x) x$sensitivity))
 coords1_spec = unlist(lapply(coords1, function(x) x$specificity))
 
-# Model 1: Calculate corresponding mean sens and spec
+# calculate corresponding mean sens and spec
 mean(coords1_sens)
 std.error(coords1_sens)
 
@@ -2879,7 +3027,7 @@ coords2_spec = unlist(lapply(coords2, function(x) x$specificity))
 mean(coords2_spec)
 std.error(coords2_spec)
 
-### OPTION 2 ### Get optimum THV based on the ROC curve: maximize TRP and FPR (true/false positive rate) by minimizing |FPR + TPR - 1|, which is equal to minimizing |sensitivity - specificity|.
+### OPTION 3 ### Get optimum THV based on the ROC curve: maximize TRP and FPR (true/false positive rate) by minimizing |FPR + TPR - 1|, which is equal to minimizing |sensitivity - specificity|.
 
 # Model 1: Unlist and extract sensitivity, specificity and threshold values
 sensitivities <- unlist(lapply(roc1, function(x) x$sensitivities))
@@ -2907,7 +3055,7 @@ AUC_optimized <- auc(roc1, thresholds = thv1_minss)
 print(AUC_optimized)
 
 # Clean environment
-rm(list=setdiff(ls(), c("adata","brts1","brts2","sedata","spdata")))
+# rm(list=setdiff(ls(), c("adata","brts1","brts2","sedata","spdata")))
 
 ```
 
@@ -2916,10 +3064,15 @@ Figures: *boxplot_model_senspec.png*, *boxplot_model_auc.png*
 
 ```{r perf_boxplot}
 
-# Create list of dataframes
-list_dfs <- list(adata_auc, adata_sens, adata_spec)
+# transform 'response' to factor
+adata_auc123$response=factor(adata_spec123$response,levels=c('model1', 'model2', 'model3'))
+adata_sens123$response=factor(adata_spec123$response,levels=c('model1', 'model2', 'model3'))
+adata_spec123$response=factor(adata_spec123$response,levels=c('model1', 'model2', 'model3'))
 
-# Generate additional variables needed for plotting model performance
+# create list of dataframes
+list_dfs <- list(adata_auc123, adata_sens123, adata_spec123)
+
+# generate additional variables needed for plotting model performance
 for (i in 1:length(list_dfs)){
   
   ## make jitter position to spread out points along the x-coordinate
@@ -2937,27 +3090,17 @@ df_sens <- as.data.frame(list_dfs[[2]])
 df_spec <- as.data.frame(list_dfs[[3]])
 
 # Add type variable
-df_auc$type="auc"
-df_sens$type="sensitivity"
-df_spec$type="specificity"
+df_auc$type="AUC"
+df_sens$type="Sensitivity"
+df_spec$type="Specificity"
 
 # Aggregate sens and spec datasets
 sdata=rbind.data.frame(df_sens, df_spec)
 
 
-# Extract sensitivity and specificity data; save as new dataframes
-data1=sedata$adata
-data2=spdata$adata
+### BOXPLOTS FOR MODELS 1 & 2
 
-# Group observations by type for plotting
-data1$type="sensitivity"
-data2$type="specificity"
-
-# Aggregate datasets
-sdata=rbind.data.frame(data1,data2)
-rm(data1,data2,sedata,spdata)
-
-# Boxplot of AUC
+# AUC
 png("Output/boxplot_model_auc.png",width=4,height=5,units="in",res=300)
 set.seed(1)
 ggplot(df_auc)+
@@ -2966,6 +3109,7 @@ ggplot(df_auc)+
   scale_x_continuous(breaks=c(1,2),
                      labels=c("Host-virus links","Host-virus links \n excluding VACV"),
                      limits=c(0.5,2.5))+
+  coord_cartesian(ylim = c(0.92, 0.97)) +
   theme_bw()+
   labs(x="Response variable",
        y="Area under the curve (AUC)")+
@@ -2978,7 +3122,7 @@ ggplot(df_auc)+
   guides(colour="none")
 dev.off()
 
-# Boxplot of sensitivity and specificity
+# sensitivity and specificity
 png("Output/boxplot_model_senspec.png",width=4,height=5,units="in",res=300)
 set.seed(1)
 ggplot(sdata) +
@@ -2987,11 +3131,62 @@ ggplot(sdata) +
   scale_x_continuous(breaks=c(1,2),
                      labels=c("Host-virus links","Host-virus links \n excluding VACV"),
                      limits=c(0.5,2.5))+
+  coord_cartesian(ylim = c(0.6, 0.8))+
   theme_bw()+
   facet_wrap(~type,scales="free_y",strip.position="left",ncol=1)+
   theme(strip.placement="outside",
         strip.background=element_blank())+
   labs(x="Response variable",
+       y=NULL)+
+  theme(axis.text.y=element_text(size=10),
+        axis.text.x=element_text(size=8),
+        axis.title=element_text(size=12),
+        strip.text=element_text(size=12))+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  guides(colour="none")
+dev.off()
+
+### BOXPLOTS FOR ALL MODELS (Nature) ###
+
+# AUC
+png("Output/boxplot_model_auc_nature.png",width=4,height=5,units="in",res=300)
+set.seed(1)
+ggplot(df_auc)+
+  geom_boxplot(aes(x=x,y=y,group=x),width=0.5,alpha=0.25,outlier.alpha=0)+
+  geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
+  scale_x_continuous(breaks=c(1,2,3),
+                     labels=c("Including\n VACV links","Excluding\n VACV links","Trained on\n host traits only"),
+                     limits=c(0.5,3.5))+
+  coord_cartesian(ylim = c(0.65, 0.97)) +
+  theme_bw()+
+  labs(x="Link prediction models",
+       y="Area under the curve (AUC)")+
+  theme(axis.text=element_text(size=10),
+        axis.text.x=element_text(size=8),
+        axis.title=element_text(size=12))+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  guides(colour="none")
+dev.off()
+
+# sensitivity and specificity
+png("Output/boxplot_model_senspec_nature.png",width=4,height=5,units="in",res=300)
+set.seed(1)
+ggplot(sdata) +
+  geom_boxplot(aes(x=x,y=y,group=x),width=0.5,alpha=0.25,outlier.alpha=0)+
+  geom_point(aes(x=xj,y=y),size=1.5,alpha=0.5)+
+  scale_x_continuous(breaks=c(1,2,3),
+                     labels=c("Including\n VACV links","Excluding\n VACV links","Trained on\n host traits only"),
+                     limits=c(0.5,3.5))+
+  coord_cartesian(ylim = c(0, 0.8))+
+  theme_bw()+
+  facet_wrap(~type,scales="free_y",strip.position="left",ncol=1)+
+  theme(strip.placement="outside",
+        strip.background=element_blank())+
+  labs(x="Link prediction models",
        y=NULL)+
   theme(axis.text.y=element_text(size=10),
         axis.text.x=element_text(size=8),
@@ -3043,16 +3238,25 @@ Table: *table_LinkPredictionModel1_predictions.csv*, *table_LinkPredictionModel2
 
 ```{r pred_save}
 
-# Load Model 1 predictions
-# load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak Results/brts_Model1.RData")
-load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model1/Output/brts_Model1.RData")
-brts1=brts
-rm(brts)
+### LOAD DATA ###
 
-# load Model 2 predictions
-load("~/Fernandez Lab Dropbox/Katie Tseng/Mac/Downloads/HPC_24Nov2022_Model2/Output/brts_Model2.RData")
+# Get data from Model 1 - includes VACV links
+load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model1/brts_Model1.RData")
+brts1=brts
+# pm_brts1=pm_brts
+rm(brts, pm_brts)
+
+# Get data from Model 2 - excludes VACV links
+load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model2/brts_Model2.RData")
 brts2=brts
-rm(brts)
+# pm_brts2=pm_brts
+rm(brts, pm_brts)
+
+# Get data from Model 3 - includes host traits only (and VACV links); excludes viral/PC variables
+load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model3/brts_Model3.RData")
+brts3=brts
+# pm_brts3=pm_brts
+rm(brts, pm_brts)
 
 # Load cleaned data file
 library(fastDummies)
@@ -3075,52 +3279,54 @@ for(i in 1:ncol(dums)){
 data=merge(data,dums,by="fam",all.x=T)
 rm(dums)
 
-# Get predicted probabilities from Model 1
+# Get predicted probabilities from Models 1-3
 model1_apreds=lapply(brts1,function(x) x$predict)
 model1_apreds=do.call(rbind,model1_apreds)
+model2_apreds=lapply(brts2,function(x) x$predict)
+model2_apreds=do.call(rbind,model2_apreds)
+model3_apreds=lapply(brts3,function(x) x$predict)
+model3_apreds=do.call(rbind,model3_apreds)
 
 # Collapse to mean of predicted probabilities for each unique treename/tip
 model1_apreds=data.frame(aggregate(pred~treename+virus,data=model1_apreds,mean), 
                          aggregate(cpred~treename+virus,data=model1_apreds,mean)['cpred'], ## holding wos constant
-                      aggregate(link~treename+virus,data=model1_apreds,prod)['link'])
+                         aggregate(link~treename+virus,data=model1_apreds,prod)['link'])
+model2_apreds=data.frame(aggregate(pred~treename+virus,data=model2_apreds,mean),
+                       aggregate(cpred~treename+virus,data=model2_apreds,mean)['cpred'],
+                       aggregate(link~treename+virus,data=model2_apreds,prod)['link'])
+model3_apreds=data.frame(aggregate(pred~treename+virus,data=model3_apreds,mean),
+                       aggregate(cpred~treename+virus,data=model3_apreds,mean)['cpred'],
+                       aggregate(link~treename+virus,data=model3_apreds,prod)['link'])
 
 # Generate variable of model type/number
 model1_apreds$type='Model1'
-
-# Get predicted probabilities from Model 2
-model2_apreds=lapply(brts2,function(x) x$predict)
-model2_apreds=do.call(rbind,model2_apreds)
-
-# Collapse to mean of predicted probabilities for each unique treename/tip
-model2_apreds=data.frame(aggregate(pred~treename+virus,data=model2_apreds,mean),
-                       aggregate(cpred~treename+virus,data=model2_apreds,mean)['cpred'], ## holding wos constant
-                       aggregate(link~treename+virus,data=model2_apreds,prod)['link'])
-
-# Generate variable of model type/number
 model2_apreds$type='Model2'
+model3_apreds$type='Model3'
 
-# Combine predictions from Model 1 and 2
-apreds=rbind.data.frame(model1_apreds,model2_apreds)
+# Combine predictions from Models 1-3
+apreds=rbind.data.frame(model1_apreds, model2_apreds, model3_apreds)
 
 # Transform type variable to factor and generate new type variable and revalue
 library(plyr)
-apreds$type=factor(apreds$type,levels=c("Model1","Model2"))
-apreds$type2=revalue(apreds$type,c("Model1"="FullModel","Model2"="PartialModel"))
+apreds$type=factor(apreds$type,levels=c("Model1","Model2","Model3"))
+apreds$type2=revalue(apreds$type,c("Model1"="FullModel","Model2"="PartialModel","Model3"="HostTraitModel"))
 
 # Transform apreds long to wide, keeping cpred b/c these are our predicted probabilities after holding citations at their average (isolating their effect on prediction; we control for the confounding effects of citations)
 apreds2=spread(apreds[c('virus','treename','type','cpred')],type,cpred)
 model1_apreds$link1=model1_apreds$link
 model2_apreds$link2=model2_apreds$link
+model3_apreds$link3=model3_apreds$link
 
 # Merge with apreds2
 apreds2=merge(apreds2,model1_apreds[c("virus","treename","link1")],by=c("virus","treename"),all=TRUE)
 apreds2=merge(apreds2,model2_apreds[c("virus","treename","link2")],by=c("virus","treename"),all=TRUE)
+apreds2=merge(apreds2,model3_apreds[c("virus","treename","link3")],by=c("virus","treename"),all=TRUE)
 
 # Check that datasets merged correctly, links for vaccinia virus should be NA for 'Model2' and 'link2'
 View(apreds2[apreds2$virus=="vaccinia virus",])
 
 # Fix variable names
-names(apreds2)=c("virus","treename","pred_Model1","pred_Model2","link1","link2")
+names(apreds2)=c("virus","treename","pred_Model1","pred_Model2","pred_Model3","link1","link2","link3")
 
 # Merge with data
 apreds2=merge(apreds2,data[c("virus","treename","source","ord","fam","genus")],by=c('virus','treename'),all.x=TRUE)
@@ -3149,7 +3355,8 @@ apreds$cat=factor(apreds$cat,levels=levels(apreds2$cat))
 # Fix type2
 apreds$type2=revalue(apreds$type2,
                      c("FullModel"="Full Model",
-                       "PartialModel"="Partial Model"))
+                       "PartialModel"="Partial Model",
+                       "HostTraitModel"="Host Trait Model"))
 
 # Reformat for saving
 preds=apreds2
@@ -3161,10 +3368,12 @@ preds$ord=str_to_title(preds$ord)
 # Subset predictions for each model and save
 preds1=preds[c("source","virus","treename","fam","ord","pred_Model1","link1")]
 preds2=preds[c("source","virus","treename","fam","ord","pred_Model2","link2")]
+preds3=preds[c("source","virus","treename","fam","ord","pred_Model3","link3")]
 write.csv(preds1,"Output/table_LinkPredictionModel1_predictions.csv")
 write.csv(preds2,"Output/table_LinkPredictionModel2_predictions.csv")
+write.csv(preds3,"Output/table_LinkPredictionModel3_predictions.csv")
 
-###KATIE, CHECK THIS CODE###
+### KATIE, CHECK THIS CODE ###
 #(22) Print predicted links organized by virus and source for discussion
 preds1=preds1[order(preds1$virus,preds1$source,-preds1$pred_Model1),]
 paste0("Predicted links for Model 1 by virus and source")
@@ -3280,13 +3489,6 @@ set.seed(12345)
 pred1 <- read.csv("Output/table_LinkPredictionModel1_predictions.csv")
 pred1$virus_treename=paste0(pred1$virus, "%",pred1$treename)
 
-###KATIE DELETE THIS CODE CHUNK###
-### Predictions with 'feline poxvirus ita2_bc' as known associations (i.e., with Homo) should have been classified as 'cowpox virus', but b/c cowpox virus already had a known association with Homo, we drop it out of these prediction instead.
-
-# Drop out 'feline poxvirus ita2_bc'
-pred1 <- pred1[!(pred1$virus=="feline poxvirus ita2_bc"),]
-###KATIE DELETE THIS CODE CHUNK###
-
 # Create table of optimal threshold values for 5 different methods
 ts1 <- optimal.thresholds(data.frame(pred1[,c('virus_treename','link1','pred_Model1')]),
                            threshold = 10001,
@@ -3386,9 +3588,9 @@ pred1 %>% filter(bin_mss3==1) %>% dplyr::pull(virus_treename) %>% gsub("_"," ",.
 # Sort and create table of known and unknown hosts (hosts that do not overlap)
 pred_kn <- as.data.frame(sort(known))
 pred_unk_rs0.8 <- as.data.frame(sort(pred_rs0.8[!(pred_rs0.8 %in% known)])) #n=421
-pred_unk_rs0.85 <- as.data.frame(sort(pred_rs0.8[!(pred_rs0.85 %in% known)])) #n=421
-pred_unk_rs0.9 <- as.data.frame(sort(pred_rs0.9[!(pred_rs0.9 %in% known)])) #n=2174
-pred_unk_mss3 <- as.data.frame(sort(pred_mss3[!(pred_mss3 %in% known)])) #n=1309
+pred_unk_rs0.85 <- as.data.frame(sort(pred_rs0.85[!(pred_rs0.85 %in% known)])) #n=1149
+pred_unk_rs0.9 <- as.data.frame(sort(pred_rs0.9[!(pred_rs0.9 %in% known)])) #n=1700
+pred_unk_mss3 <- as.data.frame(sort(pred_mss3[!(pred_mss3 %in% known)])) #n=1358
 
   # How many predicted hosts are undiscovered by Model 1?
   nrow(pred_unk_rs0.8) 
@@ -3481,14 +3683,11 @@ pred2$virus_treename=paste0(pred2$virus, "%",pred2$treename)
 # Remove NA vaccinia values
 pred2 <- pred2[which(!is.na(pred2$link2)),]
 
-# Drop out 'feline poxvirus ita2_bc'
-pred2 <- pred2[!(pred2$virus=="feline poxvirus ita2_bc"),]
-
 # Create table of optimal threshold values for 5 different methods
 ts2 <- optimal.thresholds(data.frame(pred2[,c('virus_treename','link2','pred_Model2')]),
                            threshold = 10001,
                            opt.methods = c(2,3,4,5,10),
-                           req.sens = 0.90,
+                           req.sens = 0.80,
                            na.rm = TRUE)
 
 # Add method applying 85% required sensitivity
@@ -3550,10 +3749,10 @@ pred2 %>% filter(bin_mss3==1) %>% dplyr::pull(virus_treename) %>% gsub("_"," ",.
 
 # Sort and create table of known and unknown hosts (hosts that do not overlap)
 pred_kn <- as.data.frame(sort(known))
-pred_unk_rs0.8 <- as.data.frame(sort(pred_rs0.8[!(pred_rs0.8 %in% known)])) #n=421
-pred_unk_rs0.85 <- as.data.frame(sort(pred_rs0.85[!(pred_rs0.8 %in% known)])) #n=421
-pred_unk_rs0.9 <- as.data.frame(sort(pred_rs0.9[!(pred_rs0.9 %in% known)])) #n=2174
-pred_unk_mss3 <- as.data.frame(sort(pred_mss3[!(pred_mss3 %in% known)])) #n=1309
+pred_unk_rs0.8 <- as.data.frame(sort(pred_rs0.8[!(pred_rs0.8 %in% known)])) #n=475
+pred_unk_rs0.85 <- as.data.frame(sort(pred_rs0.85[!(pred_rs0.85 %in% known)])) #n=1034
+pred_unk_rs0.9 <- as.data.frame(sort(pred_rs0.9[!(pred_rs0.9 %in% known)])) #n=2635
+pred_unk_mss3 <- as.data.frame(sort(pred_mss3[!(pred_mss3 %in% known)])) #n=1364
 
   # How many predicted hosts are undiscovered by Model 2?
   nrow(pred_unk_rs0.8) 
@@ -3632,6 +3831,165 @@ virus_ratio_model2 <- list('rs0.8' = virus_ratio_rs0.8,
                            'mss0.3' = virus_ratio_mss0.3)
 write.xlsx(virus_ratio_model2, file = 'Output/table_LinkPredictionModel2_virusratio.xlsx')
 
+
+###########################################################################
+### Extract Binary Predictions for Model 3 ###
+###########################################################################
+
+### CALCULATE THRESHOLD VALUES ###
+
+# Load file
+pred3 <- read.csv("Output/table_LinkPredictionModel3_predictions.csv")
+pred3$virus_treename=paste0(pred3$virus, "%",pred3$treename)
+
+# Create table of optimal threshold values for 5 different methods
+ts3 <- optimal.thresholds(data.frame(pred3[,c('virus_treename','link3','pred_Model3')]),
+                           threshold = 10001,
+                           opt.methods = c(2,3,4,5,10),
+                           req.sens = 0.80,
+                           na.rm = TRUE)
+
+# Add method applying 85% required sensitivity
+ts3[nrow(ts3) + 1,] <- optimal.thresholds(data.frame(pred3[,c('virus_treename','link3','pred_Model3')]),
+                           threshold = 10001,
+                           opt.methods = c(10), 
+                           req.sens = 0.85,
+                           na.rm = TRUE)
+
+# Add method applying 90% required sensitivity
+ts3[nrow(ts3) + 1,] <- optimal.thresholds(data.frame(pred3[,c('virus_treename','link3','pred_Model3')]),
+                           threshold = 10001,
+                           opt.methods = c(10), 
+                           req.sens = 0.9,
+                           na.rm = TRUE)
+
+# Add method applying 95% required sensitivity
+ts3[nrow(ts3) + 1,] <- optimal.thresholds(data.frame(pred3[,c('virus_treename','link3','pred_Model3')]),
+                           threshold = 10001,
+                           opt.methods = c(10), 
+                           req.sens = 0.95,
+                           na.rm = TRUE)
+
+# Create function that sums the number of unknown obs predicted as links based on calculated THVs for Model 2
+cut.3 <- function(x) {sum(pred3$pred_Model3[pred3$link3==0] > x)}
+
+# Apply cut function using THVs from ts.3 and from prior calculated THVs for Model 3 to view number of number of obs with previously undetected links having predicted probabilities greater than the optimum threshold value
+sapply(unlist(ts3[2]), cut.3)
+
+# save threshold values 
+write.csv(ts3, file='Output/table_thresholdvalues_model3.csv')
+
+### APPLY THRESHOLDS TO PREDICTIONS ###
+
+# Extract selected optimum threshold values from ts.3
+ts3_rs0.8 <- as.data.frame(ts3[5,])
+ts3_rs0.85 <- as.data.frame(ts3[6,])
+ts3_rs0.9 <- as.data.frame(ts3[7,])
+ts3_rs0.95 <- as.data.frame(ts3)
+ts3_ses2 <- as.data.frame(ts3[1,])
+ts3_mss3 <- as.data.frame(ts3[2,])
+
+# Extract lists of known and unknown predicted hosts applying different thresholds
+pred3$virus_treename=paste0(pred3$virus, "%",pred3$treename)
+  
+  # Threshold the results to binary outputs
+  pred3 %>%
+    mutate(bin_rs0.8 = ifelse(pred_Model3 > ts3_rs0.8$pred_Model3, 1, 0),
+           bin_rs0.85 = ifelse(pred_Model3 > ts3_rs0.85$pred_Model3, 1, 0),
+           bin_rs0.9 = ifelse(pred_Model3 > ts3_rs0.9$pred_Model3, 1, 0),
+           bin_mss3 = ifelse(pred_Model3 > ts3_mss3$pred_Model3,1,0)) -> pred3
+
+# Pull out the relevant lists 
+pred3 %>% filter(link3==1) %>% dplyr::pull(virus_treename) %>% gsub("_"," ",.) -> known
+pred3 %>% filter(bin_rs0.8==1) %>% dplyr::pull(virus_treename) %>% gsub("_"," ",.) -> pred_rs0.8
+pred3 %>% filter(bin_rs0.85==1) %>% dplyr::pull(virus_treename) %>% gsub("_"," ",.) -> pred_rs0.85
+pred3 %>% filter(bin_rs0.9==1) %>% dplyr::pull(virus_treename) %>% gsub("_"," ",.) -> pred_rs0.9
+pred3 %>% filter(bin_mss3==1) %>% dplyr::pull(virus_treename) %>% gsub("_"," ",.) -> pred_mss3
+
+# Sort and create table of known and unknown hosts (hosts that do not overlap)
+pred_kn <- as.data.frame(sort(known))
+pred_unk_rs0.8 <- as.data.frame(sort(pred_rs0.8[!(pred_rs0.8 %in% known)])) #n=7948
+pred_unk_rs0.85 <- as.data.frame(sort(pred_rs0.85[!(pred_rs0.85 %in% known)])) #n=7948
+pred_unk_rs0.9 <- as.data.frame(sort(pred_rs0.9[!(pred_rs0.9 %in% known)])) #n=8554
+pred_unk_mss3 <- as.data.frame(sort(pred_mss3[!(pred_mss3 %in% known)])) #n=2011
+
+  # How many predicted hosts are undiscovered by Model 2?
+  nrow(pred_unk_rs0.8) 
+  nrow(pred_unk_rs0.85)
+  nrow(pred_unk_rs0.9) 
+  nrow(pred_unk_mss3) 
+
+# Rename variables
+colnames(pred_kn) <- c("V1")
+colnames(pred_unk_rs0.8) <- c("V1")
+colnames(pred_unk_rs0.85) <- c("V1")
+colnames(pred_unk_rs0.9) <- c("V1")
+colnames(pred_unk_mss3) <- c("V1")
+
+# Create list of dataframes/tables
+list_df <- list(pred_kn, pred_unk_rs0.8, pred_unk_rs0.85, pred_unk_rs0.9, pred_unk_mss3)
+
+# Extract virus as a separate column
+list_df <- lapply(list_df, function(x) {x$virus <- sapply(strsplit(x$V1,'%'),function(x) paste(x[1],sep=' ')); x})
+
+# Extract genus as a separate column
+list_df <- lapply(list_df, function(x) {x$genus <- sapply(strsplit(x$V1,'%'),function(x) paste(x[2],sep=' ')); x})
+
+# Clean up
+list_df <- lapply(list_df, function(x) {x$V1=NULL; x})
+
+# Incorporate taxonomic family & order for each model
+taxa <- apreds2[,c("genus","fam","ord")] 
+taxa <- unique(taxa)
+list_df <- lapply(list_df, function(x) {x <- merge(x, taxa, by = "genus", all=FALSE); x})
+
+# Sort by virus, order, family, and genus
+list_df <- lapply(list_df, function(x) {x <- x[order(x$virus, x$ord, x$fam, x$genus),]; x})
+
+# Reorder columns
+list_df <- lapply(list_df, function(x) {x <- x[,c("virus","ord","fam","genus")]; x})
+
+# Reformat to proper
+list_df <- lapply(list_df, function(x) {x$fam <- str_to_title(x$fam); x})
+list_df <- lapply(list_df, function(x) {x$ord <- str_to_title(x$ord); x})
+
+# Unlist
+pred_kn <- as.data.frame(list_df[[1]])
+pred_unk_rs0.8 <- as.data.frame(list_df[[2]])
+pred_unk_rs0.85 <- as.data.frame(list_df[[3]])
+pred_unk_rs0.9 <- as.data.frame(list_df[[4]])
+pred_unk_mss3 <- as.data.frame(list_df[[5]])
+
+# Save for known hosts and unknown hosts where req.sens=0.8, req.sens=0.85, req.sens=0.9, and opt.methods=3 (MaxSensSpec)
+pred_model3 <- list('known'=pred_kn, 
+                    'unknown_rs0.8'=pred_unk_rs0.8, 
+                    'unknown_rs0.85'=pred_unk_rs0.85, 
+                    'unknown_rs0.9'=pred_unk_rs0.9, 
+                    'unknown_mss3'=pred_unk_mss3)
+write.xlsx(pred_model3, file='Output/table_LinkPredictionModel3_PredictedLinks.xlsx')
+
+# Let's analyze the ratio of unknown predicted hosts to known hosts
+list_virus <- list_df
+list_virus <- lapply(list_virus, function(x) {x$link <- 1; x})
+list_virus <- lapply(list_virus, function(x) {x <- aggregate(link ~ virus, data=x, FUN=sum); x})
+known <- list_virus[[1]]$link
+list_virus <- lapply(list_virus, function(x) {x <- cbind(x, known); x})
+list_virus <- lapply(list_virus, function(x) {x$sum <- x$link+x$known; x})
+list_virus <- lapply(list_virus, function(x) {x$ratio_sum_to_known <- x$sum/x$known; x})
+list_virus <- lapply(list_virus, function(x) {x$opv_ratio <- sum(x$sum)/sum(x$known); x})
+
+virus_ratio_rs0.8 <- as.data.frame(list_virus[[2]])
+virus_ratio_rs0.85 <- as.data.frame(list_virus[[3]])
+virus_ratio_rs0.9 <- as.data.frame(list_virus[[4]])
+virus_ratio_mss0.3 <- as.data.frame(list_virus[[5]])
+
+# Save as excel sheets
+virus_ratio_model3 <- list('rs0.8' = virus_ratio_rs0.8,
+                           'rs0.85' = virus_ratio_rs0.85,
+                           'rs0.9' = virus_ratio_rs0.9, 
+                           'mss0.3' = virus_ratio_mss0.3)
+write.xlsx(virus_ratio_model3, file = 'Output/table_LinkPredictionModel3_virusratio.xlsx')
+
 ```
 
 ### *Explore model correlation and phylogenetic signal*
@@ -3642,6 +4000,8 @@ write.xlsx(virus_ratio_model2, file = 'Output/table_LinkPredictionModel2_virusra
 cor(apreds2$pred_Model1,apreds2$pred_Model2,method='spearman') #computes Spearman correlation coefficient
 cor.test(apreds2$pred_Model1,apreds2$pred_Model2,method='spearman') #tests for correlation b/w paired samples based on Spearman corr test
 ## The predicted probabilities of the BRT models including vs. excluding vaccinia virus links (Model 1 vs. Model 2) were significantly correlated.
+cor(apreds2$pred_Model1,apreds2$pred_Model3,method='spearman') #computes Spearman correlation coefficient
+cor.test(apreds2$pred_Model1,apreds2$pred_Model3,method='spearman') #tests for correlation b/w paired samples 
 
 #Load phylogeny
 load("Output/LinkPredictionModel_CleanData.RData")
@@ -3659,9 +4019,6 @@ bdata=subset(apreds2,tree=='keep')
 bdata$label=bdata$treename
 bdata$Species=bdata$treename
 
-#Drop 'feline poxvirus ita2_bc': this species has a single known link to the genus 'homo' and can be reclassified as CPXV; however, CPXV already has a known link to 'homo', so we drop it instead
-bdata <- bdata[!(bdata$virus=="feline poxvirus ita2_bc"),]
-
 #Generate variable of whether a link was predicted based on threshold value
 bdata$link1_rs0.8 <- ifelse(bdata$pred_Model1 > ts1_rs0.8$pred_Model1, 1, 0)
 bdata$link1_rs0.85 <- ifelse(bdata$pred_Model1 > ts1_rs0.85$pred_Model1, 1, 0)
@@ -3671,6 +4028,7 @@ bdata$link1_mss3 <- ifelse(bdata$pred_Model1 > ts1_mss3$pred_Model1, 1, 0)
 #Aggregate at the host genera level across virus species; assume the mean b/c pgls() takes only one value per tip; aggregate separately for Model 1 and 2 predictions due to NA value for vaccinia virus in Model 2
 bdata_mean_model1 <- aggregate(pred_Model1 ~ treename + ord + fam + genus + label + Species, data=bdata, mean)
 bdata_mean_model2 <- aggregate(pred_Model2 ~ treename + ord + fam + genus + label + Species, data=bdata, mean)
+bdata_mean_model3 <- aggregate(pred_Model3 ~ treename + ord + fam + genus + label + Species, data=bdata, mean)
 
 # For visualizing binary classification of links on a phylogenetic tree (where only one tip value is allowed), we regroup as 'unclassified orthopoxvirus' the following virus species:
   # 'cetacean poxvirus 1'
@@ -3691,7 +4049,7 @@ bdata_unclassified <- rbind(bdata_unclassified, bdata[bdata$virus=="orthopoxviru
 bdata_unclassified <- rbind(bdata_unclassified, bdata[bdata$virus=="steller sea lion poxvirus",])
 
 # Aggregate unclassified virus species at host genera level and take max value of link
-bdata_unclassified <- aggregate(cbind(link1,link2,link1_rs0.8,link1_rs0.85,link1_rs0.9,link1_mss3) ~ treename + ord + fam + genus + label + Species, data=bdata, max)
+bdata_unclassified <- aggregate(cbind(link1,link2,link3,link1_rs0.8,link1_rs0.85,link1_rs0.9,link1_mss3) ~ treename + ord + fam + genus + label + Species, data=bdata, max)
 
 # Add virus column for "unclassified orthopoxvirus"
 bdata_unclassified$virus <- "unclassified orthopoxvirus"
@@ -3713,7 +4071,8 @@ bdata_sum <- rbind(bdata_sum, bdata_unclassified)
 bdata_sum <- aggregate(cbind(link1,link2,link1_rs0.8,link1_rs0.85,link1_rs0.9,link1_mss3) ~ treename + ord + fam + genus + label + Species, data=bdata_sum, sum)
 
 # Combine bdata_mean and bdata_sum
-bdata_agg <- bdata_mean_model1, bdata_mean_model2, by=c("treename", "ord", "fam", "genus", "label", "Species"))
+bdata_agg <- merge(bdata_mean_model1, bdata_mean_model2, by=c("treename", "ord", "fam", "genus", "label", "Species"))
+bdata_agg <- merge(bdata_agg, bdata_mean_model3, by=c("treename", "ord", "fam", "genus", "label", "Species"))
 bdata_agg <- merge(bdata_agg, bdata_sum, by=c("treename", "ord", "fam", "genus", "label", "Species"))
 
 ### We take the mean of the predictions for visualizing the phylotree later b/c if the mean is >1 that means at least one host-virus link was positive within that host genera
@@ -3729,10 +4088,12 @@ cdata$data$tree=NULL
 Model1_lmod=pgls(pred_Model1~1,data=cdata,lambda="ML")   #pgls fits a linear model while taking into account phylogenetic non-independence between data points
 Model2_lmod=pgls(pred_Model2~1,data=cdata,lambda="ML")   #lambda = value for lambda transformation; 'ML' uses maximum likelihood to optimize branch length transformations
 ###for more info: https://static1.squarespace.com/static/5459da8ae4b042d9849b7a7b/t/57ea64eae58c62718aa34769/1474979059782/Nesin_Winternitz_Practical_1and2.pdf
+Model3_lmod=pgls(pred_Model3~1,data=cdata,lambda="ML")
 
 # Get Pagel's lambda (phylogenetic signal) 
 summary(Model1_lmod)
 summary(Model2_lmod)
+summary(Model3_lmod)
 
 
 ```

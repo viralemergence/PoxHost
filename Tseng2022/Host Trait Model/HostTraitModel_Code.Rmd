@@ -989,7 +989,7 @@ png("Output/histogram_trait_coverage.png", width=4,height=4,units="in",res=600)
 ggplot(mval_hist[!mval_hist$column%in%c("gen","treename","pcr","competence","tip.label","fam"),],
        aes(comp))+
   geom_histogram(bins=50)+
-  geom_vline(xintercept=0.70,linetype=2,linewidth=0.5)+
+  geom_vline(xintercept=0.60,linetype=2,linewidth=0.5)+
   theme_bw()+
   theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
   theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
@@ -999,8 +999,8 @@ ggplot(mval_hist[!mval_hist$column%in%c("gen","treename","pcr","competence","tip
   scale_x_continuous(labels = scales::percent)
 dev.off()
 
-# Label variables "cut" if >30% values are NA
-mval$keep=ifelse(mval$comp>=0.70,"keep","cut")
+# Label variables "cut" if >40% values are NA
+mval$keep=ifelse(mval$comp>=0.60,"keep","cut")
 table(mval$keep)
 mval=mval[order(mval$keep),]
 
@@ -1481,13 +1481,14 @@ brt_part=function(seed,response){
 ```{r brt_ensemble}
 
 # Apply across 100 splits each
-# smax=101
 smax=100
-pcr_brts=lapply(1:smax,function(x) brt_part(seed=x,response="pcr"))
-comp_brts=lapply(1:smax,function(x) brt_part(seed=x,response="competence"))
+pcr_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="pcr"))
+comp_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="competence"))
 
 # Run wos brts
 pm_brts=lapply(1:(smax-1),function(x) brt_part(seed=x,response="cites"))
+
+# Note: we sequence from 1:(smax-1) b/c for some reason, the commands generates an extra BRT model (101) if we do not minus one.
 
 # Save results to output
 saveRDS(pcr_brts, "Output/pcr_brts.rds")
