@@ -1,6 +1,0 @@
-,AUC (mean ± SE),Sensitivity (mean ± SE),Specificity (mean ± SE)
-Link prediction model,0.96 ± 4.4274e-04,0.70 ± 2.2901e-03,1.00 ± 7.3142e-05
-Link prediction model excluding VACV associations,0.95 ± 5.9750e-04,0.75 ± 2.9950e-03,1.00 ± 1.3511e-04
-t-test,10.33,-10.85,6.29
-p-val,0.0000,0.0000,0.0000
-Cohen's d,1.46,-1.54,0.89
