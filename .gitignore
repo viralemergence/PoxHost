@@ -12,4 +12,3 @@
 ### with the .Rdata extension, except for our raw data files.
 .RData
 .rds
-!HostTraitModel_RawData.RData

@@ -113,32 +113,32 @@ How accurately did the different models distinguish host-virus links from non-li
 ### LOAD DATA ###
 
 # host exposure model - based on PCR data and host traits only
-pcr_brts <- readRDS("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_HostTraitModel/pcr_brts.rds") 
+pcr_brts <- readRDS("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_HostTraitModel/pcr_brts.rds") 
 
 # host susceptibility model - based on virus isolation or 'competence' data and host traits only
-comp_brts <- readRDS("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_HostTraitModel/comp_brts.rds")
+comp_brts <- readRDS("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_HostTraitModel/comp_brts.rds")
 
 # pubmed/cites model - did traits predict citation counts? no, mean AUC = 0.50 (no better than chance)
-pm_brts <- readRDS("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_HostTraitModel/pm_brts.rds")
+pm_brts <- readRDS("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_HostTraitModel/pm_brts.rds")
 mean(sapply(pm_brts,function(x) x$testAUC))
 std.error(sapply(pm_brts,function(x) x$testAUC))
 
 # link prediction model 1 - including VACV links
-load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model1/brts_Model1.RData")
+load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_Model1/brts_Model1.RData")
 brts1=brts
 mean(sapply(pm_brts,function(x) x$testAUC)) # did traits predict citation counts? no, mean AUC = 0.50 
 std.error(sapply(pm_brts,function(x) x$testAUC))
 rm(brts, pm_brts)
 
 # link prediction model 2 - excluding VACV links
-load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model2/brts_Model2.RData")
+load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_Model2/brts_Model2.RData")
 brts2=brts
 mean(sapply(pm_brts,function(x) x$testAUC)) # did traits predict citation counts? no, mean AUC = 0.50 
 std.error(sapply(pm_brts,function(x) x$testAUC))
 rm(brts, pm_brts)
 
 # link prediction model 3 - including VACV links and host traits only (excludes viral/PC variables)
-load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model3/brts_Model3.RData")
+load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_Model3/brts_Model3.RData")
 brts3=brts
 mean(sapply(pm_brts,function(x) x$testAUC)) # did traits predict citation counts? no, mean AUC = 0.50 
 std.error(sapply(pm_brts,function(x) x$testAUC))
@@ -993,8 +993,8 @@ Other Figures: *plot_predprobs_hosttrait.png*
 ### Extract Predicted Probabilities ###
 
 # load data
-pcr_brts <- readRDS("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_HostTraitModel/pcr_brts.rds")
-comp_brts <- readRDS("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_HostTraitModel/comp_brts.rds")
+pcr_brts <- readRDS("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_HostTraitModel/pcr_brts.rds")
+comp_brts <- readRDS("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_HostTraitModel/comp_brts.rds")
 
 # load cleaned data file
 library(fastDummies)
@@ -1177,15 +1177,15 @@ Table: *table_predprobs_link.xlsx*
 
 ### Extract Predicted Probabilities ###
 
-load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model1/brts_Model1.RData")
+load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_Model1/brts_Model1.RData")
 brts1=brts # link prediction model 1 - including VACV links
 rm(brts, pm_brts) 
 
-load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model2/brts_Model2.RData")
+load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_Model2/brts_Model2.RData")
 brts2=brts # link prediction model 2 - excluding VACV links
 rm(brts, pm_brts)
 
-load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model3/brts_Model3.RData")
+load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_Model3/brts_Model3.RData")
 brts3=brts # link prediction model 3 - including VACV links and host traits only
 rm(brts, pm_brts)
 
@@ -3594,19 +3594,19 @@ Tables: *table_ranks_model1*, *table_ranks_model2*
 ```{r feat_rank}
 
 # Load data
-pcr_brts <- readRDS("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_HostTraitModel/pcr_brts.rds")
+pcr_brts <- readRDS("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_HostTraitModel/pcr_brts.rds")
 
-comp_brts <- readRDS("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_HostTraitModel/comp_brts.rds")
+comp_brts <- readRDS("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_HostTraitModel/comp_brts.rds")
 
-load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model1/brts_Model1.RData")
+load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_Model1/brts_Model1.RData")
 brts1=brts
 rm(brts, pm_brts) 
 
-load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model2/brts_Model2.RData")
+load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_Model2/brts_Model2.RData")
 brts2=brts 
 rm(brts, pm_brts) 
 
-load("/Users/katietseng/Desktop/HPC/HPC_30Jan2024/Kamiak_Results_Model3/brts_Model3.RData")
+load("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost_HPC_30Jan2024/Kamiak_Results_Model3/brts_Model3.RData")
 brts3=brts 
 rm(brts, pm_brts) 
 
