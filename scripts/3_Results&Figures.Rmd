@@ -496,7 +496,7 @@ table_perf_metrics <- data.frame(matrix(c(
 colnames(table_perf_metrics) <- c('Model', 'AUC (mean \u00b1 SE)', 'Sensitivity (mean \u00b1 SE)', 'Specificity (mean \u00b1 SE)')
 
 # save as supp table 1
-write.csv(table_perf_metrics, "figures/supplementary/table1_perf_metrics.csv")
+write.csv(table_perf_metrics, "figures/supplementary/s1table_perf_metrics.csv")
 
 # clean environment
 rm(list=setdiff(ls(), c("pcr_brts", "comp_brts", "brts1", "brts2", "brts3",
@@ -2112,7 +2112,7 @@ table_ts <- list("pcr" = table_ts_pcr,
                  "model1" = table_ts1, 
                  "model2" = table_ts2, 
                  "model3" = table_ts3)
-write.xlsx(table_ts, file = "figures/supplementary/table5_thresholdmoving.xlsx")
+write.xlsx(table_ts, file = "figures/supplementary/s5table_thresholdmoving.xlsx")
 
 ### Apply Thresholds to Predictions ###
 
@@ -2611,7 +2611,7 @@ predpfs$clade=round(predpfs$clade,2)
 predpfs$other=round(predpfs$other,2)
 
 # Save as supp figures 2-4 
-write.csv(predpfs,"figures/supplementary/table2-4_pfclades.csv")
+write.csv(predpfs,"figures/supplementary/s2-4table_pfclades.csv")
 
 ```
 
@@ -3544,11 +3544,11 @@ map_mpxv <- rasterVis::levelplot(maps,
                      labels = labels,
                      maxpixels = 5e6)
 
-png("figures/supplementary/fig_map_mpxv.png",width=6,height=8,units="in",res=600)
+png("figures/supplementary/s8fig_map_mpxv.png",width=6,height=8,units="in",res=600)
 map_mpxv
 dev.off()
 
-pdf("figures/supplementary/fig_map_mpxv.pdf",width=6,height=8)
+pdf("figures/supplementary/s8fig_map_mpxv.pdf",width=6,height=8)
 map_mpxv
 dev.off()
 
@@ -3744,7 +3744,7 @@ table_rankedfeatures <- list('pcr' = ranks_pcr,
                            'model1' = ranks_model1, 
                            'model2' = ranks_model2,
                            'model3' = ranks_model3)
-write.xlsx(table_rankedfeatures, file = 'figures/supplementary/table6-7_rankedfeatures.xlsx')
+write.xlsx(table_rankedfeatures, file = 'figures/supplementary/s6-7table_rankedfeatures.xlsx')
 
 ### Boxplot for host exposure model ###
 
@@ -4002,7 +4002,7 @@ boxplot_trait_model3 <- ggplot(vinf3) + ggtitle("(D) Link prediction model - hos
         scale_fill_manual(values=c("#440154FF","#1F968CFF","#73D055FF")) +
         scale_y_discrete(labels = function(x) str_wrap(x, width = 16)) 
 
-png("figures/supplementary/fig5_boxplot_trait_ranking_model3.png",width=6.12,height=10,units="in",res=600)
+png("figures/supplementary/s5fig_boxplot_trait_ranking_model3.png",width=6.12,height=10,units="in",res=600)
 boxplot_trait_model3
 dev.off()
 
@@ -4696,7 +4696,7 @@ Figures: *sfig7_plot_pca_scoresbyspecies.pdf*
   
 # Combine plots and save
   library(cowplot)
-  pdf("figures/supplementary/fig7_plot_pca_scoresbyspecies.pdf", width=8,height=8)
+  pdf("figures/supplementary/s7fig_plot_pca_scoresbyspecies.pdf", width=8,height=8)
   plot_grid(scores_dim12, scores_dim34, scores_dim56, scores_dim78, scores_dim910, legend, ncol=3, nrow=2, scale=c(0.9), labels = c('A','B','C','D','E',''))  
   dev.off()
 
@@ -5129,7 +5129,7 @@ unique(genes_df$role_simple)
 
   ## Combine biplots and save
   library(cowplot)
-  pdf("figures/supplementary/fig6_plot_pca_loadingsbyrole.pdf", width=10,height=8)
+  pdf("figures/supplementary/s6fig_plot_pca_loadingsbyrole.pdf", width=10,height=8)
   plot_grid(plot_pc12, plot_pc34, plot_pc56, plot_pc78, plot_pc910, legend, 
             ncol=3, nrow=2, 
             scale=c(0.9), 
