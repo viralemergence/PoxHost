@@ -2932,7 +2932,7 @@ dev.off()
 # Install package ggtreeExtra
 #https://github.com/YuLab-SMU/plotting-tree-with-data-using-ggtreeExtra
 BiocManager::install("ggtreeExtra")
-library(ggrteeExtra)
+library(ggtreeExtra)
 
 # Add concentric circles
 #https://yulab-smu.top/treedata-book/chapter10.html
@@ -3544,11 +3544,11 @@ map_mpxv <- rasterVis::levelplot(maps,
                      labels = labels,
                      maxpixels = 5e6)
 
-png("figures/supplementary/s8fig_map_mpxv.png",width=6,height=8,units="in",res=600)
+png("figures/supplementary/s9fig_map_mpxv.png",width=6,height=8,units="in",res=600)
 map_mpxv
 dev.off()
 
-pdf("figures/supplementary/s8fig_map_mpxv.pdf",width=6,height=8)
+pdf("figures/supplementary/s9fig_map_mpxv.pdf",width=6,height=8)
 map_mpxv
 dev.off()
 
@@ -3744,7 +3744,7 @@ table_rankedfeatures <- list('pcr' = ranks_pcr,
                            'model1' = ranks_model1, 
                            'model2' = ranks_model2,
                            'model3' = ranks_model3)
-write.xlsx(table_rankedfeatures, file = 'figures/supplementary/s6-7table_rankedfeatures.xlsx')
+write.xlsx(table_rankedfeatures, file = 'figures/supplementary/s2data_rankedfeatures.xlsx')
 
 ### Boxplot for host exposure model ###
 
@@ -4002,7 +4002,7 @@ boxplot_trait_model3 <- ggplot(vinf3) + ggtitle("(D) Link prediction model - hos
         scale_fill_manual(values=c("#440154FF","#1F968CFF","#73D055FF")) +
         scale_y_discrete(labels = function(x) str_wrap(x, width = 16)) 
 
-png("figures/supplementary/s5fig_boxplot_trait_ranking_model3.png",width=6.12,height=10,units="in",res=600)
+png("figures/supplementary/s6fig_boxplot_trait_ranking_model3.png",width=6.12,height=10,units="in",res=600)
 boxplot_trait_model3
 dev.off()
 
@@ -4475,6 +4475,96 @@ dev.off()
 
 ```
 
+### *Plot PDPs for significant host traits*
+
+
+```{r feat_Effect}
+
+# pdp for island_dwelling variable (model 1)
+
+  ## pdp_agg
+  agg=do.call(rbind,lapply(brts1,function(x) pdp_agg(x,"island_dwelling")))
+  save(agg1_isl, file='/Users/katietseng/Downloads/agg1_isl.Rdata')
+  
+  # load data
+  load('/Users/katietseng/Downloads/agg1_isl.Rdata')
+  agg <- agg1_isl
+  
+  ## get class of the feature
+  cl=class(data["island_dwelling"][,1])
+
+    ## get element-wise means
+    x=with(agg,tapply(predictor,rank,mean))
+    y=with(agg,tapply(yhat,rank,mean))
+    
+    ## save as mean
+    pmean=data.frame(predictor=x,yhat=y)
+
+    ## get yrange
+    yrange=range(agg$yhat,pmean$yhat,na.rm=T)
+    
+    ## ggplot it
+    library(plotrix)
+    library(ggpl)
+    png("figures/supplementary/s4fig_pdp_link_isl.png",width=4,height=6,units="in",res=300)
+     ggplot(agg,aes(predictor,yhat,group=seed))+
+       ## add mean
+          geom_line(data=pmean,linewidth=1,inherit.aes=F,
+                    aes(predictor,yhat)) +
+       theme_bw()+
+          theme(axis.text=element_text(size=6),
+                axis.title=element_text(size=7))+
+          theme(axis.title.x=element_text(margin=margin(t=5,r=0,b=0,l=0)))+
+          theme(axis.title.y=element_text(margin=margin(t=0,r=5,b=0,l=0)))+
+          theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+          labs(x="island_dwelling",y="marginal effect")+
+          scale_y_continuous(labels=scales::number_format(accuracy=0.0000001))+
+            coord_cartesian(ylim = c(0.0122615, 0.0122630))
+    dev.off()
+    
+
+# pdp for dispersal_km variable (model 1)
+
+  ## pdp_agg (dispersal)
+  agg1_disp=do.call(rbind,lapply(brts1,function(x) pdp_agg(x,"dispersal_km")))
+  save(agg1_disp, file='/Users/katietseng/Downloads/agg1_disp.Rdata')
+  load('/Users/katietseng/Downloads/agg1_disp.Rdata')
+  agg <- agg1_disp
+
+  # get class of the feature
+  cl=class(data["dispersal_km"][,1])
+
+    ## get element-wise means
+    x=with(agg,tapply(predictor,rank,mean))
+    y=with(agg,tapply(yhat,rank,mean))
+    
+    ## save as mean
+    pmean=data.frame(predictor=x,yhat=y)
+
+    ## get yrange
+    yrange=range(agg$yhat,pmean$yhat,na.rm=T)
+    
+    ## ggplot it
+    library(plotrix)
+    library(ggpl)
+    png("figures/supplementary/s4fig_pdp_link_disp.png",width=4,height=6,units="in",res=300)
+     ggplot(agg,aes(predictor,yhat,group=seed))+
+       ## add mean
+          geom_line(data=pmean,linewidth=1,inherit.aes=F,
+                    aes(predictor,yhat)) +
+       theme_bw()+
+          theme(axis.text=element_text(size=6),
+                axis.title=element_text(size=7))+
+          theme(axis.title.x=element_text(margin=margin(t=5,r=0,b=0,l=0)))+
+          theme(axis.title.y=element_text(margin=margin(t=0,r=5,b=0,l=0)))+
+          theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+          labs(x="dispersal_km",y="marginal effect")+
+          scale_y_continuous(labels=scales::number_format(accuracy=0.0000001))+
+            coord_cartesian(ylim = c(0.012, 0.0135))
+    dev.off()
+
+```
+
 5. PCA Figures
 ============================================
 
@@ -4696,7 +4786,7 @@ Figures: *sfig7_plot_pca_scoresbyspecies.pdf*
   
 # Combine plots and save
   library(cowplot)
-  pdf("figures/supplementary/s7fig_plot_pca_scoresbyspecies.pdf", width=8,height=8)
+  pdf("figures/supplementary/s8fig_plot_pca_scoresbyspecies.pdf", width=8,height=8)
   plot_grid(scores_dim12, scores_dim34, scores_dim56, scores_dim78, scores_dim910, legend, ncol=3, nrow=2, scale=c(0.9), labels = c('A','B','C','D','E',''))  
   dev.off()
 
@@ -5129,7 +5219,7 @@ unique(genes_df$role_simple)
 
   ## Combine biplots and save
   library(cowplot)
-  pdf("figures/supplementary/s6fig_plot_pca_loadingsbyrole.pdf", width=10,height=8)
+  pdf("figures/supplementary/s7fig_plot_pca_loadingsbyrole.pdf", width=10,height=8)
   plot_grid(plot_pc12, plot_pc34, plot_pc56, plot_pc78, plot_pc910, legend, 
             ncol=3, nrow=2, 
             scale=c(0.9), 
@@ -5258,10 +5348,11 @@ madameweb <- function(data, vlabels = colnames(data), vlcex = 0.7,
     axislabcol = "black", 
     # Variable labels
     vlcex = vlcex, vlabels = vlabels,
-    caxislabels = caxislabels, title = title, ...
+    caxislabels = caxislabels, title = title
   )
 }
 
+  
 # Define colors and titles
 colors <- c("#EF9B42", "#A92C2A", "#162667", "#3A7889") #manual MoMA Colors OKeeffe
 titles <- c("PC1", "PC3", "PC4", "PC9")
@@ -5279,6 +5370,75 @@ for(i in 1:4){
     color = colors[i], title = titles[i]
   )
 }
-par(op)
+
+# Save individual spider plots    
+png("figures/fig4_PC1.png",width=6,height=6,units="in",res=600)
+radarchart(df[c(1, 2, 1+2), ], axistype = 1,
+          # Customize the polygon
+          pcol = "#EF9B42", pfcol = scales::alpha("#EF9B42", 0.5), plwd = 2, plty = 1,
+          # Customize the grid
+          cglcol = "black", cglty = 1, cglwd = 0.8,
+          # Customize the axis
+          axislabcol = "black", 
+          # Variable labels
+          vlabels = c("","","","",""),
+          caxislabels = c("","","","",""),
+          title = ""          # vlcex = 0.7, vlabels = colnames(df[c(1, 2, 1+2), ]),
+          # caxislabels = c(0, 15, 30, 45, 60),
+          # title = "PC1"
+          )
+dev.off()
+
+png("figures/fig4_PC3.png",width=6,height=6,units="in",res=600)
+radarchart(df[c(1, 2, 2+2), ], axistype = 1,
+          # Customize the polygon
+          pcol = "#A92C2A", pfcol = scales::alpha("#A92C2A", 0.5), plwd = 2, plty = 1,
+          # Customize the grid
+          cglcol = "black", cglty = 1, cglwd = 0.8,
+          # Customize the axis
+          axislabcol = "black", 
+          # Variable labels
+          vlabels = c("","","","",""),
+          caxislabels = c("","","","",""),
+          title = ""          
+          # vlcex = 0.7, vlabels = NULL,
+          # caxislabels = c(0, 15, 30, 45, 60),
+          # title = "PC3"
+          )
+dev.off()
+
+png("figures/fig4_PC4.png",width=6,height=6,units="in",res=600)
+radarchart(df[c(1, 2, 3+2), ], axistype = 1,
+          # Customize the polygon
+          pcol = "#162667", pfcol = scales::alpha("#162667", 0.5), plwd = 2, plty = 1,
+          # Customize the grid
+          cglcol = "black", cglty = 1, cglwd = 0.8,
+          # Customize the axis
+          axislabcol = "black", 
+          # Variable labels
+          vlabels = c("","","","",""),
+          caxislabels = c("","","","",""),
+          title = ""          # vlcex = 0.7, vlabels = colnames( df[c(1, 2, 3+2), ]),
+          # caxislabels = c(0, 15, 30, 45, 60),
+          # title = "PC4"
+          )
+dev.off()
+
+png("figures/fig4_PC9.png",width=6,height=6,units="in",res=600)
+radarchart(df[c(1, 2, 4+2), ], axistype = 1,
+          # Customize the polygon
+          pcol = "#3A7889", pfcol = scales::alpha("#3A7889", 0.5), plwd = 2, plty = 1,
+          # Customize the grid
+          cglcol = "black", cglty = 1, cglwd = 0.8,
+          # Customize the axis
+          axislabcol = "black", 
+          vlabels = c("","","","",""),
+          caxislabels = c("","","","",""),
+          title = ""          # Variable labels
+          # vlcex = 1, vlabels = colnames(df[c(1, 2, 4+2), ]),
+          # caxislabels = c(0, 15, 30, 45, 60), 
+          # title = "PC9",
+          )
+dev.off()
 
 ```

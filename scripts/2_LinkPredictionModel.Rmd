@@ -301,7 +301,7 @@ text(screeplot_var, 0, y=relvar_per[1:10], label=relvar_per[1:10],cex=0.8, pos=3
 
 # Plot cumulative variance to show the proportion of variance explained with each add'l PC
 cumpro <- cumsum(pca$sdev^2 / sum(pca$sdev^2))
-png("figures/supplementary/s4fig_plot_cumvar_pca.png", width=4,height=4,units="in",res=600)
+png("figures/supplementary/s5fig_plot_cumvar_pca.png", width=4,height=4,units="in",res=600)
 plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance", main = "Cumulative variance plot")
 abline(v = 10, col="blue", lty=5)
 abline(h = 0.7, col="blue", lty=5)
@@ -1744,7 +1744,7 @@ search2$measure=factor(search2$measure,
                        levels=c("test AUC","sensitivity","specificity"))
 
 # Boxplot performance of model tuning w/ various parameter combinations
-png("figures/supplementary/s10fig_boxplot_brt_tuning_link.png",width=5,height=8,units="in",res=600)
+png("figures/supplementary/s11fig_boxplot_brt_tuning_link.png",width=3.5,height=8,units="in",res=600)
 set.seed(1)
 ggplot(search2,aes(shrinkage,value,
                    colour=interaction.depth,fill=interaction.depth))+
