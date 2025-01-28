@@ -6,10 +6,10 @@ To follow along, download the folder ~/PoxHost/[hpc](https://github.com/viraleme
 
 | Files                     | Description                                                                          |
 | ------------------------- |------------------------------------------------------------------------------------- |
-| Kamiak_BRT_01Jun2023.R    | Model code in R script |
-| HostData_clean.RData      | Input data obtained from part one "1. Data preparation" of [HostTraitModel_Code.Rmd](https://github.com/viralemergence/PoxHost/blob/3062643ecca2ae88dc209437df9231dab444f66e/Tseng2022/Host%20Trait%20Model/HostTraitModel_Code.Rmd) |
-| "Output" folder           | Empty folder location for saving model output                                        |
-| KatieJob_01Jun2023.sh     | Bash shell script (aka Slurm script) for submitting job                              |
+| Kamiak_BRT-HostTraitModel_20Feb2024.R    | Model code in R script |
+| hosttrait_cleandata.RData      | Input data obtained from part one "1. Data preparation" of [HostTraitModel_Code.Rmd](https://github.com/viralemergence/PoxHost/blob/3062643ecca2ae88dc209437df9231dab444f66e/Tseng2022/Host%20Trait%20Model/HostTraitModel_Code.Rmd) |
+| "Kamiak_Results_HostTraitModel" folder           | Empty folder location for saving model output                                        |
+| KatieJob_HostTraitModel_20Feb2024.sh     | Bash shell script (aka Slurm script) for submitting job                              |
 
 ## Instructions 
 1. Login to Kamiak to view your allocated compute partitions:
@@ -43,27 +43,27 @@ $ ls lib/R_libs/							#view local R libraries
 
 4. Prepare R script 	
 ```R
-### In this example, we title the R script: Kamiak_BRT_07Sep2022
+### In this example, we title the R script: Kamiak_BRT-HostTraitModel_20Feb2024
 ### Once packages are installed from the previous step, remove/comment out any install.packages() commands in your   R script
 ### Wherever you send your job to (.sh), it will set the file path of your job script as your home directory. Any file paths referenced IN your R script (e.g., reading in data or saving data) needs to match your home directory (file path of your job script). 
 ```
 
 5. Create your batch job script (.sh) - sample code as follows
 ```R
-#!/bin/bash							#specifies Unix shell to be used
-#SBATCH --partition=fernandez					#specify partition to be used
-#SBATCH --job-name=[job name]					#job name
-#SBATCH --output=[job name]_%j.out				#standard output file
-#SBATCH --error=[job name]_%j.err				#standard error file
-#SBATCH --mail-type=ALL						#send email on job start, job end and job fault
-#SBATCH --mail-user=[username]@wsu.edu				#address where job status emails will be used
-#SBATCH --nodes=1						#node count
-#SBATCH --ntasks=1						#total number of tasks across all nodes
-#SBATCH --cpus-per-task=40					#cpu-cores per task (Fernandez node has 40 cores)
-#SBATCH --mem-per-cpu=4G					#memory per cpu-core (4G is default) 
-module load r/4.1.0						#load specified R version (newest is default)
-Rscript --vanilla [R script title].R  				#’vanilla’ runs R script from clean environment
-echo "Completed job $SLURM_JOBID on nodes $SLURM_JOB_NODELIST" 
+#!/bin/bash					
+#SBATCH --partition=fernandez			
+#SBATCH --job-name=KatieJob			
+#SBATCH --output=KatieJob_%j.out			
+#SBATCH --error=KatieJob_%j.err			
+#SBATCH --mail-type=ALL				
+#SBATCH --mail-user=katie.tseng@wsu.edu		
+#SBATCH --nodes=1				
+#SBATCH --ntasks=1				
+#SBATCH --cpus-per-task=5			
+#SBATCH --mem-per-cpu=4G			
+module load r/4.1.0				
+Rscript --vanilla Kamiak_BRT-HostTraitModel_20Feb2024.R 	
+echo "Completed job $SLURM_JOBID on node(s) $SLURM_JOB_NODELIST"
 ```
 Note, if you are using a node on an alternate partition (not your default), it must be specified as such:
 ```R
@@ -74,25 +74,25 @@ Note, if you are using a node on an alternate partition (not your default), it m
 6. Transfer files to Kamiak - EXAMPLE: R script (.R), Output folder (includes HostData_clean.Rdata), shell script (.sh), etc.
 ```R
 $ logout									#logout of Kamiak
-$ scp -r ~/HPC Example/Kamiak_BRT_01Jun2023.R [username]@kamiak.wsu.edu:~	#login password will be requested
+$ scp -r ~/HPC Example/Kamiak_BRT-HostTraitModel_20Feb2024.R [username]@kamiak.wsu.edu:~	#login password will be requested
 $ scp -r ~/HPC Example/Output/ [username]@kamiak.wsu.edu:~			#login password will be requested
-$ scp -r ~/HPC Example/KatieJob_01Jun2023.sh [username]@kamiak.wsu.edu:~	#login password will be requested
+$ scp -r ~/HPC Example/KatieJob_HostTraitModel_20Feb2024.sh [username]@kamiak.wsu.edu:~	#login password will be requested
 $ ssh [username]@kamiak.wsu.edu     #log back into Kamiak
 $ ls										#check that contents were saved to home directory
 ```
 
 7. Before submitting job, let’s test R script 
 ```R
-$ head Kamiak_BRT_01Jun2023.R 			#view your R script
-$ vim Kamiak_BRT_01Jun2023.R 			#with vim, you can now edit the file
+$ head Kamiak_BRT-HostTraitModel_20Feb2024.R 			#view your R script
+$ vim Kamiak_BRT-HostTraitModel_20Feb2024.R 			#with vim, you can now edit the file
 $ R						#open R
-$ load(“HostData_clean.RData”)			#let’s try running a couple lines of code
+$ load(“hosttrait_cleandata.RData”)			#let’s try running a couple lines of code
 $ data <- poxdata				#after testing, to exit vim w/o saving: press Esc key, type :q, and hit Enter key
 ```
 
 8. Submit job script to job queue/scheduler
 ```R
-$ sbatch KatieJob_01Jun2023.sh			#you will get an email from SLURM notifying you the job is running and a 2nd email when it’s finished
+$ sbatch KatieJob_HostTraitModel_20Feb2024.sh			#you will get an email from SLURM notifying you the job is running and a 2nd email when it’s finished
 $ squeue -u [username]				 
 $ squeue -j [job number]									
 $ exit
@@ -117,7 +117,7 @@ $ scp -r [username]@kamiak.wsu.edu:~/pcr_brts.RData .	#Copy from Kamiak – DO N
 
 11. To edit a file, use vim or nano (text editors for Unix/Linux OS) 
 ```R
-$ vim [job name]_01Jun2023.sh				#view and edit a file
+$ vim [job name]_20Feb2024.sh				#view and edit a file
 $ i							#insert text in file
 $ q:!							#quit without saving changes
 $ q:							#quit with saving changes
