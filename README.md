@@ -2,7 +2,7 @@
 Predicting the orthopoxvirus-mammal network with viral genetic features
 
 ## Description
-This repository contains data and code to reproduce all analyses from "Viral genomic features predict orthopoxvirus reservoir hosts" by Tseng et al.
+This repository contains data and code to reproduce all analyses from "Viral genomic features predict orthopoxvirus reservoir hosts" by Tseng et al (2025).
 
 ## Instructions 
 To run the analysis, you can fork and clone this repository or download the "Tseng2020" folder directly to your local desktop (see *File organization (recommended)*). The code is separated into two markdown files, each contained within their corresponding folders: one for the host prediction model – *HostPrediction_Code.Rmd* – and the other for the link prediction model – *LinkPrediction_Code.Rmd*. Both markdown files are organized similarly into five parts (see *Code organization*) and draw data from the same source file, *Data_raw.RData*. 
