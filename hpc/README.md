@@ -2,7 +2,7 @@
 The following Unix command lines (Terminal in Mac) provides a walk-through of how to submit an R job on Kamiak, Washington State University's high performance computing cluster. You can adapt the script to your HPC cluster.
 
 ## Description
-To follow along, download the folder ~/Tseng2022/[HPC Example](https://github.com/viralemergence/PoxHost/tree/main/Tseng2022/HPC%20Example) from the [PoxHost repository](https://github.com/viralemergence/PoxHost).  In this example, we execute part three (“3. BRT Model”) of the markdown file [HostTraitModel_Code.Rmd](https://github.com/viralemergence/PoxHost/blob/main/Tseng2022/Host%20Prediction%20Model/HostTraitModel_Code.Rmd). This selection of code builds boosted regression tree models trained on infection and competence data to predict mammal hosts of Orthopoxviruses. The following files required for this job are listed below: 
+To follow along, download the folder ~/PoxHost/[hpc](https://github.com/viralemergence/PoxHost/tree/main/Tseng2022/HPC%20Example) from the [PoxHost repository](https://github.com/viralemergence/PoxHost).  In this example, we execute part three (“3. BRT Model”) of the markdown file [HostTraitModel_Code.Rmd](https://github.com/viralemergence/PoxHost/blob/main/Tseng2022/Host%20Prediction%20Model/HostTraitModel_Code.Rmd). This selection of code builds boosted regression tree models trained on infection and competence data to predict mammal hosts of Orthopoxviruses. The following files required for this job are listed below: 
 
 | Files                     | Description                                                                          |
 | ------------------------- |------------------------------------------------------------------------------------- |
