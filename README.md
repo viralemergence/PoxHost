@@ -48,7 +48,9 @@ For *LinkPredictionModel_Code.Rmd*:
 ### Running the BRT models on an HPC cluster
 To run the BRT models on a high performance computing (HPC) cluster (highly recommended), sample scripts and examples are available in the folder ~/PoxHost/[hpc](https://github.com/viralemergence/PoxHost/tree/main/hpc).
 
-### Questions & Acknowledgements ###
-Please direct questions regarding model code to katie.tseng@wsu.edu
+## Questions? ##
+Please direct questions regarding model code to katie.tseng@wsu.edu.
+
+## Acknowledgements ##
 Kamiak – This research used resources of the Center for Institutional Research Computing at Washington State University.
 
