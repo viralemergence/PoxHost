@@ -142,4 +142,7 @@ $ export R_LIBS_USER=~/lib/R_lbs
 - https://www.hpc-carpentry.org/hpc-shell/00-hpc-intro/index.html
 - https://researchcomputing.princeton.edu/support/knowledge-base/slurm#arrays
 - https://hpc.wsu.edu/users-guide/
-- https://s3.wp.wsu.edu/uploads/sites/1122/2021/10/kamia¬¬¬k_cheat_sheet_vm.pdf	
+- https://s3.wp.wsu.edu/uploads/sites/1122/2021/10/kamia¬¬¬k_cheat_sheet_vm.pdf
+
+## Acknowledgements ##
+Kamiak – This research used resources of the Center for Institutional Research Computing at Washington State University.
