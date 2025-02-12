@@ -1,0 +1,1986 @@
+---
+title: "Orthopoxvirus Link Prediction Model Code"
+author: "Katie Tseng, Dan Becker, Colin Carlson, Pilar Fernandez, and Stephanie Seifert"
+output:
+  pdf_document:
+  latex_engine: xelatex
+  toc: yes
+html_document:
+  fig_height: 6
+  fig_width: 6
+  highlight: tango
+  theme: journal
+editor_options: 
+  chunk_output_type: console
+---
+
+Introduction
+============
+
+The following code reproduces the analyses from *Viral genomic features predict orthopoxvirus reservoir hosts*, pertaining to the link prediction model. The code is subdivided into three parts (see Table of Contents below). To reproduce the analyses pertaining to the host prediction model, please see the markdown file *HostTraitModel_Code.Rmd* located in the [PoxHost repository][1].
+
+Before running the following script, download the following data files to your working directory: 
+- *~/data/linkpred_rawdata.RData*: the raw data file
+- *~/data/OPVnew_nowwithVirus.xlsx*: table of OPV genome annotations extracted from NCBI with corresponding accessory gene data (binary matrix)
+- *OPV_6Jan23.nexus*: the nexus file of viral tree data for visualizing clustering of OPV sequences on the phylogenetic tree
+    - This file is only needed in part one for hierarchical cluster analysis (optional): *Dimension Reduction* {r dim_tree}
+
+[1]: <https://github.com/viralemergence/PoxHost> "PoxHost"
+
+Table of Contents
+=================
+
+1. Dimension Reduction {r dim}
+
+2. Data Preparation {r prep}
+
+3. BRT Model {r brt}
+
+### *Before proceeding, we recommend setting knit options* 
+
+```{r, knitr}
+
+knitr::opts_chunk$set(eval=F)
+
+```
+
+1. Dimension Reduction
+======================
+
+In this section, we draw from our dataset of annotated Orthopoxvirus (OPV) genomes (n=197 unique sequences; see genome annotation pipeline in methods section for more information), which compose our known host-OPV associations for incorporation in the link prediction model. Each sequence is classified by its source or virus species and its host, as well as the presence (1) or absence (0) of a suite of OPV accessory genes. Because our data consists of over 981 OPV accessory genes, the goal of this section is to reduce the number of viral predictors for incorporation in the link prediction model, while maintaining maximal variance. Using principal components analysis (PCA), a method of dimension reduction, we distill the variables down to their most important features. We also explore which sequences have the most similar values (aka, how do they group?) in the principal components using k-means clustering. Because we are analyzing presence/absence data (binary variables), we use multiple correspondence analysis (MCA) to further validate our results. Though similar to PCA, MCA is used to analyze datasets with multiple categorical variables. 
+
+### *Load required packages and set system*
+
+```{r dim_load, message=FALSE, warning=FALSE}
+
+# Libraries for preparing data for analysis
+library(ape)
+library(dplyr)
+library(nlme)
+library(tidyverse)
+library(vroom) 
+library(readxl)
+library(ggplot2)
+
+# Libraries for PCA (principal components analysis)
+library(vegan)
+library(factoextra) #fviz_eig
+library(ggfortify)
+
+# Libraries for MCA
+library(FactoMineR)
+library(dplyr)
+library(factoextra) #fviz_eig
+
+# Clean environment
+rm(list=ls()) 
+graphics.off()
+
+# Set working directory
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
+
+```
+
+### *Prepare genomic data for dimension reduction*
+We clean our sequence data and explore the variability in the data.
+Figures: *histogram_var_genes.png*
+Tables: *table_frequency_seqbyvirus.csv*
+
+```{r dim_genes}
+
+# Load genome annotations and trim
+genes <- read_xlsx("data/OPVnew_nowwithVirus.xlsx", sheet="PoxHost")
+
+# Rename variables and exclude unnecessary variables
+genes <- plyr::rename(genes, c("Virus"="VirusSpecies","Host Genus"="HostGenus","Host Species"="HostSpecies"))
+genes <- subset(genes, select=-c(HostSpecies))
+
+# Correct sequence MT903347_1 - 'HostGenus' var lists Family name instead of Genus
+genes$HostGenus <- ifelse(genes$HostGenus=="Gliridae","Graphiurus",genes$HostGenus)
+
+# Add unique identifier
+genes$rownames <- rownames(genes)
+genes$Sequence <- paste(genes$Genome,genes$VirusSpecies,genes$HostGenus,sep="_",genes$rownames)
+genes$rownames=NULL
+genes <- genes %>% dplyr::select(Sequence, everything())
+
+# View frequency of various virus species
+prop_table <- subset(genes, select=-c(Sequence,Genome))
+prop_table$Frequency = 1 
+prop_table <- aggregate(Frequency ~ VirusSpecies + HostGenus, data=prop_table, FUN=sum)
+prop_table <- prop_table[order(prop_table[,c("VirusSpecies")],prop_table[,c("HostGenus")]) ,]
+prop_table$Perc <- prop_table$Frequency/sum(prop_table$Frequency)*100
+print(prop_table)
+
+# Save frequency table 
+write.csv(prop_table, "figures/other/linkpred/table_frequency_seqbyvirus.csv")
+
+# Create function (mode.prop) to assess variation in the presence/absence of OPV genes
+mode.prop <- function(x) {                
+  ux <- unique(x[is.na(x)==FALSE])        # creates array of unique values
+  tab <- tabulate(match(na.omit(x), ux))  # creates array of the frequency (number of times) each unique value appears in the column 
+  max(tab)/length(x[is.na(x)==FALSE])     # max-frequency / number of elements in each column that are not NA
+}
+
+# Assess variation across columns (2 indicates columns)
+vars=data.frame(apply(genes,2,function(x) mode.prop(x)),
+                apply(genes,2,function(x) length(unique(x)))) # number of unique elements in each column
+vars$variables=rownames(vars)
+colnames(vars) <- c("var","uniq","column")
+
+# Trim
+vars <- vars[-c(1:4), ]
+
+# Any variables with no variation? If so drop
+which(vars$var==1)
+# vars <- subset(vars,vars$var<1)
+
+# Visualize distribution of variation
+gene_var <- ggplot(vars,
+       aes(var))+
+  geom_histogram(bins=50)+
+  geom_vline(xintercept=0.70,linetype=2,linewidth=0.5)+
+  theme_bw()+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  labs(y="Frequency",
+       x="Variance in the presence/absence of genes")+
+  scale_x_continuous(labels=scales::percent)
+gene_var
+
+# Clean environment
+rm(list=setdiff(ls(), c("genes")))
+
+```
+
+### *PCA of viral accessory genes*
+Using PCA, can we distill the variables down to their most important features? Which genes contribute the most to each feature? Let's plot the loadings and also color them by functional role
+Figure: *histogram_loadings.png*
+Table: *table_pca_importance.csv*, *table_ranked_loadings.csv*
+
+```{r dim_pca}
+
+# Apply PCA using stats::prcomp 
+pca <- prcomp(genes[,5:985])      #scaling/centering not appropriate
+relvar <- pca$sdev^2 / sum(pca$sdev^2)
+relvar_per <- round(relvar*100,1)
+
+# View summary results
+summary(pca)
+View(pca$x) #sequence (individuals)
+View(pca$rotation) #genes (variables)
+
+# Get table of importance of components: eigenvalue (variance explained by each PC), SD, proportion of variance, and cumulative proportion
+importance <- as.data.frame(t(summary(pca)$importance))
+importance$Eigenvalue <- importance$`Standard deviation`^2
+importance <- importance %>% dplyr::relocate(Eigenvalue) 
+importance <- importance[c(1:12),]
+write.csv(importance,"figures/other/linkpred/pca/table_pca_importance.csv")
+rm(importance)
+
+# Get table of loadings: rotation is the matrix of variable loadings where columns are eigenvectors
+loadings <- as.data.frame(pca$rotation)
+loadings <- loadings[,c(1:10)]
+# loadings <- abs(loadings) #get absolute values; why are some loadings > |1|? Loading is the covariances/correlations b/w original vars and unit-scaled components)
+
+### Create a df of ranked loadings and their gene names for each PC ###
+
+  # For each PC, create a df of gene loadings named after the PC
+  for(i in 1:ncol(loadings)){
+    assign(colnames(loadings)[i], data.frame(loadings[,i]))
+  }
+  
+  # Create a list of PC df names
+  list <- colnames(loadings)    
+  
+  # Combine the dfs into a single list; drop PC dfs
+  list_df = lapply(list, get)
+  rm(list = ls()[grepl("PC", ls())])
+
+  # To each list df, add corresponding gene name; sort in descending order
+  for (i in 1:length(list)) {
+    colnames(list_df[[i]]) <- "Loadings"
+    list_df[[i]]$Gene <- rownames(loadings)
+    list_df[[i]]=list_df[[i]][order(-list_df[[i]]$Loadings),]
+  }
+  
+  # Create df of just ranked genes by first dropping loadings from the list
+  genes_df <- list_df
+  for(i in 1:length(list)) {
+    genes_df[[i]]$Loadings=NULL
+  }
+  
+  # Create an empty matrix with PCs as column names
+  rank_genes <- data.frame(matrix(ncol=ncol(loadings), nrow=nrow(loadings)))
+  colnames(rank_genes) <- colnames(loadings)
+  
+  # To each matrix column, add the ranked genes for each PC
+  for(i in 1:length(list)) {
+    rank_genes[,i] = genes_df[[i]]
+  }
+  
+  # Set column names
+  rank_genes <- setNames(rank_genes, paste0(names(loadings), '_', 'Gene'))
+  
+  # Create df of just ranked loadings by first dropping gene names from the list
+  loadings_df <- list_df
+  for(i in 1:length(list)) {
+    loadings_df[[i]]$Gene=NULL
+  }
+  
+  # Create an empty matrix with PCs as column names
+  rank_loadings <- data.frame(matrix(ncol=ncol(loadings), nrow=nrow(loadings)))
+  colnames(rank_loadings) <- colnames(loadings)
+  
+  # To each column of the matrix, add the ranked loadings for each PC
+  for(i in 1:length(list)) {
+    rank_loadings[,i] = loadings_df[[i]]
+  }
+  
+  # Set column names
+  rank_loadings <- setNames(rank_loadings, paste0(names(loadings), '_', 'Loadings'))
+  
+  # Combine dfs of ranked genes and loadings
+  rank_PC <- cbind(rank_genes, rank_loadings)
+  rank_PC <- rank_PC[,order(colnames(rank_PC))] 
+  
+  # Reorder columns
+  rank_PC <- rank_PC %>% relocate(c("PC10_Gene","PC10_Loadings"), .after = last_col())
+  
+  # Save table of PCA Loadings Ranked
+  write.csv(rank_PC, "figures/other/linkpred/pca/table_ranked_loadings.csv")
+
+# Distribution of loadings for each PC (particularly PC1, PC3, PC4, PC9)
+loadings <- as.data.frame(pca$rotation)
+loadings <- loadings[,c(1:10)]
+loadings_abs <- abs(loadings) #get absolute values
+
+library(reshape2)
+hist_loadings=ggplot(melt(loadings),aes(x=value)) + geom_histogram() + facet_wrap(~variable)
+hist_loadings_abs=ggplot(melt(loadings_abs),aes(x=value)) + geom_histogram() + facet_wrap(~variable)
+hist_loadings_abslim=ggplot(melt(loadings_abs),aes(x=value)) + geom_histogram() + xlim(0.05,0.20) + facet_wrap(~variable)
+
+# Save figure
+png("figures/other/linkpred/pca/histogram_loadings.png", width=4,height=4,units="in",res=600)
+hist_loadings
+dev.off()
+
+# Save datafile of PC scores for link prediction
+wgs_PCs <- genes[,1:4]
+wgs_PCs <- cbind(wgs_PCs, pca$x[,1:10])
+save(wgs_PCs, file='data/wgs_PCs.RData')
+
+# Clean up environment
+# rm(rank_genes, rank_loadings, genes_df, loadings, loadings_df, list_df, list)
+
+# Clean environment
+rm(list=setdiff(ls(), c("genes","pca","relvar","relvar_per", "rank_PC")))
+
+```
+
+### *PCA visualizations*
+Which dimensions contribute the most?
+Figures: *screeplot_var_pca.png*, *plot_cumvar_pca.png*, *plot_pca_scoresbyspecies.pdf*
+
+```{r dim_pca_viz}
+
+### Vizualize variance
+
+# Screeplot of variance (eigenvalues) to show the decreasing rate at which variance is explained by additional PCs
+png("figures/other/linkpred/pca/screeplot_var_pca.png", width=4,height=4,units="in",res=600)
+screeplot(pca, type="lines", npcs=15, main="Scree plot of Eigenvalues for the first 15 PCs")
+abline(h=1, col="red", lty=5)
+legend("topright", legend=c("Eigenvalue = 1"), col=c("red"), lty=5, cex=1)
+dev.off()
+### suggests cutoff at PC12
+
+# Screeplot of cumulative variance to show the % variance explained by additional PCs
+screeplot_var <- barplot(relvar_per[1:10], xlab='PC', ylab='Percentage of explained variances', main='Screeplot of explained variances', names.arg=1:10, las=1, ylim=c(0,max(relvar_per)+10), col='gray')
+text(screeplot_var, 0, y=relvar_per[1:10], label=relvar_per[1:10],cex=0.8, pos=3, col="red")
+
+# Plot cumulative variance to show the proportion of variance explained with each add'l PC
+cumpro <- cumsum(pca$sdev^2 / sum(pca$sdev^2))
+png("figures/supplementary/s5fig_plot_cumvar_pca.png", width=4,height=4,units="in",res=600)
+plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance", main = "Cumulative variance plot")
+abline(v = 10, col="blue", lty=5)
+abline(h = 0.7, col="blue", lty=5)
+legend("topleft", legend=c("Cut-off @ PC10"), col=c("blue"), lty=5, cex=1)
+dev.off()
+
+### Vizualize individuals/scores
+
+# Style 1: Plot sequences on dim 1 and 2 (with single ellipses)
+fviz_pca_ind(pca, geom.ind = "point", pointshape = 21, pointsize = 2, 
+             col.ind = "black", addEllipses = TRUE, label = "var",
+             col.var = "black", repel = TRUE,
+             alpha.ind = 0.7) +
+             ggtitle("PCA Plot of Sequences") +
+             theme(plot.title = element_text(hjust = 0.5))
+
+# Style 2: Plot sequences by virus species for dim 1 and 2
+autoplot(pca, x=1, y=2, data = genes, colour = 'VirusSpecies') 
+
+# Style 3: Plot sequences by virus species w/ viridis
+
+  ## Color-blind friendly palette:
+  library(viridis)
+  cbPalette <- viridis(12, alpha = 1, begin = 0, end = 1, direction = 1, option = "H")
+
+  ## Dim 1 and 2
+  scores_dim12 <- fviz_pca_ind(pca, axes=c(1,2), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette,
+                  alpha.ind = 0.5) +
+                  theme(legend.position="none")
+  
+  ## Dim 3 and 4
+  scores_dim34 <- fviz_pca_ind(pca, axes=c(3,4), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette,
+                  alpha.ind = 0.5) +
+                  theme(legend.position="none")
+  
+  ## Dim 5 and 6
+  scores_dim56 <- fviz_pca_ind(pca, axes=c(5,6), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette,
+                  alpha.ind = 0.5) +
+                  theme(legend.position="none")
+  
+  ## Dim 7 and 8
+  scores_dim78 <- fviz_pca_ind(pca, axes=c(7,8), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette,
+                  alpha.ind = 0.5) +
+                  theme(legend.position="none")
+
+  ## Dim 9 and 10
+  scores_dim910 <- fviz_pca_ind(pca, axes=c(9,10), title = "",
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  palette = cbPalette,
+                  alpha.ind = 0.5) +
+                  theme(legend.position="none")
+
+  ## Get legend only
+  legend <- cowplot::get_legend(fviz_pca_ind(pca, axes=c(9,10),
+                  geom.ind = "point", pointshape = 21, pointsize = 2, 
+                  fill.ind = genes$VirusSpecies, col.ind = "black", 
+                  addEllipses = TRUE,label = "var", col.var = "black",repel = TRUE,
+                  legend.title = "OPV species",
+                  palette = cbPalette,
+                  alpha.ind = 0.5)
+                  
+  ## Combine plots and save
+  library(cowplot)
+  plot_grid(scores_dim12, scores_dim34, scores_dim56, scores_dim78, scores_dim910, legend, ncol=3, nrow=2, scale=c(0.8), labels = c('A','B','C','D','E',''))  
+
+### Vizualize variables/loadings (biplots)
+
+# Style 1: Plot gene loadings only
+ 
+  ## Dim 1 and 2
+  fviz_pca_var(pca, 
+               col.var = "contrib", # Color by contributions to the PC
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,     # Avoid text overlapping
+               # select.var=list(contrib=50),   # modify the number of loadings to include
+               labelsize=1,
+               label = c("ind", "ind.sup", "quali", "var", "quanti.sup"))
+  dev.off()
+    ### Here we see PC1 has large positive associations with a number of AGs like ADZ29556.1, SNB51281.1, and AGZ01283.1 that point in the same direction as PC1. PC2 has some moderately positive associations with AGs like BDQ10560.1
+    ### QKE61192.1 - hypothetical protein [Vaccinia virus]
+    ### QNP13375.1 - MPXV Viral membrane assembly proteins (VMAP) (Cop-A 30.5L)"
+
+  ## Dim 3 and 4
+  fviz_pca_var(pca, axes = c(3, 4),
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               # select.var=list(contrib=50),   # modify the number of loadings to include
+               labelsize=1)
+  dev.off()
+  
+# Style 2: Plot gene loadings by functional group
+  
+  ## Dim 1 and 2
+  fviz_pca_var(pca, axes = c(1, 2),
+               col.var = "contrib",
+               gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+               repel = TRUE,
+               # select.var=list(contrib=50),   # modify the number of loadings to include
+               labelsize=1)
+  dev.off()
+
+
+# Biplot sequences and gene loadings
+fviz_pca_biplot(pca, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                repel = TRUE,
+                labelsize=1)
+dev.off()
+
+# Biplot top 20 influential scores and loadings
+fviz_pca_biplot(pca, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE, 
+             labelsize=3,
+             select.ind=list(contrib=20), select.var=list(contrib=20))
+dev.off()
+
+# Clean environment
+rm(list=setdiff(ls(), c("genes","pca")))
+
+```
+
+### *PCA Hierarchical Cluster Analysis*
+Which sequences have the most similar values? How do they group based on k-means clustering
+Figures: *linegraph_optclusters_pca.png*, *clustree_pca.png*, *clustree_stability_pca.png*, *clustree_overpc1and2.png*, *cluster_dendogram.png*, *cluster_dendogram.png*, *plot_scores_pca_bycluster.png*
+Tables: *table_scores_pca_bycluster.csv*
+
+```{r dim_cluster}
+
+### Determine Optimal Number of Clusters ###
+
+library(clustree)
+
+# Extract coordinates for individual sequences
+ind.coord <- pca$x
+rownames(ind.coord) <- genes$VirusSpecies
+ind.coord <- ind.coord[,1:10]
+
+###Elbow method
+# Calculate/graph the sum of squares at each number of clusters. Assess how the slope changes from steep to shallow (an elbow) to determine the optimal number of clusters. How does increasing the number of the clusters contribute to separating the clusters in a meaningful way based on intra-cluster variance?
+
+# Set seed and execute
+set.seed(31)
+png("figures/other/linkpred/pca/linegraph_optclusters_pca.png", width=4,height=4,units="in",res=600)
+fviz_nbclust(ind.coord, kmeans, method = "wss", k.max = 20) + theme_minimal() 
+# + ggtitle("the Elbow Method")
+dev.off()
+
+#### Clustree method
+# How do samples change groupings as the number of clusters increases? Clustree shows which clusters are distinct and which are unstable. It doesn’t explicitly tell you which choice of optimal clusters is but it is useful for exploring possible choices.
+
+# Execution of k-means with 1 to 10 clusters
+tmp <- NULL
+for (k in 1:10){
+  tmp[k] <- kmeans(ind.coord, k, nstart = 30) #generates 30 initial configs & avg all centroid results 
+}
+
+# Convert to dataframe
+df <- data.frame(tmp)
+
+# Add a prefix to the column names of df
+colnames(df) <- seq(1:10)
+colnames(df) <- paste0("k",colnames(df))
+
+# Combine clustering data w/ PC loading values
+df <- bind_cols(as.data.frame(df), as.data.frame(ind.coord))
+
+# Execute clustree
+png("figures/other/linkpred/pca/clustree_pca.png", width=6,height=8,units="in",res=600)
+clustree(df, prefix = "k")
+dev.off()
+### note: nodes with multiple incoming edges indicate that we over-clustered the data
+
+# Execute clustree, but display stability index by colour as opposed to count
+png("figures/other/linkpred/pca/clustree_stability_pca.png", width=6,height=8,units="in",res=600)
+clustree(df, prefix = "k", node_colour = "sc3_stability")
+dev.off()
+### note: k=6 appears to be the most stable number of clusters
+
+# Execute clustree_overlay, overlaying PC1 on PC2 to assess quality of the clustering
+df_subset <- df %>% dplyr::select(1:10,11:12)
+png("figures/other/linkpred/pca/clustree_overpc1and2.png", width=9, height=12, units="in", res=600)
+clustree_overlay(df_subset, prefix = "k", x_value = "PC1", y_value = "PC2")
+dev.off()
+
+
+# Execute clustree overlaying PC vs. k (resolution dimension)
+overlay_list <- clustree_overlay(df_subset, prefix = "k", x_value = "PC1",
+                                 y_value = "PC2", plot_sides = TRUE)
+overlay_list$x_side  #PC1
+overlay_list$y_side  #PC2
+
+### Conduct Hierarchical Cluster Analysis ###
+# Each object is assigned its own cluster iteratively, at each stage joining the 2 most similar clusters (bottom-up dendogram until only one cluster is left)
+
+# Extract coordinates for individual sequences
+ind.coord <- pca$x
+rownames(ind.coord) <- genes$VirusSpecies
+ind.coord <- ind.coord[,1:10]
+
+# Calculate distance matrix
+pc.dist <- dist(ind.coord, method="euclidean")
+
+# Execute HCA
+clusters <- hclust(pc.dist)
+
+# Plot dendogram
+plot(clusters, cex=0.2)
+
+# For k=6, add rectangular outline to each cluster in the dendrogram
+png("figures/other/linkpred/pca/cluster_dendogram.png", width=8,height=5,units="in",res=600)
+plot(clusters, cex=0.2)
+rect.hclust(clusters, k = 6, border = 2:8) # add rectangle
+dev.off() 
+
+# For k=6, view count of each cluster
+clusterCut <- cutree(clusters, k = 6)
+table(clusterCut)
+
+# Prop tables by virus species
+mytable<-table(clusterCut, genes$VirusSpecies)
+mytable2 <- data.frame(prop.table(mytable,2))
+ggplot(mytable2, aes(x = Var2, y = Freq, fill = clusterCut)) +
+  geom_col() +
+  labs(fill='Cluster') +
+  theme(axis.title.x = element_blank(), axis.text.x = element_text(angle=45,hjust=1)) +
+  ggtitle("Distribution by Virus Species")
+
+# Re-run PCA to color by cluster  
+  #add cluster to original db
+  genes1<-data.frame(cbind(genes,clusterCut))
+  genes1$clusterCut <- as.factor(genes1$clusterCut)
+
+# Run PCA as before, but now grouping by cluster
+pca_bycluster <- prcomp(genes1[,5:985])   
+
+# color-blind friendly palette:
+cbPalette1 <- c("#009292","#ff6db6","#ffb6db","#490092","#6db6ff","#db6d00")
+cbPalette2 <- c("#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7")
+
+# Plot of sequences by cluster
+png("figures/other/linkpred/pca/plot_scores_pca_bycluster.png", width=8,height=5,units="in",res=600)
+fviz_pca_ind(pca_bycluster, geom.ind = "point", pointshape = 21, 
+             pointsize = 2, 
+             fill.ind = genes1$clusterCut, 
+             col.ind = "black", 
+             addEllipses = TRUE,
+             label = "var",
+             col.var = "black",
+             repel = TRUE,
+             legend.title = "Cluster",
+             palette = cbPalette1,
+             alpha.ind = 0.5)
+dev.off()
+  # + ggtitle("PCA Plot of Sequences by Cluster")
+
+# Create a table of sequences by cluster
+db_cluster <- dplyr::select(genes1, Genome, VirusSpecies, HostGenus,clusterCut)
+write.csv(db_cluster,"figures/other/linkpred/table_scores_pca_bycluster.csv", row.names = F)
+
+# Are the MPXV sequences in cluster 3 the same as the outliers in PCA4?
+print(db_cluster[(db_cluster$VirusSpecies=="Monkeypox virus" & db_cluster$clusterCut==3),])
+# print(outliers[,1:4])
+
+# Clean environment
+rm(list=setdiff(ls(), c("genes","genes1","mytable2", "pca")))
+
+```
+
+### *Visualize clustering on viral phylogenetic tree*
+Figures: *virustree_barplot_cluster_pca.png*
+
+```{r dim_tree}
+
+# Resources
+#https://github.com/YuLab-SMU/ggtree/issues/295
+
+# Load libraries
+library(ggtree)
+library(tidyverse)
+library(clustree)
+library(ape) 
+library(phylogram)
+
+# Load viral tree data
+vtree <- ape::read.nexus("data/OPV_6Jan23.nexus")
+print(vtree$tip.label)
+
+# Reformat tip label by dropping everything before the underscore
+vtree$tip.label=substring(vtree$tip.label, regexpr("_", vtree$tip.label) + 1, nchar(vtree$tip.label))
+
+# Repeat this step for tip labels with two underscores
+vtree$tip.label=substring(vtree$tip.label, regexpr("_", vtree$tip.label) + 1, nchar(vtree$tip.label))
+
+# Drop single quote in tip label
+vtree$tip.label=gsub("'","",vtree$tip.label)
+
+# Rename tip label Abatino to Abatino macacapox
+vtree$tip.label <- ifelse(vtree$tip.label=="Abatino", "Abatino macacapox", vtree$tip.label)
+
+# Rename tip label Cetacean to Cetaceanpox
+vtree$tip.label <- ifelse(vtree$tip.label=="Cetacean", "Cetaceanpox", vtree$tip.label)
+
+# Add ' virus' to tip label
+vtree$tip.label=paste0(vtree$tip.label," virus")
+
+# Convert tree data from class "phylo" to "dendrogram"
+dendrogram <- as.dendrogram(vtree)
+
+# Copy dataframe of cluster data (freq table of virus species by cluster)
+mytable3 = mytable2
+
+# Rename/reformat variables
+mytable3$tip.label = mytable2$Var2
+mytable3$Cluster = as.factor(mytable2$clusterCut)
+mytable3$freq = mytable2$Freq
+mytable3 <- subset(mytable3, select=c(tip.label,Cluster,freq))
+
+# Check that all virus species names in mytable3 are in vtree
+mytable3$intree <- ifelse(mytable3$tip.label%in%setdiff(mytable3$tip.label, vtree$tip.label),'missing','tree')
+which(mytable3$intree=="missing")
+mytable3$intree=NULL
+
+# Plot of tree with scale of substitution rate
+p <- ggtree(vtree) + geom_tiplab(align=TRUE, size=0) +
+     geom_treescale(x=0.1, y=12, width=0.2, label="substitution rate") +
+     annotate(geom="text", x=0.2, y=12.3, label="0.2", size=4)
+# p <- ggtree(dendrogram) + geom_tiplab(align=TRUE, size=0)
+
+# Color-blind friendly palette:
+cbPalette1 <- c("#009292","#ff6db6","#ffb6db","#490092","#6db6ff","#db6d00")
+cbPalette2 <- c("#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7")
+
+# Plot of tree combined with bar plot of clustering
+p1 <- facet_plot(p, data = mytable3, geom = geom_bar, 
+                 panel = "Barplot", colour = "black", 
+                 mapping = aes(fill=Cluster,x=freq), stat = "identity", orientation="y") +
+                 scale_fill_manual(values=cbPalette1)
+
+# Plots of tree + clustering with x-axis scales
+p2 <- p1 + theme_tree2()
+
+# Plots of tree + clustering with x-axis scales, x-axis titles, and tiplabel names
+p3 <- p2 + xlab(label = c("\n      Substitutions per site                                                     Relative Proportion of Clustering")) +  
+      theme(axis.title.x = element_text(size = 12)) + 
+      geom_tiplab(as_ylab=TRUE, size = 10)
+p3
+
+# Save
+png("figures/other/linkpred/pca/virustree_barplot_cluster_pca.png", width=16,height=8,units="in",res=600)
+p3
+dev.off()
+
+```
+
+### *PCA2 (Alternative Analysis)*
+What happens when we exclude accessory genes present in only one virus species?
+
+```{r dim_pca2}
+
+# Drop accessory genes that are present in only one virus species (all 0's except for one)
+genes2 <- genes[c(1:4,4 + which(colSums(genes[-(1:4)])>1))]
+### 985 variables to 686 variables
+
+# Apply PCA using stats::prcomp 
+pca2 <- prcomp(genes2[,5:686])
+
+### Vizualize variance, scores and loadings
+
+# Plot cumulative variance to show the proportion of variance explained with each add'l PC
+cumpro <- cumsum(pca2$sdev^2 / sum(pca2$sdev^2))
+plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance", main = "Cumulative variance plot")
+abline(v = 10, col="blue", lty=5)
+abline(h = 0.7, col="blue", lty=5)
+legend("topleft", legend=c("Cut-off @ PC10"), col=c("blue"), lty=5, cex=1)
+
+# Biplot sequences and gene loadings
+fviz_pca_biplot(pca2, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+               repel = TRUE) +
+               ggtitle("Biplot of Sequences and Gene Loadings")
+
+# Biplot top 20 influential scores and loadings
+fviz_pca_biplot(pca2, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE, select.ind=list(contrib=20), select.var=list(contrib=20), max.overlaps=Inf) +
+             ggtitle("Biplot of Top 20 Contributing Sequences and Gene Loadings")
+
+### Summary: Compared to the first PCA, there's an increase in the proportion of variance explained by the first 10 dimensions from 0.696 to 0.712. No noticeable difference in the spatial distribution of scores and vectors. 
+
+```
+
+### *PCA3 (Alternative Analysis)*
+What happens when we drop duplicate observations within the same host-virus links (sequences with the same identical presence/absence of accessory genes as another sequence of the same host-virus link)?
+
+```{r dim_pca3}
+
+# Identify observations of the same host-virus links with identical presence/absence of accessory genes
+genes3 <- genes
+genes3$dup <- duplicated(genes3[,-c(1:2)])
+table(genes3$dup)
+### 42 dups
+
+# Drop duplicate observations
+genes3 <- genes3[genes3$dup==FALSE,]
+genes3$dup=NULL
+### 197 obs to 155 obs
+
+# Apply PCA using stats::prcomp 
+pca3 <- prcomp(genes3[,5:985])
+
+### Vizualize variance, scores and loadings
+
+# Plot cumulative variance to show the proportion of variance explained with each add'l PC
+cumpro <- cumsum(pca3$sdev^2 / sum(pca3$sdev^2))
+plot(cumpro[0:15], xlab = "Dimension", ylab = "Proportion of explained variance", main = "Cumulative variance plot")
+abline(v = 10, col="blue", lty=5)
+abline(h = 0.7, col="blue", lty=5)
+legend("topleft", legend=c("Cut-off @ PC10"), col=c("blue"), lty=5, cex=1)
+
+# Biplot sequences and gene loadings
+fviz_pca_biplot(pca3, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), 
+               repel = TRUE) +
+               ggtitle("Biplot of Sequences and Gene Loadings")
+
+# Biplot top 20 influential scores and loadings
+fviz_pca_biplot(pca3, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE, select.ind=list(contrib=20), select.var=list(contrib=20), max.overlaps=Inf) +
+             ggtitle("Biplot of Top 20 Contributing Sequences and Gene Loadings")
+
+### Summary: Compared to the first PCA, there is a decrease in the proportion of variance explained by the first ten PCs from 0.696 to 0.680. As in previous PCAs, biplot of top 20 contributing sequences and gene loadings show the most influential sequences in the third quadrant. 
+
+```
+
+### *PCA4 (Alternative Analysis )*
+What happens if we exclude the potential outliers from PCA, and then predict their scores and loadings?
+
+```{r dim_pca4}
+
+# Create df excluding outliers identified in PCA3
+genes4 <- genes[!grepl("MT724769_1|MN346703_1|MT724770_1|DQ011155_1", genes$Genome),]
+
+# Create df of outliers
+outliers <- genes[grepl("MT724769_1|MN346703_1|MT724770_1|DQ011155_1", genes$Genome),]
+
+# Apply PCA using stats::prcomp
+pca4 <- prcomp(genes4[,5:985])
+relvar <- pca4$sdev^2 / sum(pca4$sdev^2)
+relvar_per <- round(relvar*100,1)
+
+# Prediction of PCs for outliers
+pred <- predict(pca4, newdata=outliers)
+pca4_pred <- pca4
+pca4_pred$x <- rbind(pca4_pred$x, pred)
+
+### Vizualize scores and loadings
+
+# Plot of individuals by virus species w/ outliers in shaded bullets
+COLOR <- c(1:length(unique(genes$VirusSpecies)))
+pc <- c(1,2)
+plot(pca4$x[,pc], cex=1, col=COLOR,
+     xlab=paste0("PC 1", "(", relvar_per[pc[1]], "%)"), 
+     ylab=paste0("PC 2", "(", relvar_per[pc[2]], "%)"))
+points(pred[,pc], pch=16) + abline(h = 0, v=0, lty = 2) +
+title("Plot of Sequences and Outliers") + theme(plot.title = element_text(hjust = 0.5))
+
+# Biplot of individuals and variables
+fviz_pca_biplot(pca4_pred, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE) +
+             ggtitle("Biplot of Sequences and Gene Loadings")
+
+# Biplot of top 20 contributing individuals and variables
+fviz_pca_biplot(pca4_pred, col.var = "contrib", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE, select.ind=list(contrib=20), select.var=list(contrib=20)) +
+             ggtitle("Biplot of Sequences and Gene Loadings")
+
+# Clean environment
+rm(list=setdiff(ls(), c("genes", "pca","outliers")))
+
+### Summary: Predicted scores of outliers cluster in the fourth quadrant with other sequences. As in previous PCAs, biplot of top 20 contributing sequences and gene loadings show the most influential sequences in the third quadrant.
+
+```
+
+### *MCA of viral accessory genes*
+Multiple Correspondence Analysis (MCA) for dimension reduction of categorical variables. MCA is different from PCA in that it's primarily used for categorical data, which in this example are the presence absence of the accessory genes. MCA also uses a dissimilarity measure as opposed to a covariance or correlation matrix to calculate the dissimilarities between categories, which are measured by the singular value decomposition (SVD) of the data matrix (as opposed to eigenvalues or eigenvectors).
+
+```{r dim_mca}
+
+# Subset data and reformat gene variables as factor
+genes_cat <- subset(genes,select=-c(Genome,VirusSpecies,HostGenus))
+genes_cat[] <- lapply(genes_cat, as.character)
+rownames <- genes$Sequence
+genes_cat[,-1] <- lapply(genes_cat[,-1], factor)
+genes_cat$Sequence=NULL
+rownames(genes_cat) <- rownames
+#str(genes_cat)
+
+# Apply MCA using FactoMineR::MCA
+mca = MCA(genes_cat, graph = FALSE)
+# pca_relvar <- pca$sdev^2 / sum(pca$sdev^2)
+# pca_relvar_per <- round(pca_relvar*100,1)
+
+# List and summarize MCA results
+print(mca)
+# summary(mca)
+head(mca$ind$coord) #sequence (individuals)
+head(mca$var$coord) #genes (variables)
+
+# Screeplot - Variance (Eigenvalues)
+#mca$eig
+fviz_eig(mca, addlabels = TRUE, ylim = c(0, 25))
+
+# Plots of individuals
+fviz_mca_ind(mca, repel=TRUE)
+
+#(6) Plots of MCA variables 1 and 2
+fviz_mca_var(mca, repel = TRUE) ##
+
+# Biplot
+fviz_mca_biplot(mca, repel = TRUE)
+fviz_mca_biplot(mca, repel = FALSE, select.ind=list(contrib=20), select.var=list(contrib=20))
+
+# Clean environment
+rm(list=ls())
+
+```
+
+
+2. Data Preparation
+===================
+
+### *Load packages and data for merging: i.e., Host-pox/viral traits (PC), taxonomy data, host traits, and host tree*
+
+```{r prep_raw}
+
+# Load treespace
+## treespace dependencies include XQuartz v2.7.11 (https://www.xquartz.org/releases/XQuartz-2.7.11.html) and 'rgl' (https://stackoverflow.com/a/66127391/2554330)
+## recommend installing and loading rgl including 'options(rgl.useNULL=TRUE)' below before loading treespace
+library(rgl) # > install.packages("rgl"); > options(rgl.useNULL=TRUE)
+library(treespace) 
+library(dplyr)
+
+# Clean environment
+rm(list=ls()) 
+graphics.off()
+
+# Set working directory
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
+
+# Load raw data
+load("data/linkpred_rawdata.RData")
+
+# Load genomic sequence data
+load("data/wgs_PCs.RData")
+
+# Pox data: host-OPV interactions detected via PCR/isolation from Virion database *note additional interactions from pc_genes below
+##virion <- vroom('https://github.com/viralemergence/virion/blob/main/Virion/Virion.csv.gz')
+poxdata <- virion %>% filter(VirusGenus == "orthopoxvirus" & (DetectionMethod %in% c("PCR/Sequencing","Isolation/Observation"))) 
+
+# Viral traits data (& Host-pox links): host-OPV linked interactions & principal components of OPV genes (viral traits) extracted from genome sequence data 
+wgsdata <- wgs_PCs
+
+# Taxa: mammal species taxonomy from vertlife
+##vertlife <- read.csv(url('https://data.vertlife.org/mammaltree/taxonomy_mamPhy_5911species.csv'))
+taxa <- vertlife
+
+# Host traits: mammal traits from the COMBINE database <https://doi.org/10.1002/ecy.3344>
+##path: ecy3344-sup-0001-datas1.zip > COMBINE_archives > trait_data_imputed.csv)
+hostTraits <- combine
+
+# Host tree: mammal phylogeny tree from Dryad, <https://doi.org/10.5061/dryad.tb03d03>
+##path: Data_S8_finalFigureFiles > _DATA > MamPhy_fullPosterior_BDvr_Completed_5911sp_topoCons_NDexp_MCC_v2_target.tre)
+hostTree <- dryad
+
+# Clean environment
+rm(virion, wgs_PCs, vertlife, dryad, combine)
+
+```
+
+### *Merge host-OPV interactions from Virion with host-OPV interactions from genome annotations (Stephanie)*
+
+```{r prep_poxdata}
+
+### Clean up Virion data ###
+
+# Exclude if host genus or virus is NA
+poxdata <- poxdata[!is.na(poxdata$HostGenus),]
+poxdata <- poxdata[!is.na(poxdata$Virus),]
+
+# Exclude variola (smallpox) virus
+poxdata <- poxdata[!(poxdata$Virus=="variola virus"),]
+
+# Reclassify feline poxvirus as cowpox virus
+#In this model, we keep vaccinia virus!
+
+# Aggregate data at the host genus level
+poxdata$link <- 1
+poxdata <- aggregate(link~HostGenus+Virus, data=poxdata, mean)
+poxdata$link=NULL
+
+# Rename and reformat variables
+poxdata <- plyr::rename(poxdata,c('HostGenus'='genus','Virus'='virus'))
+poxdata$genus <- str_to_title(poxdata$genus)
+
+# Add datasource variable
+poxdata$virion <- 1
+
+### Clean up genomic data ###
+
+# Rename and reformat variables
+wgsdata <- plyr::rename(wgsdata,c('HostGenus'='genus','Sequence'='sequence'))
+wgsdata$virus <- tolower(wgsdata$VirusSpecies)
+wgsdata$VirusSpecies=NULL
+
+# Drop genome variable
+wgsdata$Genome=NULL
+
+# Add datasource variable
+wgsdata$wgs <- 1
+
+### Merge ###
+
+# Are their virus in wgsdata that are not in poxdata and vice versa?
+wgsdata$virus[!wgsdata$virus %in% poxdata$virus]
+poxdata$virus[!poxdata$virus %in% wgsdata$virus]
+
+# Correct 'cetaceanpox virus' to 'cetacean pox virus 1' in wgsdata
+wgsdata$virus <- ifelse(wgsdata$virus=="cetaceanpox virus", "cetacean poxvirus 1", wgsdata$virus)
+
+# Are their genera in wgsdata that are not in poxdata and vice versa?
+wgsdata$genus[!wgsdata$genus %in% poxdata$genus]
+poxdata$genus[!poxdata$genus %in% wgsdata$genus]
+
+# Before merging, get count of unique host-virus associations in each dataset
+poxdata_unique <- unique(poxdata[ , c("genus", "virus")])
+length(unique(poxdata_unique$genus))
+length(unique(poxdata_unique$virus))
+wgsdata_unique <- unique(wgsdata[ , c("genus", "virus")])
+length(unique(wgsdata_unique$genus))
+length(unique(wgsdata_unique$virus))
+
+# Merge poxdata w/ wgsdata
+poxdata <- merge(poxdata,wgsdata,by=c('virus','genus'),all=TRUE)
+
+# Create data source variable
+poxdata$source <- ifelse(poxdata$wgs==1 & is.na(poxdata$virion),"wgs", ifelse(poxdata$virion==1 & is.na(poxdata$wgs),"virion","both"))
+
+# Replace sequence==NA with "NA", as this var will be our unique identifier for WGS links
+poxdata$sequence <- ifelse(is.na(poxdata$sequence),"NA",poxdata$sequence)
+
+# Get count of unique host-virus associations in each dataset
+poxdata_unique <- unique(poxdata[ , c("genus", "virus")])
+length(unique(poxdata_unique$genus))
+length(unique(poxdata_unique$virus))
+
+# Remove virion and wgs vars; clean environment
+poxdata$virion=NULL
+poxdata$wgs=NULL
+rm(wgsdata, wgsdata_unique, poxdata_unique)
+
+```
+
+### *Merge poxdata with broader mammal taxa to create pseudoabsences*
+
+```{r prep_pseudo}
+
+# Drop duplicate genera in taxa
+gtaxa <- taxa[!duplicated(taxa$gen),]
+gtaxa <- gtaxa[c('gen','fam','ord')]
+gtaxa <- plyr::rename(gtaxa, c('gen'='genus'))
+
+# Check for mismatched genus names between poxdata and taxa before merging poxdata with taxa
+poxdata$genus[!poxdata$genus %in% gtaxa$genus]
+poxdata <- merge(gtaxa,poxdata,by='genus',all.x=TRUE)
+
+# To keep only genera from orders in which positive associations exist, first subset known host-virus associations
+keep <- subset(poxdata, !is.na(poxdata$source))
+
+# Next, create a new variable <keep> in poxdata denoting observations with the same host taxonomic order as that of known associations
+poxdata$keep <- ifelse(poxdata$ord %in% keep$ord,TRUE,FALSE)
+
+# View/evaluate which taxonomics orders will be kept and which orders will be discarded
+uniq <- unique(poxdata[c("ord","keep")])
+
+# Keep only observations with the same host taxonomic order as that of known associations
+poxdata <- subset(poxdata,keep==TRUE)
+poxdata$keep=NULL
+
+# Create binary variable for known host-OPV associations/links
+poxdata$link=ifelse(is.na(poxdata$source),0,1)
+
+# Reorder variables
+poxdata <- poxdata %>% select(link, virus, genus, fam, ord, source, everything())
+
+# Clean environment
+rm(taxa,gtaxa,keep,uniq)
+
+```
+
+### *Aggregate hostTraits to genus-level*
+
+```{r prep_traits}
+
+# Observe variable names
+colnames(hostTraits)
+
+# To aggregate continuous/integer variables, use the median as the summary measure
+hostTraits_continuous=aggregate(cbind(adult_mass_g,brain_mass_g,adult_body_length_mm,adult_forearm_length_mm,
+                                   max_longevity_d,maturity_d,female_maturity_d,male_maturity_d,
+                                   age_first_reproduction_d,gestation_length_d,teat_number_n,
+                                   litter_size_n,litters_per_year_n,interbirth_interval_d,
+                                   neonate_mass_g,weaning_age_d,weaning_mass_g,generation_length_d,
+                                   dispersal_km,density_n_km2,home_range_km2,social_group_n,
+                                   dphy_invertebrate,dphy_vertebrate,dphy_plant,
+                                   det_inv,det_vend,det_vect,det_vfish,det_vunk,det_scav,det_fruit,det_nect,det_seed,det_plantother,det_diet_breadth_n,
+                                   upper_elevation_m,lower_elevation_m,altitude_breadth_m,habitat_breadth_n) 
+                             ~ order+family+genus, data=hostTraits, FUN=median, na.action=na.pass, na.rm=TRUE)
+##'na.action=na.pass, na.rm=TRUE' is specified such that if species w/in a genus has a combination of real values & NAs, the median of real values will be returned (as opposed to omitting the genus or returning NA)
+
+# To aggregate binary variables, use the mean as the summary measure
+hostTraits$fossoriality[hostTraits$fossoriality==2]<-0  #recode 0/1: 0=above ground, 1=fossorial dwelling
+hostTraits_binary=aggregate(cbind(hibernation_torpor,fossoriality,freshwater,marine,terrestrial_non.volant,terrestrial_volant,island_dwelling,disected_by_mountains,glaciation) ~ order+family+genus, data=hostTraits, FUN=mean, na.action=na.pass, na.rm=TRUE)
+hostTraits_binary_temp=aggregate(cbind(hibernation_torpor,fossoriality,freshwater,marine,terrestrial_non.volant,terrestrial_volant,island_dwelling,disected_by_mountains,glaciation) ~ order+family+genus, data=hostTraits, FUN=mean, na.action=na.pass, na.rm=TRUE)
+
+# To aggregate categorical variables, first transform the variables to binary
+hostTraits_cat <- hostTraits
+hostTraits_cat$trophic_herbivores <- ifelse(hostTraits_cat$trophic_level==1,1,0)
+hostTraits_cat$trophic_omnivores <- ifelse(hostTraits_cat$trophic_level==2,1,0)
+hostTraits_cat$trophic_carnivores <- ifelse(hostTraits_cat$trophic_level==3,1,0)
+hostTraits_cat$activity_nocturnal <- ifelse(hostTraits_cat$activity_cycle==1,1,0)
+hostTraits_cat$activity_crepuscular <- ifelse(hostTraits_cat$activity_cycle==2,1,0) #nocturnal/crepuscular, cathemeral, crepuscular or diurnal/crepuscular
+hostTraits_cat$activity_diurnal <- ifelse(hostTraits_cat$activity_cycle==3,1,0)
+hostTraits_cat$forager_marine <- ifelse(hostTraits_cat$foraging_stratum=="M",1,0)
+hostTraits_cat$forager_ground <- ifelse(hostTraits_cat$foraging_stratum=="G",1,0) 
+hostTraits_cat$forager_scansorial <- ifelse(hostTraits_cat$foraging_stratum=="S",1,0)
+hostTraits_cat$forager_arboreal <- ifelse(hostTraits_cat$foraging_stratum=="Ar",1,0)
+hostTraits_cat$forager_aerial <- ifelse(hostTraits_cat$foraging_stratum=="A",1,0)
+hostTraits_cat$island_end_marine <- ifelse(hostTraits_cat$island_endemicity=="Exclusively marine",1,0)
+hostTraits_cat$island_end_mainland <- ifelse(hostTraits_cat$island_endemicity=="Occurs on mainland",1,0)
+hostTraits_cat$island_end_lgbridge <- ifelse(hostTraits_cat$island_endemicity=="Occurs on large land bridge islands",1,0)
+##hostTraits_cat$island_end_smbridge <- ifelse(hostTraits_cat$island_endemicity=="Occurs on small land bridge islands",1,0)
+hostTraits_cat$island_end_isolated <- ifelse(hostTraits_cat$island_endemicity=="Occurs only on isolated islands",1,0)
+hostTraits_cat$biogeo_afrotropical <- ifelse(grepl("Afrotropical",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_antarctic <- ifelse(grepl("Antarctic",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_australasian <- ifelse(grepl("Australasian",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_indomalayan <- ifelse(grepl("Indomalayan",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_nearctic <- ifelse(grepl("Nearctic",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_neotropical <- ifelse(grepl("Neotropical",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_oceanian <- ifelse(grepl("Oceanian",hostTraits_cat$biogeographical_realm),1,0)
+hostTraits_cat$biogeo_palearctic <- ifelse(grepl("Palearctic",hostTraits_cat$biogeographical_realm),1,0)
+
+# To aggregate transformed categorical-to-binary variables, use the mean as the summary measure
+hostTraits_cat=aggregate(cbind(trophic_herbivores,trophic_omnivores,trophic_carnivores,
+                            activity_nocturnal,activity_crepuscular,activity_diurnal,
+                            forager_marine,forager_ground,forager_scansorial,forager_arboreal,forager_aerial,
+                            island_end_marine,island_end_mainland,island_end_lgbridge,island_end_isolated,
+                            biogeo_afrotropical,biogeo_antarctic,biogeo_australasian,biogeo_indomalayan,biogeo_nearctic,biogeo_neotropical,biogeo_oceanian,biogeo_palearctic)
+                       ~ order+family+genus, data=hostTraits_cat, FUN=mean, na.action=na.pass, na.rm=TRUE)
+
+# Merge continuous variables with binary variables and simplify dataframe
+hostTraits <- full_join(hostTraits_continuous, hostTraits_binary, by = c("order","family","genus"),keep=TRUE)
+hostTraits <- plyr::rename(hostTraits,c('order.x'='order','family.x'='family','genus.x'='genus'))
+hostTraits=subset(hostTraits, select=-c(order.y,family.y,genus.y))
+
+# Merge transformed categorical variables and simplify dataframe
+hostTraits <- full_join(hostTraits, hostTraits_cat, by = c("order","family","genus"),keep=TRUE)
+hostTraits <- plyr::rename(hostTraits,c('order.x'='order','family.x'='family','genus.x'='genus'))
+hostTraits <- subset(hostTraits, select=-c(order.y,family.y,genus.y))
+
+# Clean environment
+rm(hostTraits_binary,hostTraits_cat,hostTraits_continuous)
+
+```
+
+### *Trim hostTree to genus-level*
+
+```{r prep_tree}
+
+# Reformat
+hostTree$tip.label[hostTree$tip.label=="_Anolis_carolinensis"] <- "Anolis_carolinensis"
+
+# Create dataframe linking tip labels with their corresponding categories (genus and species)
+tdata <- data.frame(matrix(NA,nrow=length(hostTree$tip.label),ncol=0))
+tdata$genus <- sapply(strsplit(hostTree$tip.label,'_'),function(x) paste(x[1],sep='_'))
+tdata$species <- hostTree$tip.label
+
+# Collapse tree to genus level
+hostTree <- makeCollapsedTree(tree=hostTree,df=tdata[c('genus','species')])
+
+# Clean environment
+rm(tdata)
+
+```
+
+### *Check for mismatched genera names in poxdata, hostTraits and hostTree*
+
+```{r prep_names}
+
+# Check if all poxdata genera are in hostTree
+poxdata$gtip <- poxdata$genus
+hostTree$gtip <- hostTree$tip.label
+poxdata$intree <- ifelse(poxdata$gtip%in%setdiff(poxdata$gtip,hostTree$gtip),'missing','upham')
+
+# Check if all poxdata genera are in hostTraits
+hostTraits$gtip <- hostTraits$genus
+poxdata$intraits <- ifelse(poxdata$gtip%in%setdiff(poxdata$gtip,hostTraits$gtip),'missing','traits')
+
+# Create a dataframe of just the observations with mismatched names
+fix <- poxdata[c('gtip','intree','intraits')]
+fix <- fix[fix$intree=='missing'|fix$intraits=='missing',]
+fix <- unique(fix)
+
+# For those with mismatched names, identify homotypic synonyms or proxy species via IUCN (https://www.iucnredlist.org/) and NCBI (http://www.ncbi.nlm.nih.gov/taxonomy)
+fix$treename <- NA
+fix$traitname <- NA
+fix$proxy <- NA
+fix$proxy <- ifelse(fix$gtip=="Calassomys","Delomys",fix$proxy)
+  ##source: https://academic.oup.com/jmammal/article/95/2/201/860032
+fix$traitname <- ifelse(fix$gtip=="Liomys","Heteromys",fix$traitname)
+  ##source: https://www.iucnredlist.org/species/40768/22345036
+fix$traitname <- ifelse(fix$gtip=="Oreonax","Lagothrix",fix$traitname)
+  ##source: https://www.iucnredlist.org/species/39924/192307818
+fix$traitname <- ifelse(fix$gtip=="Paralomys","Phyllotis",fix$traitname)
+  ##source: https://www.iucnredlist.org/species/17226/22333354
+fix$traitname <- ifelse(fix$gtip=="Pearsonomys","Geoxus",fix$traitname)
+  ##source: https://www.iucnredlist.org/species/40768/22345036
+fix$traitname <- ifelse(fix$gtip=="Pipanacoctomys","Tympanoctomys",fix$traitname)
+  ##source: https://www.iucnredlist.org/species/136557/78324400#taxonomy
+fix$traitname <- ifelse(fix$gtip=="Pseudalopex","Lycalopex",fix$traitname)
+  ##source: https://www.iucnredlist.org/species/6926/87695615
+## hostTraits$genus[which(grepl('Tympanoctomys',hostTraits$genus))]
+
+# Merge revised names with poxdata
+fix <- subset(fix, select=-c(intree,intraits))
+poxdata <- merge(poxdata,fix,by='gtip',all.x=T)
+
+# If 'treename' is missing, first relabel as NA, then relabel with 'gtip'
+poxdata$treename <- ifelse(poxdata$treename=='',NA,as.character(poxdata$treename))
+poxdata$treename <- ifelse(is.na(poxdata$treename),as.character(poxdata$gtip),as.character(poxdata$treename))
+
+# If 'traitname' is missing, first relabel as NA; If 'traitname' is NA and missing in 'intraits', then relabel with 'proxy'; If 'traitname' is not NA and missing in 'intraits', then relabel with 'traitname'
+poxdata$traitname <- ifelse(poxdata$traitname=='',NA,as.character(poxdata$traitname))
+poxdata$traitname <- ifelse(poxdata$intraits=='missing' & is.na(poxdata$traitname),as.character(poxdata$proxy),
+                      ifelse(poxdata$intraits=='missing' & !is.na(poxdata$traitname),as.character(poxdata$traitname),
+                             as.character(poxdata$gtip)))
+
+# Simplify and clean environment
+poxdata <- subset(poxdata, select=-c(intree,intraits,proxy))
+rm(fix)
+
+```
+
+### *Merge poxdata with hostTraits and trim hostTree to mirror poxdata*
+
+```{r prep_merge}
+
+# Merge traits with poxdata
+hostTraits$traitname <- hostTraits$gtip
+poxdata <- merge(poxdata,hostTraits,by=c('traitname'),all.x=T)
+
+# Clean up poxdata
+poxdata <- plyr::rename(poxdata,c('gtip.x'='gtip','genus.x'='genus'))
+poxdata <- subset(poxdata,select=-c(order, family, genus.y, gtip.y))
+
+# Trim hostTree (remove species tip) to mirror poxdata
+hostTree <- keep.tip(hostTree,hostTree$tip.label[hostTree$tip.label%in%poxdata$treename])
+hostTree$gtip <- NULL
+hostTree=makeLabel(hostTree)
+
+# Clean environment
+rm(hostTraits)
+
+```
+
+### *Add PubMed citations and evolutionary distinctiveness measure*
+
+```{r prep_cited}
+
+# Load library for PubMed citations
+library(easyPubMed)
+
+# Create function to count citations
+counter=function(name){
+  as.numeric(as.character(get_pubmed_ids(gsub('_','-',name))$Count))
+}
+citations=c()
+
+# Extract unique genera from poxdata
+treename <- unique(poxdata$treename)
+
+# Apply counter function while looping through treenames
+for(i in 1:length(treename)) {
+  citations[i]=counter(treename[i])
+  print(i)
+}
+
+# Compile citation numbers
+cites <- data.frame(treename=treename,cites=citations)
+
+# Merge cites with poxdata
+poxdata <- merge(poxdata,cites,by='treename')
+
+# Load library for evolutionary distinctiveness (ed) measure
+library(picante)  #before loading picante, make sure latest version of nlme package is loaded
+ed <- evol.distinct(hostTree,type='equal.splits') #calculates ed measures for a suite of species by equal splits and fair proportions; returns species score
+
+# Rename variables in ed
+ed <- plyr::rename(ed,c('Species'='treename','w'='ed_equal'))
+
+# Merge ed with poxdata
+poxdata <- merge(poxdata,ed,by='treename')
+
+# Clean environment
+rm(cites,ed,citations,i,treename,counter)
+
+## Other potential viral traits to consider for future studies include: viral genome length, viral richness (number of virus detected in each genera), and host range (number of hosts from which each virus was detected)
+
+```
+
+### *Add all possible host-OPV combinations (i.e., pseudoabsences) for link prediction model and merge with PCA (viral genomic) data*
+
+```{r prep_link}
+
+# Create a dataframe of all possible host-OPV combinations (for mammal genera that exist in orders w/ known OPV predictions) by identifying all unique virus species and host genus of known associations and using the {expand.grid} function
+uniq_virus <- unique(poxdata$virus[!is.na(poxdata$virus)])
+uniq_genus <- unique(poxdata$genus[!is.na(poxdata$genus)])
+combinations <- expand.grid(uniq_virus, uniq_genus)
+combinations <- plyr::rename(combinations,c('Var1'='virus','Var2'='genus'))
+
+# Create two dataframes: one subsetting host-OPV interaction/link data from poxdata (excluding host trait data), and the other subsetting unique host trait data (i.e., all other variables) which we will merge back in later
+linkdata <- poxdata[,grepl("link|virus|genus|source|sequence|PC", names(poxdata))]
+hostTraits <- poxdata[,!grepl("link|virus|source|sequence|PC", names(poxdata))] # include genus b/c we will merge on it later
+hostTraits <- hostTraits[!duplicated(hostTraits$genus),]
+
+# Merge linkdata with all possible combinations (drop observations if virus NA)
+linkdata <- merge(linkdata, combinations, by=c("virus","genus"),all=TRUE)
+linkdata <- linkdata[!is.na(linkdata$virus),]
+
+# Merge linkdata with hostTraits
+linkdata <- merge(linkdata, hostTraits, by=c("genus"))
+
+# Reorder variables
+linkdata <- linkdata %>% select(source, sequence, link, virus, genus, fam, ord, gtip, traitname, treename, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10, everything())
+
+# Reclassify NAs as pseudo-absences for viral detection
+linkdata$link=ifelse(is.na(linkdata$link),0,linkdata$link)
+
+### Next, we need to impute values of PC variables where data exist for that virus.
+
+# First let's subset virus and PC variables, and drop rows w/ NA
+pc <- linkdata[,grepl("virus|PC", names(linkdata))]
+pc <- pc[!is.na(pc$PC1),]
+
+# Let's take a quick look at which virus do not have PC data
+setdiff(unique(linkdata$virus),unique(pc$virus))
+
+# Next, we obtain the median value of each PC variable for each virus using aggregate function (dot notation), and rename PC variables
+pc_median=aggregate(. ~virus, data=pc, FUN=median)
+colnames(pc_median)[c(-1)] <- paste(colnames(pc_median)[c(-1)], "_med", sep="")
+
+# Merge PC median variables w/ poxdata
+linkdata <- merge(linkdata,pc_median,by=c("virus"),all.x=TRUE)
+
+# Get PC colnames and replace NA values of PC vars w/ median PC values using for-loop
+pc_names <- colnames(pc)[c(-1)]
+for(i in pc_names) {
+  linkdata[,i] <- ifelse(is.na(linkdata[,i]),linkdata[,paste(i,"_med",sep="")],linkdata[,i])
+}
+
+# Drop median PC variables
+pc_med_names <- colnames(pc_median)[c(-1)]
+for(i in pc_med_names) {
+  linkdata[,i]=NULL
+}
+
+# Replace NA values for 'source' and 'sequence' with "NA"
+linkdata$source <- ifelse(is.na(linkdata$source),"NA",linkdata$source)
+linkdata$sequence <- ifelse(is.na(linkdata$sequence),"NA",linkdata$sequence)
+
+# Clean environment
+rm(combinations, hostTraits, uniq_virus, uniq_genus, pc, pc_median, pc_names, pc_med_names, i, poxdata)
+
+```
+
+### *Save cleaned data*
+
+```{r prep_save}
+
+#(1) Reorder variables
+linkdata <- linkdata %>% select(source, sequence, link, virus, genus, fam, ord, gtip, traitname, treename, cites, ed_equal, everything())
+
+#(2) Save dataframes for analysis **poxdata_temp.RData is for practice analysis**
+save(linkdata, hostTree, file='data/linkpred_cleandata.RData')
+
+```
+
+
+3. BRT Model
+============
+This chapter builds boosted regression tree models to predict host-virus links. The following section is coded to run on your local computer and will likely take ~72+ hours (with parallel processing on 5 cores), outputting an RData file size of 2GB. For tips on running the code on an available HPC node, see 'Tseng2022/HPC Example' on the PoxHost GitHub repository: https://github.com/viralemergence/PoxHost/tree/0a1effef83dbd5f6f3d88c6d0c15c563eb499452/Tseng2022/HPC%20Example_01Jun2023.
+
+### *Load required packages and set system*
+
+```{r brt_load}
+
+#(1) Libraries for BRT model
+library(gbm)
+library(fastDummies)
+library(rsample)
+library(ROCR)
+library(sciplot)
+library(ggplot2)
+library(pdp)
+library(PresenceAbsence)
+library(tidyr)
+library(viridis)
+library(caper)
+###to install ggtree, need to first install BiocManager:
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#     install.packages("BiocManager")
+# BiocManager::install("ggtree")
+# library(phylofactor)
+library(ggtree)
+library(treeio)
+library(caret) 
+library(InformationValue)
+library(mgcv) #for beta regression on performance metrics
+# library(cowplot) #for combining plots of best.iter
+
+# Clean environment
+rm(list=ls()) 
+graphics.off()
+
+# Set working directory
+setwd("/Users/katietseng/Library/CloudStorage/OneDrive-WashingtonStateUniversity(email.wsu.edu)/Fernandez Lab/Projects (Active)/OPV Host Prediction/GitHub/PoxHost")
+
+```
+
+### *Reclassify (drop) feline poxvirus as cowpox virus ###
+
+```{r brt_}
+
+# Load data and clean environment
+load("data/linkpred_cleandata.RData")
+data <- linkdata
+rm(linkdata)
+
+# Identify known interactions between feline poxvirus and mammal genera
+data[data$virus=="feline poxvirus ita2_bc" & data$link==1, c('source','genus')]
+
+# Identify whether known interaction between cowpox virus and Homo exists
+data[data$virus=="cowpox virus" & data$link==1 & data$genus=="Homo", c('source','genus')]
+
+# Drop all feline poxvirus pairings since cowpoxvirus-homo link is already in our dataset
+nrow(data[data$virus=="feline poxvirus ita2_bc",])
+data <- data[data$virus!="feline poxvirus ita2_bc",]
+
+```
+
+### *Create variables of taxonomic family as predictors for the model*
+
+```{r brt_taxo}
+
+# Calculate number of pseudoabsences
+length(which(data$link==0))
+
+# Ensure all accessory gene variables are numeric
+PC_columns <- colnames(data[which(grepl("PC",names(data)))])
+data[,c(PC_columns)] <- lapply(data[c(PC_columns)],as.numeric)
+str(data)
+
+# Make binary variables for each taxonomic family; remove any duplicates
+dums=dummy_cols(data["fam"])
+dums=dums[!duplicated(dums$fam),]
+
+# Ensure all family vars are factor
+for(i in 1:ncol(dums)){
+  dums[,i]=factor(dums[,i])
+}
+
+# Merge family taxa variables with dataset as predictors
+data=merge(data,dums,by="fam",all.x=T)
+
+# Drop unnecessary columns and clean environment
+data$traitname=NULL
+rm(dums, i, PC_columns)
+
+```
+
+### *Assess variation and availability of data*
+We explore the variation and availability of our data and drop variables if more than 40% of observations are missing/NA. We also remove variables that are not needed for the BRT analysis and save the dataset as *data_LinkBRT.RData*.
+Figure: *histogram_trait_coverage.png*
+Table: *table_trait_coverage.csv*
+
+```{r brt_var}
+
+# Create mode function where for each variable, we extract the frequency of the most frequently occurring value for that variable and divide it by the number of non-NA elements in that variable
+mode.prop <- function(x) {                
+  ux <- unique(x[is.na(x)==FALSE])        # creates array of unique values
+  tab <- tabulate(match(na.omit(x), ux))  # creates array of the frequency (number of times) a unique value appears in a column 
+  max(tab)/length(x[is.na(x)==FALSE])     # max-frequency / number of elements in each column that are not NA
+}
+
+# Assess variation across columns (2 indicates columns)
+vars=data.frame(apply(data,2,function(x) mode.prop(x)),
+                apply(data,2,function(x) length(unique(x))))    # number of unique elements in each column
+
+# Get names
+vars$variables=rownames(vars)
+names(vars)=c("var","uniq","column")
+
+# # Round values
+# vars$var=round(vars$var,2)
+
+# Label variables "cut" if homogeneous (100%)
+vars$keep=ifelse(vars$var<1,"keep","cut")
+vars$keep=ifelse(vars$column%in%c('fam','source','sequence','link','virus','genus','ord','gtip','treename','cites','ed_equal'),'keep',vars$keep) # ensures we keep these columns
+vars=vars[order(vars$keep),]
+
+# Trim (creates array of column names to cut and removes from df)
+keeps=vars[-which(vars$keep=="cut"),]$column
+
+# Drop if no variation
+data=data[keeps]
+rm(keeps,vars)
+
+# Assess missing values
+mval=data.frame(apply(data,2,function(x) length(x[!is.na(x)])/nrow(data))) # proportion of values that are not NA
+
+# Get names
+mval$variables=rownames(mval)
+names(mval)=c("comp","column")
+
+# Plot frequency distribution of coverage among traits
+png("figures/other/linkpred/histogram_trait_coverage.png", width=4,height=4,units="in",res=600)
+ggplot(mval[!mval$column%in%c("gen","treename","pcr","competence","tip.label","fam"),],
+       aes(comp))+
+  geom_histogram(bins=50)+
+  geom_vline(xintercept=0.60,linetype=2,size=0.5)+
+  theme_bw()+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  labs(y="frequency",
+       x="Trait coverage across mammal genera")+
+  scale_x_continuous(labels = scales::percent)
+dev.off()
+
+# Label variables "cut" if >40% values are NA
+mval$keep=ifelse(mval$comp>=0.60,"keep","cut")
+table(mval$keep)
+mval=mval[order(mval$keep),]
+
+# Trim (creates array of column names to cut and removes from df)
+keeps=mval[-which(mval$keep=="cut"),]$column
+
+# Drop if not well represented
+data=data[keeps]
+rm(keeps,mval)
+
+# Subset data to include only covariates
+set <- subset(data,select=-c(fam, source, sequence, virus, genus, ord, gtip, treename))
+
+#  Get trait coverage
+trait_coverage=data.frame(apply(set,2,function(x) length(x[!is.na(x)])/nrow(set)))
+
+# Rename and reorder columns
+trait_coverage$variables=rownames(trait_coverage)
+names(trait_coverage)=c("coverage","feature")
+rownames(trait_coverage)=NULL
+trait_coverage=trait_coverage[!trait_coverage$feature%in%c("pcr","competence"),]
+trait_coverage <- subset(trait_coverage,select=c(feature,coverage))
+
+# Save table
+write.csv(trait_coverage, "figures/other/linkpred/table_trait_coverage.csv")
+
+# Check that binary variables are numeric and not factor (except for fam vars)
+str(set)
+
+# Remove vars not needed for BRT analysis
+data$source=NULL
+data$sequence=NULL
+# save(data, file='figures/other/linkpred/data_LinkBRT.RData')
+
+# Clean environment
+rm(keeps, mval, trait_coverage)
+```
+
+### *Alternative datasets Models 2 (excluding vaccinia virus sequences) and Model 3 (host traits only)*
+For Model 2, we prepare an alternative dataset that excludes vaccinia virus sequences (host associations with vaccinia virus) from BRT analysis. For Model 3, we prepare an alternative dataset that excludes viral traits from BRT analysis and is trained only on host traits (includes vaccinia virus).
+
+```{r brt_alt}
+
+# Model 2: Subset data to exclude host-vaccinia virus links
+# data <- data[data$virus!="vaccinia virus",]
+# set <- subset(data,select=-c(fam, virus, genus, ord, gtip, treename))
+
+# Model 3: Subset data to exclude viral traits
+# We prepare an alternative dataset that excludes viral traits from BRT analysis so that model is trained only on host traits.
+# 
+# # Subset data to exclude viral traits
+# data <- subset(data,select=-c(PC1, PC2, PC3, PC4, PC5, PC6, PC7, PC8, PC9, PC10))
+# set <- subset(data,select=-c(fam, virus, genus, ord, gtip, treename))
+
+```
+
+### *Tuning to assess model performance for each combination of tuning parameters*
+We create a hyperparameter 'grid' that represents different combinations of parameter values to which we tune the model. We then save a table of the resulting model performance measures for 'Model 1', where we predict on all possible host-virus combinations. If model tuning on the alternative dataset (see above), {r brt_alt}, we recommend you modify the results table name to *par...Model2.csv*.
+Table: *par_tuning_data_summary_Model1.csv*
+
+```{r brt_tuning}
+
+# Hyperparameter tuning ifelse
+#hok="ok"
+hok="notok"
+if(hok!="ok"){
+  
+  ## hyperparameter grid
+  hgrid=expand.grid(n.trees=5000,                              #creates df from all combinations of factor vars (1*3*3*1*10=90 obs & 5 vars)
+                    interaction.depth=c(2,3,4),
+                    shrinkage=c(0.01,0.001,0.0005),
+                    n.minobsinnode=4,
+                    seed=seq(1,10,by=1))
+  # hgrid=expand.grid(n.trees=500,                              #creates df from all combinations of factor vars (1*3*3*1*10=90 obs & 5 vars)
+  #                   interaction.depth=c(2,3,4),
+  #                   shrinkage=c(0.1,0.01,0.005),
+  #                   n.minobsinnode=4,
+  #                   seed=seq(1,10,by=1))
+  # fix trees
+  hgrid$n.trees=ifelse(hgrid$shrinkage<0.001,hgrid$n.trees*3,hgrid$n.trees)
+  
+  ## trees, depth, shrink, min, prop 
+  hgrid$id=with(hgrid,paste(n.trees,interaction.depth,shrinkage,n.minobsinnode))   #creates var 'id' concatenating values from each of the specified columns in hgrid
+  
+  ## sort by id then seed
+  hgrid=hgrid[order(hgrid$id,hgrid$seed),]
+  
+  ## now add rows
+  hgrid$row=1:nrow(hgrid)                                        #adds var 'row' based on row number in hgrid
+  
+  ## factor id
+  hgrid$id2=factor(as.numeric(factor(hgrid$id)))                 #creates 9-level factor var 'id2' 
+  
+  
+  ## function to assess each hyperpar combination
+  hfit=function(row,response){
+    
+    ## make new data
+    ndata=set
+    
+    ## correct response
+    ndata$response=ndata[response][,1]                           #creates var 'response'
+    
+    ## remove raw
+    # ndata$pcr=NULL
+    # ndata$competence=NULL
+    ndata$link=NULL
+    
+    ## use rsample to split
+    set.seed(hgrid$seed[row])                                    #sets seed value of 1-10
+    split=initial_split(ndata,prop=0.7,strata="response")        #creates single binary split of data into training set and testing set, where 70% of data is retained for modeling/analysis and resampling is created within the 'response' var
+    
+    ## test and train
+    dataTrain=training(split)
+    dataTest=testing(split)
+    
+    ## yTest and yTrain
+    yTrain=dataTrain$response                                    #create array of just response values from training and testing set
+    yTest=dataTest$response
+    
+    ## BRT
+    set.seed(1)
+    gbmOut=gbm(response ~ . ,data=dataTrain,                     #y~x; gbmOut contains list of 29 elements including train.error and valid.error referenced later in gbm.perf()
+               n.trees=hgrid$n.trees[row],                       #total number of trees to fit (number of iterations; default is 100)
+               distribution="bernoulli",
+               shrinkage=hgrid$shrinkage[row],                   #equiv to learning rate or step-size reduction (smaller learning rate requires more trees, default is 0.1)
+               interaction.depth=hgrid$interaction.depth[row],   #max depth of each tree (highest level of variable interactions allowed; default is 1)
+               n.minobsinnode=hgrid$n.minobsinnode[row],         #min. number of obs in terminal nodes of trees
+               cv.folds=5,class.stratify.cv=TRUE,                #no. of cross-val folds to perform; for cv.folds>1, returns estimate of generalization error in 'cv.error'
+               bag.fraction=0.5,train.fraction=1,                #fraction of training set obs randomly selected to propose next tree in expansion - this is why we set.seed()
+               n.cores=5,                                        #no. of CPU cores to use
+               verbose=F)
+               # par.details=(gbmParallel(num_threads=5)),
+    
+    ## performance
+    par(mfrow=c(1,1),mar=c(4,4,1,1))                             #sets graphical parameters such that subsequent figure are drawn in a nr-by-nc array by mfrows respectively and gives the number of lines of margin to be specified on the four sides of the plot c(bottom, L, top, R) -> see 'best.iter' plot below 
+    best.iter=gbm.perf(gbmOut,method="cv")                       #estimates optimal number of boosting iterations and plots 'training.error' performance measure; cv method extracts this optimal number using cross-validation
+    
+    ## predict with test data
+    preds=predict(gbmOut,dataTest,n.trees=best.iter,type="response")  #number of trees based on the optimal number of boosting iterations as set above (5,352)
+    
+    ## known
+    result=dataTest$response
+    
+    # ##estimate threshold value for classification of predicted probability
+    # #library(pROC)
+    # analysis <- roc(result,preds)  #roc([actual values],[predicted values])
+    # e <- cbind(analysis$thresholds,analysis$sensitivities+analysis$specificities) #pulls each array and binds them into dataframe: 1st column are thresholds, 2nd column are sensitivities + specificities
+    # 
+    # ##optimum threshold value
+    # opt_t <- subset(e,e[,2]==max(e[,2]))[,1] #subsets dataframe and returns the max (sens+spec) value of 2nd column of e 
+    # #threshold<-opt_t #set as threshold value
+    # #threshold = 0.2
+    
+    ## sensitivity and specificity                              #e.g., test run produced sensitivity of 0 b/c no predictedScores were > 0.5; and specificity of 1 b/c all predictedScores were <0.5
+    sen=InformationValue::sensitivity(result,preds)              #calculates sensitivity (# of obs with event AND predicted to have event, divided by # of obs w/ event) for a given logit model where input is the actual binary flag (as numerica vector) for the response variable and the predicted probability scores for each observation; if predicted value is above the threshold (defaults to 0.5), it will be considered an event (1) or else a non-event (0)
+    spec=InformationValue::specificity(result,preds)             #calculates specificity (# of obs w/o event AND predicted to not have event, divided by # of obs w/o event)  
+    
+    ## AUC on train
+    auc_train=gbm.roc.area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))   #compute Information Retrieval measures for pairwise loss for a single group, where input is the observed value and the predicted value
+    
+    ## AUC on test
+    auc_test=gbm.roc.area(yTest,predict(gbmOut,dataTest,n.trees=best.iter,type="response"))
+    
+    ## print
+    print(paste("hpar row ",row," done; test AUC is ",auc_test,sep=""))  #prints "hpar row [x] done; test AUC is []"
+    
+    ## save outputs
+    return(list(best=best.iter,                    #saves optimal number of iterations, AUC on training set, AUC on testing set, specificity, sensitivity, and row number as a list
+                trainAUC=auc_train,
+                testAUC=auc_test,
+                spec=spec,
+                sen=sen,
+                wrow=row))
+  }
+  
+  ## run the function for link
+  hpars=lapply(1:nrow(hgrid),function(x) hfit(x,response="link"))
+  
+  ## get results
+  hresults=data.frame(sapply(hpars,function(x) x$trainAUC),
+                      sapply(hpars,function(x) x$testAUC),
+                      sapply(hpars,function(x) x$spec),
+                      sapply(hpars,function(x) x$sen),
+                      sapply(hpars,function(x) x$wrow),
+                      sapply(hpars,function(x) x$best))
+  names(hresults)=c("trainAUC","testAUC",
+                    "spec","sen","row","best")
+  
+  ## combine and save
+  hsearch=merge(hresults,hgrid,by="row")
+  
+  # ## save
+  # hsearch$type="PCR"
+  
+  # ## rerun the function for competence
+  # hpars=lapply(1:nrow(hgrid),function(x) hfit(x,response="competence"))
+  # 
+  # ## get results
+  # hresults=data.frame(sapply(hpars,function(x) x$trainAUC),
+  #                     sapply(hpars,function(x) x$testAUC),
+  #                     sapply(hpars,function(x) x$spec),
+  #                     sapply(hpars,function(x) x$sen),
+  #                     sapply(hpars,function(x) x$wrow),
+  #                     sapply(hpars,function(x) x$best))
+  # names(hresults)=c("trainAUC","testAUC",
+  #                   "spec","sen","row","best")
+  # 
+  # ## combine and save
+  # csearch=merge(hresults,hgrid,by="row")
+  # 
+  # ## assign data type
+  # csearch$type="competence"
+  # 
+  # ## combine
+  # search=rbind.data.frame(csearch,hsearch)
+  # search$type=factor(search$type,levels=c("PCR","competence"))
+
+  search=hsearch
+  
+  ## export
+  write.csv(search,"figures/other/linkpred/par_tuning_data_summary_Model1.csv")
+  # write.csv(search,"Output/par_tuning_data_summary_Model2.csv")
+
+}else{
+  
+  ## 
+  search=read.csv("figures/other/linkpred/par_tuning_data_summary_Model1.csv")
+  # search=read.csv("Output/par_tuning_data_summary_Model2.csv")
+
+}
+
+```
+
+### *Assess model tuning results*
+We fit a beta regression model using mgcv::gam to explore the main interaction effects of tuning parameters, interaction depth and shrinkage, on performance metrics (AUC, sensitivity, and specificity). This model is appropriate for analyzing continuous response variables bounded b/w 0-1 (i.e,, beta distribution). Using ANOVA, we determine whether the coefficients b/w the two interactions depths, the two shrinkage rates, and the four possible interactions b/w them are significantly different. We then plot the performance of BRTs based on various parameter combinations. Finally, we assess the distribution of best.iter (optimal # of iterations) to determine the max # of trees to use for model training.
+Figure: *boxplot_brt_tuning.png*
+
+```{r brt_tuning_results}
+
+search=read.csv("figures/other/linkpred/par_tuning_data_summary_Model1.csv")
+# search=read.csv("figures/other/linkpred/par_tuning_data_summary_Model1.csv")
+# search=read.csv("figures/other/linkpred/par_tuning_data_summary_Model2.csv")
+
+# Convert parameters to factor and relabel values
+search$shrinkage=factor(search$shrinkage)
+lvl=rev(sort(unique(search$shrinkage)))  #sorts unique shrinkage par from large to small
+search$shrinkage=factor(search$shrinkage,levels=lvl); rm(lvl)  #applies as factor
+search$interaction.depth=factor(search$interaction.depth)
+
+# Fit beta regression model to the test AUCs; ANOVA
+mod=gam(testAUC~interaction.depth*shrinkage,  
+        data=search,method="REML",family=betar)
+anova(mod)
+
+# Fit beta regression model to the sensitivities; ANOVA
+mod=gam(sen~interaction.depth*shrinkage,
+        data=search,method="REML",family=betar)
+anova(mod)
+
+# Fit beta regression model to the specificities; ANOVA
+mod=gam(spec~interaction.depth*shrinkage,
+        data=search,method="REML",family=betar)
+anova(mod)
+
+# To plot model tuning performance, transform dataframe from wide to long
+search2=gather(search,measure,value,testAUC:sen)
+
+# Relabel values and convert to factor 
+search2$measure=plyr::revalue(search2$measure,
+                              c("sen"="sensitivity",  
+                                "spec"="specificity",
+                                "testAUC"="test AUC"))
+search2$measure=factor(search2$measure,
+                       levels=c("test AUC","sensitivity","specificity"))
+
+# Boxplot performance of model tuning w/ various parameter combinations
+png("figures/supplementary/s11fig_boxplot_brt_tuning_link.png",width=3.5,height=8,units="in",res=600)
+set.seed(1)
+ggplot(search2,aes(shrinkage,value,
+                   colour=interaction.depth,fill=interaction.depth))+
+  geom_boxplot(alpha=0.25)+
+  geom_point(alpha=0.75,
+             position = position_jitterdodge(dodge.width=0.75))+
+  theme_bw()+
+  theme(panel.grid.major=element_blank(),panel.grid.minor=element_blank())+
+  theme(axis.title.x=element_text(margin=margin(t=10,r=0,b=0,l=0)))+
+  theme(axis.title.y=element_text(margin=margin(t=0,r=10,b=0,l=0)))+
+  facet_grid(search2$measure,scales="free_y",switch="y")+
+  theme(strip.placement="outside",
+        strip.background=element_blank())+
+  theme(axis.text=element_text(size=10),
+        axis.title=element_text(size=12),
+        strip.text=element_text(size=12))+
+  theme(legend.position="top")+
+  scale_color_viridis(discrete=TRUE,option="D")+
+  scale_fill_viridis(discrete=TRUE,option="D")+
+  guides(colour=guide_legend(title="interaction depth"),
+         fill=guide_legend(title="interaction depth"))+
+  labs(y=NULL,
+       x="learning rate")+
+  scale_y_continuous(n.breaks=4)
+dev.off()
+
+# To determine optimal parameters for model training, subset tuning results by number of trees
+search_nt5000 <- search[search$n.trees==5000,]
+search_nt15000 <- search[search$n.trees==15000,]
+search_nt5000_sh0.01 <- search_nt5000[search_nt5000$shrinkage==0.010,]  #subset models with shrinkage==0.010
+
+# Plot best.iter to see max number of trees to include
+p1 <- search_nt5000 %>%
+  # ggplot( aes(x=best, fill=type)) +
+  ggplot( aes(x=best)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  ggtitle("(A) ntrees=5000 and shrinkage=0.001")
+p2 <- search_nt15000 %>%
+  # ggplot( aes(x=best, fill=type)) +
+  ggplot( aes(x=best)) +  
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080"))  +
+  ggtitle("(B) ntrees=15000 and shrinkage=0.001")
+p3 <- search_nt5000_sh0.01 %>%
+  # ggplot( aes(x=best, fill=type)) +
+  ggplot( aes(x=best)) +
+  geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+  scale_fill_manual(values=c("#69b3a2", "#404080")) +
+  ggtitle("(C) ntrees=5000 and shrinkage=0.01")
+
+# Combine plots and save to output - commenting out for HPC due to issues installing cowplot
+# png("Output/histogram_brt_tuning_bestiter.png",width=12,height=4,units="in",res=600)
+# plot_grid(p1,p2,p3) +
+#   ggtitle("Histogram of best iteration")
+# dev.off()
+
+# Clean
+rm(search,search2,hok,mod,search_nt5000,search_nt15000,search_nt5000_sh0.01,p1,p2,p3)
+
+```
+
+### *BRT function for applying across multiple data partitions*
+We create our BRT function for model training, where we apply the function across multiple data partitions.
+
+```{r brt_partition}
+
+# BRT function to use different data partitions
+brt_part=function(seed,response){
+  
+  ## Make new dataset
+  ndata=set
+  
+  ## Correct response variable
+  ndata$response=ndata[response][,1]
+  
+  ## Remove raw response variable
+    ndata$link=NULL
+
+  ## For BRT where cites is the response variable...
+  if(response=="cites"){
+    
+    ## We add 1 to cites if cites equals 0
+    ndata$cites=ifelse(ndata$cites==0,1,ndata$cites)
+    
+  }else{
+    
+    ndata=ndata
+    
+  }
+  
+  ## Use rsample package to split data
+  set.seed(seed)
+  split=initial_split(ndata,prop=0.7,strata="response")
+  
+  ## Create test and train datasets
+  dataTrain=training(split)
+  dataTest=testing(split)
+  
+  ## Get response variable for test dataset and train dataset
+  yTrain=dataTrain$response
+  yTest=dataTest$response
+  
+  ## Save distribution
+  dist=ifelse(response=="cites","poisson","bernoulli")
+  
+  ## Save number of trees based on previous plots of optimal iterations
+  nt=ifelse(response=="cites",10000,
+     ifelse(response=="link",4500,5000)) #see plots of best.iter 
+  
+  ## Run BRTs using gbm package
+  set.seed(1)
+  gbmOut=gbm(response ~ . ,data=dataTrain,
+             n.trees=nt,
+             distribution=dist,
+             shrinkage=0.01, #see plots of best.iter 
+             interaction.depth=3,
+             n.minobsinnode=4,
+             cv.folds=5,class.stratify.cv=TRUE,
+             bag.fraction=0.5,train.fraction=1,
+             n.cores=5,
+             verbose=F)
+            # par.details=(gbmParallel(num_threads=5)),
+
+  ## Get optimal number of iterations using gbm.perf & set plotting parameters for permance chart generated by gbm.perf
+  par(mfrow=c(1,1),mar=c(4,4,1,1))                         
+  best.iter=gbm.perf(gbmOut,method="cv")  #estimates optimal number of boosting iterations for a gbm object                 
+  
+  ## Predict with test data, applying the optimal number of iterations as n.trees
+  preds=predict(gbmOut,dataTest,n.trees=best.iter,type="response")
+  
+  ## Save known associations
+  result=dataTest$response
+  
+  ## Get sensitivity and specificity
+  sen=InformationValue::sensitivity(result,preds)
+  spec=InformationValue::specificity(result,preds)
+  
+  ## Get AUC from model training
+  auc_train=gbm.roc.area(yTrain,predict(gbmOut,dataTrain,n.trees=best.iter,type="response"))
+  
+  ## Get AUC from model test
+  auc_test=gbm.roc.area(yTest,predict(gbmOut,dataTest,n.trees=best.iter,type="response"))
+  
+  ## Skip if poisson
+  if(response=="cites"){
+    
+    perf=NA
+    
+  }else{
+    
+    ## Inner loop if yTest is all 0
+    if(var(yTest)==0){
+      
+      perf=NA
+    }else{
+      
+      ## To construct an ROC curve, create a prediction object using the predicted probabilities and the true class labels (known responses)
+      pr=prediction(preds,dataTest$response)   
+      
+      ## Next, calculate the desired performance measures specified by the 'measures' argument
+      perf=performance(pr,measure="tpr",x.measure="fpr")         #pr=prediction object; measure=performance measure for evaluation; x.measure=second perf measure (2-D)
+      
+      ## Create a dataframe of those performance values
+      perf=data.frame(perf@x.values,perf@y.values)
+      
+      
+      ## Rename columns
+      names(perf)=c("fpr","tpr")
+      
+      ## Add seed
+      perf$seed=seed
+      
+    }
+  }
+  
+  ## Get relative importance
+  bars=summary(gbmOut,n.trees=best.iter,plotit=F)
+  bars$rel.inf=round(bars$rel.inf,2)
+
+  ## Predict with cites
+  preds=predict(gbmOut,data,n.trees=best.iter,type="response")
+  #pred_data=data[c("gtip",'treename',"fam","ord","pcr","competence")]
+  pred_data=data[c("virus","gtip",'treename',"fam","ord","link")]
+  pred_data$pred=preds
+  pred_data$type=response
+  
+  ## Predict with mean cites
+  pdata=data
+  pdata$cites=mean(pdata$cites)
+  pred_data$cpred=predict(gbmOut,pdata,n.trees=best.iter,type="response")
+  
+  ## Sort by decreasing predicted probability
+  pred_data=pred_data[order(pred_data$pred,decreasing=T),]
+  
+  ## Print
+  print(paste("BRT ",seed," done; test AUC = ",auc_test,sep=""))
+  
+  ## Save outputs
+  return(list(mod=gbmOut,
+              best=best.iter,
+              trainAUC=auc_train,
+              testAUC=auc_test,
+              spec=spec,
+              sen=sen,
+              roc=perf,
+              rinf=bars,
+              predict=pred_data,
+              traindata=dataTrain,
+              testdata=dataTest,
+              seed=seed))
+}
+
+```
+
+### *Apply BRT function across 100 partitions to generate ensemble*
+
+```{r brt_ensemble}
+
+# Apply across 100 splits each
+# smax=101
+smax=100
+brts=lapply(1:smax,function(x) brt_part(seed=x,response="link"))
+
+# Run wos brts
+pm_brts=lapply(1:(smax),function(x) brt_part(seed=x,response="cites"))
+
+# Save results to data folder
+save(brts,pm_brts,file="data/brts_Model1.RData")
+# save(brts,pm_brts,file="data/brts_Model2.RData")
+# save(brts,pm_brts,file="data/brts_Model3.RData")
+
+
+# # If running on HPC, save results to Output folder
+# save(brts,pm_brts,file="Output/brts_Model1.RData")
+# save(brts,pm_brts,file="Output/brts_Model2.RData")
+# save(brts,pm_brts,file="Output/brts_Model3.RData")
+
+```
